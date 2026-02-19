@@ -1,1 +1,87 @@
-# crm_ai
+# CRM AI
+
+Multi-tenant SaaS CRM with AI-powered business insights, built for small businesses (restaurants, retail, bars).
+
+## Architecture
+
+- **Frontend**: React + Vite SPA deployed to S3 + CloudFront
+- **Auth**: AWS Cognito (User Pools + JWT)
+- **API**: API Gateway (HTTP API) + Lambda (Python 3.12)
+- **Database**: DynamoDB (single-table design, on-demand capacity)
+- **AI**: Amazon Bedrock (Claude Haiku)
+- **IaC**: Terraform
+- **Storage**: S3 (receipts, exports, static assets)
+
+## Project Structure
+
+```
+crm-ai/
+  infrastructure/          # Terraform modules
+  backend/
+    functions/             # Lambda functions (Python)
+      inventory/           # Inventory CRUD
+      transactions/        # Sale recording & summaries
+      purchases/           # Purchase order management
+      ai_insights/         # AI-powered business insights
+      onboarding/          # Tenant & user provisioning
+    shared/                # Shared utilities (db, auth, responses)
+    tests/                 # Backend tests
+  frontend/
+    src/
+      components/          # Reusable React components
+      pages/               # Route-level pages
+      hooks/               # Custom React hooks
+      api/                 # API client layer
+  docs/                    # Architecture docs
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.12+
+- Node.js 20+
+- Terraform 1.5+
+- AWS CLI configured with credentials
+
+### Backend (Local Development)
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pytest
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Infrastructure
+
+```bash
+cd infrastructure
+terraform init
+terraform plan
+terraform apply
+```
+
+## Data Model (DynamoDB Single-Table)
+
+| Entity         | PK                | SK                          |
+| -------------- | ----------------- | --------------------------- |
+| Tenant         | `TENANT#<id>`     | `TENANT#<id>`               |
+| Product        | `TENANT#<id>`     | `PRODUCT#<id>`              |
+| Supplier       | `TENANT#<id>`     | `SUPPLIER#<id>`             |
+| Purchase Order | `TENANT#<id>`     | `PO#<id>`                   |
+| Transaction    | `TENANT#<id>`     | `TXN#<timestamp>#<id>`      |
+| AI Insight     | `TENANT#<id>`     | `INSIGHT#<date>`            |
+
+## License
+
+Proprietary - All rights reserved.
