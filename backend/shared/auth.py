@@ -1,7 +1,14 @@
 """Auth middleware and helpers for API Gateway + Cognito JWT."""
 
+from __future__ import annotations
+
 from functools import wraps
-from typing import Any, Callable, ParamSpec, TypeVar
+from typing import Any, Callable, TypeVar
+
+try:
+    from typing import ParamSpec
+except ImportError:
+    from typing_extensions import ParamSpec
 
 P = ParamSpec("P")
 R = TypeVar("R")

@@ -1,5 +1,7 @@
 """AI insights Lambda handler for multi-tenant SaaS CRM."""
 
+from __future__ import annotations
+
 import sys
 import os
 import json

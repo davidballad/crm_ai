@@ -20,6 +20,7 @@ frontend/build/
 # Terraform
 infrastructure/.terraform/
 infrastructure/lambda_placeholder.zip
+infrastructure/packages/
 infrastructure/*.tfstate
 infrastructure/*.tfstate.backup
 infrastructure/*.tfplan

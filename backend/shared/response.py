@@ -1,5 +1,7 @@
 """API response helpers for API Gateway."""
 
+from __future__ import annotations
+
 import json
 from decimal import Decimal
 from typing import Any
@@ -8,6 +10,15 @@ CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
 }
+
+
+def _json_default(obj: Any) -> Any:
+    """Handle Decimal and other non-serializable types in JSON encoding."""
+    if isinstance(obj, Decimal):
+        if obj == int(obj):
+            return int(obj)
+        return float(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 def success(body: dict[str, Any] | None = None, status_code: int = 200) -> dict[str, Any]:

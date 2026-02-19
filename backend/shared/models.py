@@ -1,5 +1,7 @@
 """Pydantic models for CRM entities with DynamoDB serialization."""
 
+from __future__ import annotations
+
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -129,6 +131,58 @@ class Tenant(BaseModel):
 
     @classmethod
     def from_dynamo(cls, item: dict[str, Any]) -> "Tenant":
+        """Create model from a DynamoDB item."""
+        return cls.model_validate(item)
+
+
+class PurchaseOrderItem(BaseModel):
+    """Line item within a purchase order."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    product_id: str
+    product_name: str
+    quantity: int = Field(gt=0)
+    unit_cost: Decimal
+
+    def to_dynamo(self) -> dict[str, Any]:
+        """Return a dict suitable for DynamoDB."""
+        return _to_dynamo_value(self.model_dump())
+
+    @classmethod
+    def from_dynamo(cls, item: dict[str, Any]) -> "PurchaseOrderItem":
+        """Create model from a DynamoDB item."""
+        return cls.model_validate(item)
+
+
+class PurchaseOrder(BaseModel):
+    """Purchase order model."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    id: str | None = None
+    supplier_id: str | None = None
+    supplier_name: str
+    items: list[PurchaseOrderItem]
+    total_cost: Decimal | None = None
+    status: Literal["draft", "sent", "received", "cancelled"] = "draft"
+    notes: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    def to_dynamo(self) -> dict[str, Any]:
+        """Return a dict suitable for DynamoDB."""
+        data = self.model_dump(exclude_none=True)
+        if "items" in data:
+            data["items"] = [
+                item.model_dump() if hasattr(item, "model_dump") else item
+                for item in data["items"]
+            ]
+            data["items"] = [_to_dynamo_value(i) for i in data["items"]]
+        return _to_dynamo_value(data)
+
+    @classmethod
+    def from_dynamo(cls, item: dict[str, Any]) -> "PurchaseOrder":
         """Create model from a DynamoDB item."""
         return cls.model_validate(item)
 

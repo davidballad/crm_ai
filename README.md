@@ -12,6 +12,8 @@ Multi-tenant SaaS CRM with AI-powered business insights, built for small busines
 - **IaC**: Terraform
 - **Storage**: S3 (receipts, exports, static assets)
 
+See [docs/architecture.md](docs/architecture.md) for detailed diagrams (system overview, request lifecycle, DynamoDB design, auth flow, AI pipeline) and [docs/api-reference.md](docs/api-reference.md) for the full API reference.
+
 ## Project Structure
 
 ```
