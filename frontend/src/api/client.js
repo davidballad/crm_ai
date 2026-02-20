@@ -1,4 +1,7 @@
+import { matchMockRoute } from './mockData';
+
 const API_URL = import.meta.env.VITE_API_URL || '';
+const USE_MOCKS = !API_URL;
 
 let getToken = () => null;
 
@@ -6,7 +9,22 @@ export function setTokenGetter(fn) {
   getToken = fn;
 }
 
+function mockRequest(method, path, body) {
+  const match = matchMockRoute(method, path);
+  if (!match) {
+    return Promise.reject(new Error(`No mock handler for ${method} ${path}`));
+  }
+  return match.handler(...match.params, body);
+}
+
 async function request(path, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+
+  if (USE_MOCKS) {
+    const body = options.body ? JSON.parse(options.body) : undefined;
+    return mockRequest(method, path, body);
+  }
+
   const token = getToken();
   const headers = {
     'Content-Type': 'application/json',

@@ -12,12 +12,21 @@ const poolData = {
 
 const userPool = poolData.UserPoolId ? new CognitoUserPool(poolData) : null;
 
+const DEMO_USER = {
+  email: 'demo@crm-ai.local',
+  tenantId: 'demo-tenant',
+  role: 'admin',
+  sub: 'demo-user-001',
+};
+
+const isDemoMode = !userPool;
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(isDemoMode ? DEMO_USER : null);
+  const [token, setToken] = useState(isDemoMode ? 'demo-token' : null);
+  const [loading, setLoading] = useState(!isDemoMode);
 
   const extractUserData = useCallback((session) => {
     const idToken = session.getIdToken();
@@ -31,6 +40,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    if (isDemoMode) return;
     if (!userPool) {
       setLoading(false);
       return;
@@ -52,6 +62,11 @@ export function AuthProvider({ children }) {
   }, [extractUserData]);
 
   const signIn = useCallback((email, password) => {
+    if (isDemoMode) {
+      setUser(DEMO_USER);
+      setToken('demo-token');
+      return Promise.resolve();
+    }
     return new Promise((resolve, reject) => {
       if (!userPool) {
         reject(new Error('Cognito is not configured. Set VITE_COGNITO_USER_POOL_ID and VITE_COGNITO_CLIENT_ID.'));
@@ -83,7 +98,7 @@ export function AuthProvider({ children }) {
     setToken(null);
   }, []);
 
-  const value = { user, token, loading, signIn, signOut, isAuthenticated: !!token };
+  const value = { user, token, loading, signIn, signOut, isAuthenticated: !!token, isDemoMode };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Layers } from 'lucide-react';
 
 export default function Login() {
-  const { signIn } = useAuth();
+  const { signIn, isAuthenticated, isDemoMode } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/';
+
+  useEffect(() => {
+    if (isAuthenticated) navigate(from, { replace: true });
+  }, [isAuthenticated, navigate, from]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

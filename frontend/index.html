@@ -8,6 +8,11 @@
   </head>
   <body class="bg-gray-50 text-gray-900 antialiased">
     <div id="root"></div>
+    <script>
+      window.global = window.global || window;
+      window.Buffer = window.Buffer || { isBuffer: function() { return false; } };
+      window.process = window.process || { env: {} };
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
