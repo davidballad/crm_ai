@@ -31,3 +31,19 @@ variable "bedrock_model_id" {
   type        = string
   default     = "anthropic.claude-3-haiku-20240307-v1:0"
 }
+
+# -----------------------------------------------------------------------------
+# Square Integration
+# -----------------------------------------------------------------------------
+
+variable "square_application_id" {
+  description = "Square application ID"
+  type        = string
+  default     = ""
+}
+
+variable "square_environment" {
+  description = "Square environment: sandbox or production"
+  type        = string
+  default     = "sandbox"
+}

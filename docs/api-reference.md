@@ -186,6 +186,82 @@ DELETE /inventory/{id}
 
 ---
 
+### Download CSV Import Template
+
+```
+GET /inventory/import/template
+```
+
+Returns a CSV file with the correct column headers and sample rows. Customers can open this in Excel, fill in their products, and upload it.
+
+**Response:** `200 OK` (Content-Type: `text/csv`)
+
+```csv
+name,category,quantity,unit_cost,reorder_threshold,unit,sku,notes
+Chicken Breast,Food,100,4.50,20,lb,,Fresh boneless
+Rice,Food,200,1.20,30,lb,,Long grain
+Cooking Oil,Food,50,3.00,10,bottle,,Vegetable oil
+```
+
+**Example:**
+
+```bash
+curl "$API_URL/inventory/import/template" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o inventory_template.csv
+```
+
+---
+
+### Bulk Import from CSV
+
+```
+POST /inventory/import
+```
+
+Imports products in bulk from CSV data. Send the CSV content directly in the request body. Works with files exported from Excel (Save As > CSV).
+
+**Required columns:** `name`, `quantity`
+
+**Optional columns:** `category`, `unit_cost`, `reorder_threshold`, `unit`, `sku`, `notes`
+
+**Request:** Send CSV content as the request body with `Content-Type: text/csv`.
+
+**Response:** `201 Created`
+
+```json
+{
+  "imported_count": 15,
+  "error_count": 2,
+  "imported": [
+    {"id": "01HXYZ...", "name": "Chicken Breast", "quantity": 100},
+    {"id": "01HABC...", "name": "Rice", "quantity": 200}
+  ],
+  "errors": [
+    {"row": 5, "name": "Bad Item", "error": "invalid quantity: 'abc'"},
+    {"row": 8, "error": "name is required"}
+  ]
+}
+```
+
+**Errors:** `400` if CSV is empty, missing required columns, or all rows have errors.
+
+**Example:**
+
+```bash
+curl -X POST "$API_URL/inventory/import" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: text/csv" \
+  --data-binary @my_products.csv
+```
+
+**Notes:**
+- Handles Excel's BOM character (byte order mark) automatically
+- Rows with errors are skipped, not rolled back -- valid rows are still imported
+- Up to 50 imported items and 50 errors are returned in the response for brevity
+
+---
+
 ## Transactions
 
 ### List Transactions
@@ -388,6 +464,294 @@ Update status or details. When status changes to `"received"`, product quantitie
 | `notes`  | string | Updated notes                                        |
 
 **Response:** `200 OK` -- updated purchase order.
+
+---
+
+## Users
+
+### List Users
+
+```
+GET /users
+```
+
+Returns all users in the tenant. Requires `owner` or `manager` role.
+
+**Response:** `200 OK`
+
+```json
+{
+  "users": [
+    {
+      "id": "01HXYZ...",
+      "email": "staff@example.com",
+      "tenant_id": "01HABC...",
+      "role": "staff",
+      "display_name": "Jane",
+      "status": "active",
+      "invited_by": "owner@example.com",
+      "created_at": "2025-01-15T10:00:00+00:00"
+    }
+  ]
+}
+```
+
+---
+
+### Invite User
+
+```
+POST /users
+```
+
+Creates a Cognito user and sends them an email invite with a temporary password. Requires `owner` or `manager` role.
+
+**Request Body:**
+
+| Field          | Type   | Required | Default                  | Description                         |
+| -------------- | ------ | -------- | ------------------------ | ----------------------------------- |
+| `email`        | string | yes      | --                       | Email for the new user              |
+| `role`         | string | no       | `"staff"`                | `"manager"` or `"staff"` (not `"owner"`) |
+| `display_name` | string | no       | username from email      | Display name                        |
+
+**Role permissions:** Owners can invite managers and staff. Managers can only invite staff.
+
+**Response:** `201 Created` -- returns user object.
+
+**Errors:** `400` validation, `403` insufficient role, `409` email already exists.
+
+**Example:**
+
+```bash
+curl -X POST "$API_URL/users" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"cashier@example.com","role":"staff","display_name":"Maria"}'
+```
+
+---
+
+### Get User
+
+```
+GET /users/{id}
+```
+
+**Response:** `200 OK` -- user object. `404` if not found.
+
+---
+
+### Update User
+
+```
+PUT /users/{id}
+```
+
+Update a user's role or display name. Cannot modify the tenant owner.
+
+**Request Body:**
+
+| Field          | Type   | Description                              |
+| -------------- | ------ | ---------------------------------------- |
+| `role`         | string | `"manager"` or `"staff"` (synced to Cognito) |
+| `display_name` | string | Updated display name                     |
+
+**Response:** `200 OK` -- updated user object.
+
+---
+
+### Deactivate User
+
+```
+DELETE /users/{id}
+```
+
+Disables the user's Cognito account and marks them as inactive. Cannot deactivate the owner.
+
+**Response:** `200 OK`
+
+```json
+{
+  "message": "User cashier@example.com has been deactivated"
+}
+```
+
+---
+
+## Payments (Square)
+
+### Get Square Connect URL
+
+```
+GET /payments/square/connect
+```
+
+Returns the Square OAuth authorization URL. The tenant owner opens this URL to connect their Square merchant account.
+
+**Response:** `200 OK`
+
+```json
+{
+  "authorize_url": "https://connect.squareup.com/oauth2/authorize?client_id=...&state=<tenant_id>"
+}
+```
+
+---
+
+### Square OAuth Callback
+
+**No authentication required** (called by Square redirect).
+
+```
+GET /payments/square/callback?code=<auth_code>&state=<tenant_id>
+```
+
+Exchanges the authorization code for an access token and stores the Square connection. This endpoint is called automatically when Square redirects the user back after authorization.
+
+**Response:** `200 OK`
+
+```json
+{
+  "message": "Square account connected successfully",
+  "merchant_id": "MLxxxxxxx",
+  "location_id": "Lxxxxxxx"
+}
+```
+
+---
+
+### Check Square Connection Status
+
+```
+GET /payments/square/status
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "connected": true,
+  "merchant_id": "MLxxxxxxx",
+  "location_id": "Lxxxxxxx",
+  "connected_at": "2025-01-15T10:00:00+00:00"
+}
+```
+
+---
+
+### Disconnect Square
+
+```
+DELETE /payments/square/disconnect
+```
+
+Revokes the Square OAuth token and removes the connection record.
+
+**Response:** `200 OK`
+
+```json
+{
+  "message": "Square account disconnected"
+}
+```
+
+---
+
+### Create Payment
+
+```
+POST /payments
+```
+
+Creates a payment (card or cash), records the CRM transaction, and atomically decrements inventory. For card payments, calls the Square Payments API to charge the card first.
+
+**Request Body:**
+
+| Field            | Type    | Required          | Description                                |
+| ---------------- | ------- | ----------------- | ------------------------------------------ |
+| `source_id`      | string  | yes (card only)   | Square payment nonce from Terminal/Web SDK  |
+| `amount`         | decimal | yes               | Total payment amount                       |
+| `currency`       | string  | no                | Default: `"USD"`                           |
+| `payment_method` | string  | no                | Set to `"cash"` for cash payments          |
+| `items`          | array   | yes               | Line items (product_id, product_name, quantity, unit_price) |
+| `notes`          | string  | no                | Optional notes                             |
+
+**Response:** `201 Created`
+
+```json
+{
+  "transaction": {
+    "id": "01HXYZ...",
+    "items": [...],
+    "total": 25.00,
+    "payment_method": "card",
+    "square_payment_id": "xxxxxxxx",
+    "created_at": "2025-01-15T14:30:00+00:00"
+  },
+  "payment": {
+    "id": "01HABC...",
+    "square_payment_id": "xxxxxxxx",
+    "amount": 25.00,
+    "currency": "USD",
+    "status": "completed",
+    "source_type": "card_present",
+    "card_brand": "VISA",
+    "card_last4": "1234",
+    "receipt_url": "https://squareup.com/receipt/...",
+    "created_at": "2025-01-15T14:30:00+00:00"
+  }
+}
+```
+
+**Errors:** `400` if Square not connected, insufficient stock, or payment declined.
+
+**Example (card payment):**
+
+```bash
+curl -X POST "$API_URL/payments" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_id": "cnon:card-nonce-ok",
+    "amount": "25.00",
+    "items": [{"product_id":"01HABC","product_name":"Chicken Breast","quantity":2,"unit_price":"12.50"}]
+  }'
+```
+
+**Example (cash payment):**
+
+```bash
+curl -X POST "$API_URL/payments" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payment_method": "cash",
+    "amount": "15.00",
+    "items": [{"product_id":"01HABC","product_name":"Rice","quantity":5,"unit_price":"3.00"}]
+  }'
+```
+
+---
+
+### Square Webhook
+
+**No authentication required** (verified via HMAC-SHA256 signature).
+
+```
+POST /payments/webhook
+```
+
+Receives payment status updates from Square. Handles `payment.completed`, `payment.updated`, `refund.created`, and `refund.updated` events.
+
+This endpoint is registered in the Square Developer Dashboard and called automatically by Square. You do not call it directly.
+
+**Response:** `200 OK`
+
+```json
+{
+  "message": "Payment marked as completed"
+}
+```
 
 ---
 

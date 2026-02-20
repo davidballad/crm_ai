@@ -154,6 +154,19 @@ def query_gsi(
         raise DynamoDBError(str(e), e) from e
 
 
+def batch_put_items(items: list[dict[str, Any]]) -> None:
+    """Write items in batches of 25 (DynamoDB BatchWriteItem limit)."""
+    if not items:
+        return
+    try:
+        table = get_table()
+        with table.batch_writer() as batch:
+            for item in items:
+                batch.put_item(Item=item)
+    except ClientError as e:
+        raise DynamoDBError(str(e), e) from e
+
+
 def transact_write(items: list[dict[str, Any]]) -> None:
     """Wrapper around transact_write_items. Items is a list of transact item dicts (Put, Update, Delete, ConditionCheck)."""
     if not items:

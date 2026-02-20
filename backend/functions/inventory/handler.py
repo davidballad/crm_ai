@@ -14,6 +14,7 @@ from boto3.dynamodb.conditions import Key
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from shared.auth import require_auth
 from shared.db import (
+    batch_put_items,
     delete_item,
     get_item,
     get_table,
@@ -244,14 +245,181 @@ def delete_product(tenant_id: str, product_id: str) -> dict[str, Any]:
     return no_content()
 
 
+CSV_TEMPLATE = "name,category,quantity,unit_cost,reorder_threshold,unit,sku,notes\n"
+
+REQUIRED_CSV_COLUMNS = {"name", "quantity"}
+VALID_CSV_COLUMNS = {
+    "name", "category", "quantity", "unit_cost",
+    "reorder_threshold", "unit", "sku", "notes",
+}
+
+
+def get_csv_template(tenant_id: str) -> dict[str, Any]:
+    """Return a sample CSV template with example rows."""
+    sample = (
+        CSV_TEMPLATE
+        + 'Chicken Breast,Food,100,4.50,20,lb,,Fresh boneless\n'
+        + 'Rice,Food,200,1.20,30,lb,,Long grain\n'
+        + 'Cooking Oil,Food,50,3.00,10,bottle,,Vegetable oil\n'
+    )
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "text/csv",
+            "Content-Disposition": 'attachment; filename="inventory_template.csv"',
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type,Authorization",
+        },
+        "body": sample,
+    }
+
+
+def import_csv(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """Bulk import products from CSV data.
+
+    Accepts CSV content in the request body. Each row becomes a product.
+    Skips rows with validation errors and reports them in the response.
+    """
+    import csv
+    import io
+    from decimal import Decimal, InvalidOperation
+
+    body_raw = event.get("body", "")
+    if not body_raw:
+        return error("Request body is empty. Send CSV content in the body.", 400)
+
+    if event.get("isBase64Encoded"):
+        body_raw = base64.b64decode(body_raw).decode("utf-8")
+
+    # Handle BOM from Excel
+    if body_raw.startswith("\ufeff"):
+        body_raw = body_raw[1:]
+
+    reader = csv.DictReader(io.StringIO(body_raw))
+
+    if not reader.fieldnames:
+        return error("CSV has no header row. Expected columns: name, quantity, ...", 400)
+
+    headers = {h.strip().lower() for h in reader.fieldnames}
+    missing = REQUIRED_CSV_COLUMNS - headers
+    if missing:
+        return error(f"CSV missing required columns: {', '.join(sorted(missing))}", 400)
+
+    pk = build_pk(tenant_id)
+    now = now_iso()
+
+    items_to_write: list[dict[str, Any]] = []
+    imported: list[dict[str, Any]] = []
+    errors_list: list[dict[str, Any]] = []
+
+    for row_num, row in enumerate(reader, start=2):
+        # Normalize keys
+        row = {k.strip().lower(): (v.strip() if v else "") for k, v in row.items()}
+
+        name = row.get("name", "").strip()
+        if not name:
+            errors_list.append({"row": row_num, "error": "name is required"})
+            continue
+
+        quantity_str = row.get("quantity", "0").strip()
+        try:
+            quantity = int(quantity_str)
+            if quantity < 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            errors_list.append({"row": row_num, "name": name, "error": f"invalid quantity: '{quantity_str}'"})
+            continue
+
+        unit_cost = None
+        unit_cost_str = row.get("unit_cost", "").strip()
+        if unit_cost_str:
+            try:
+                unit_cost = Decimal(unit_cost_str)
+            except InvalidOperation:
+                errors_list.append({"row": row_num, "name": name, "error": f"invalid unit_cost: '{unit_cost_str}'"})
+                continue
+
+        reorder_threshold = 10
+        threshold_str = row.get("reorder_threshold", "").strip()
+        if threshold_str:
+            try:
+                reorder_threshold = int(threshold_str)
+            except (ValueError, TypeError):
+                errors_list.append({"row": row_num, "name": name, "error": f"invalid reorder_threshold: '{threshold_str}'"})
+                continue
+
+        category = row.get("category", "").strip() or None
+        unit = row.get("unit", "").strip() or "each"
+        sku = row.get("sku", "").strip() or None
+        notes = row.get("notes", "").strip() or None
+
+        product_id = generate_id()
+        sk = build_sk("PRODUCT", product_id)
+
+        item: dict[str, Any] = {
+            "pk": pk,
+            "sk": sk,
+            "id": product_id,
+            "name": name,
+            "quantity": quantity,
+            "reorder_threshold": reorder_threshold,
+            "unit": unit,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        if category:
+            item["category"] = category
+            item["gsi1pk"] = pk
+            item["gsi1sk"] = f"CATEGORY#{category}"
+        if unit_cost is not None:
+            item["unit_cost"] = unit_cost
+        if sku:
+            item["sku"] = sku
+        if notes:
+            item["notes"] = notes
+
+        items_to_write.append(item)
+        imported.append({"id": product_id, "name": name, "quantity": quantity})
+
+    if not items_to_write and not errors_list:
+        return error("CSV has no data rows", 400)
+
+    if items_to_write:
+        try:
+            batch_put_items(items_to_write)
+        except DynamoDBError as e:
+            return server_error(f"Failed to write products: {e}")
+
+    result: dict[str, Any] = {
+        "imported_count": len(imported),
+        "error_count": len(errors_list),
+        "imported": imported[:50],
+    }
+    if errors_list:
+        result["errors"] = errors_list[:50]
+
+    status = 201 if imported else 400
+    return success(result, status_code=status)
+
+
 @require_auth
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Route requests to the appropriate handler based on method and path."""
     try:
         method = event.get("requestContext", {}).get("http", {}).get("method", "")
+        path = event.get("path", "") or event.get("rawPath", "")
         path_params = event.get("pathParameters") or {}
         product_id = path_params.get("id")
         tenant_id = event.get("tenant_id", "")
+
+        # GET /inventory/import/template - download CSV template
+        if method == "GET" and path.endswith("/inventory/import/template"):
+            return get_csv_template(tenant_id)
+
+        # POST /inventory/import - bulk CSV import
+        if method == "POST" and path.endswith("/inventory/import"):
+            return import_csv(tenant_id, event)
 
         # GET /inventory - list
         if method == "GET" and not product_id:

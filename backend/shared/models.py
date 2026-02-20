@@ -75,7 +75,8 @@ class Transaction(BaseModel):
     id: str | None = None
     items: list[TransactionItem]
     total: Decimal
-    payment_method: Literal["cash", "card", "other"]
+    payment_method: Literal["cash", "card", "card_online", "other"]
+    square_payment_id: str | None = None
     notes: str | None = None
     created_at: str | None = None
 
@@ -184,6 +185,75 @@ class PurchaseOrder(BaseModel):
     @classmethod
     def from_dynamo(cls, item: dict[str, Any]) -> "PurchaseOrder":
         """Create model from a DynamoDB item."""
+        return cls.model_validate(item)
+
+
+class User(BaseModel):
+    """User within a tenant."""
+
+    id: str | None = None
+    email: str
+    tenant_id: str
+    role: Literal["owner", "manager", "staff"] = "staff"
+    display_name: str | None = None
+    status: Literal["active", "inactive"] = "active"
+    invited_by: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    def to_dynamo(self) -> dict[str, Any]:
+        """Return a dict suitable for DynamoDB."""
+        return _to_dynamo_value(self.model_dump(exclude_none=True))
+
+    @classmethod
+    def from_dynamo(cls, item: dict[str, Any]) -> "User":
+        """Create model from a DynamoDB item."""
+        return cls.model_validate(item)
+
+
+class SquareConnection(BaseModel):
+    """Tracks a tenant's Square OAuth connection."""
+
+    tenant_id: str
+    square_merchant_id: str
+    square_access_token: str
+    square_refresh_token: str | None = None
+    square_location_id: str | None = None
+    connected_at: str | None = None
+    updated_at: str | None = None
+
+    def to_dynamo(self) -> dict[str, Any]:
+        return _to_dynamo_value(self.model_dump(exclude_none=True))
+
+    @classmethod
+    def from_dynamo(cls, item: dict[str, Any]) -> "SquareConnection":
+        return cls.model_validate(item)
+
+
+class Payment(BaseModel):
+    """Square payment record linked to a CRM transaction."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    id: str | None = None
+    transaction_id: str | None = None
+    square_payment_id: str
+    square_order_id: str | None = None
+    amount: Decimal
+    currency: str = "USD"
+    status: Literal["pending", "completed", "failed", "cancelled", "refunded"] = "pending"
+    source_type: Literal["card_present", "card_online", "cash"] = "card_present"
+    card_brand: str | None = None
+    card_last4: str | None = None
+    receipt_url: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    def to_dynamo(self) -> dict[str, Any]:
+        return _to_dynamo_value(self.model_dump(exclude_none=True))
+
+    @classmethod
+    def from_dynamo(cls, item: dict[str, Any]) -> "Payment":
         return cls.model_validate(item)
 
 

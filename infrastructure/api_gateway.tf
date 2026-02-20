@@ -76,6 +76,22 @@ resource "aws_apigatewayv2_integration" "onboarding" {
   payload_format_version = "2.0"
 }
 
+resource "aws_apigatewayv2_integration" "users" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.services["users"].invoke_arn
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_integration" "payments" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.payments.invoke_arn
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
 # -----------------------------------------------------------------------------
 # Routes (with JWT authorizer except onboarding/tenant)
 # -----------------------------------------------------------------------------
@@ -116,6 +132,22 @@ resource "aws_apigatewayv2_route" "inventory_update" {
 resource "aws_apigatewayv2_route" "inventory_delete" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "DELETE /inventory/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+}
+
+resource "aws_apigatewayv2_route" "inventory_import" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /inventory/import"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+}
+
+resource "aws_apigatewayv2_route" "inventory_import_template" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /inventory/import/template"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   target             = "integrations/${aws_apigatewayv2_integration.inventory.id}"
@@ -196,6 +228,93 @@ resource "aws_apigatewayv2_route" "insights_generate" {
   target             = "integrations/${aws_apigatewayv2_integration.ai_insights.id}"
 }
 
+# Users routes
+resource "aws_apigatewayv2_route" "users_list" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /users"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.users.id}"
+}
+
+resource "aws_apigatewayv2_route" "users_invite" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /users"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.users.id}"
+}
+
+resource "aws_apigatewayv2_route" "users_get" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /users/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.users.id}"
+}
+
+resource "aws_apigatewayv2_route" "users_update" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "PUT /users/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.users.id}"
+}
+
+resource "aws_apigatewayv2_route" "users_delete" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "DELETE /users/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.users.id}"
+}
+
+# Payments routes (with auth)
+resource "aws_apigatewayv2_route" "payments_create" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /payments"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.payments.id}"
+}
+
+resource "aws_apigatewayv2_route" "payments_square_connect" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /payments/square/connect"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.payments.id}"
+}
+
+resource "aws_apigatewayv2_route" "payments_square_status" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /payments/square/status"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.payments.id}"
+}
+
+resource "aws_apigatewayv2_route" "payments_square_disconnect" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "DELETE /payments/square/disconnect"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.payments.id}"
+}
+
+# Payments routes (no auth - called by Square)
+resource "aws_apigatewayv2_route" "payments_square_callback" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /payments/square/callback"
+  target    = "integrations/${aws_apigatewayv2_integration.payments.id}"
+}
+
+resource "aws_apigatewayv2_route" "payments_webhook" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /payments/webhook"
+  target    = "integrations/${aws_apigatewayv2_integration.payments.id}"
+}
+
 # Onboarding routes (POST /onboarding/tenant - no auth)
 resource "aws_apigatewayv2_route" "onboarding_tenant" {
   api_id    = aws_apigatewayv2_api.main.id
@@ -232,11 +351,19 @@ resource "aws_apigatewayv2_stage" "default" {
 # -----------------------------------------------------------------------------
 
 resource "aws_lambda_permission" "api_gateway" {
-  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding"])
+  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users"])
 
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.services[each.key].function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "payments_api_gateway" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.payments.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
 }

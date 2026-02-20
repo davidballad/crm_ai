@@ -9,8 +9,10 @@ Multi-tenant SaaS CRM with AI-powered business insights, built for small busines
 - **API**: API Gateway (HTTP API) + Lambda (Python 3.12)
 - **Database**: DynamoDB (single-table design, on-demand capacity)
 - **AI**: Amazon Bedrock (Claude Haiku)
+- **Payments**: Square (in-store card readers + online Web Payments SDK)
 - **IaC**: Terraform
 - **Storage**: S3 (receipts, exports, static assets)
+- **Secrets**: AWS Secrets Manager (Square credentials)
 
 See [docs/architecture.md](docs/architecture.md) for detailed diagrams (system overview, request lifecycle, DynamoDB design, auth flow, AI pipeline) and [docs/api-reference.md](docs/api-reference.md) for the full API reference.
 
@@ -26,7 +28,9 @@ crm-ai/
       purchases/           # Purchase order management
       ai_insights/         # AI-powered business insights
       onboarding/          # Tenant & user provisioning
-    shared/                # Shared utilities (db, auth, responses)
+      users/               # Multi-user management (invite, roles)
+      payments/            # Square payment processing + webhooks
+    shared/                # Shared utilities (db, auth, responses, models)
     tests/                 # Backend tests
   frontend/
     src/
@@ -75,14 +79,17 @@ terraform apply
 
 ## Data Model (DynamoDB Single-Table)
 
-| Entity         | PK                | SK                          |
-| -------------- | ----------------- | --------------------------- |
-| Tenant         | `TENANT#<id>`     | `TENANT#<id>`               |
-| Product        | `TENANT#<id>`     | `PRODUCT#<id>`              |
-| Supplier       | `TENANT#<id>`     | `SUPPLIER#<id>`             |
-| Purchase Order | `TENANT#<id>`     | `PO#<id>`                   |
-| Transaction    | `TENANT#<id>`     | `TXN#<timestamp>#<id>`      |
-| AI Insight     | `TENANT#<id>`     | `INSIGHT#<date>`            |
+| Entity            | PK                | SK                          | GSI1PK                          |
+| ----------------- | ----------------- | --------------------------- | ------------------------------- |
+| Tenant            | `TENANT#<id>`     | `TENANT#<id>`               | --                              |
+| Product           | `TENANT#<id>`     | `PRODUCT#<id>`              | `TENANT#<id>`                   |
+| Supplier          | `TENANT#<id>`     | `SUPPLIER#<id>`             | --                              |
+| Purchase Order    | `TENANT#<id>`     | `PO#<id>`                   | --                              |
+| Transaction       | `TENANT#<id>`     | `TXN#<timestamp>#<id>`      | --                              |
+| AI Insight        | `TENANT#<id>`     | `INSIGHT#<date>`            | --                              |
+| User              | `TENANT#<id>`     | `USER#<id>`                 | --                              |
+| Payment           | `TENANT#<id>`     | `PAYMENT#<id>`              | `SQUARE_PAYMENT#<sq_id>`        |
+| Square Connection | `TENANT#<id>`     | `SQUARE#<id>`               | `SQUARE_MERCHANT#<merchant_id>` |
 
 ## License
 

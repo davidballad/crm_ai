@@ -4,7 +4,7 @@
 
 The codebase is **complete for an MVP**. Everything is written, tested (46 passing tests), and ready to deploy:
 
-- 5 Lambda functions (inventory, transactions, purchases, AI insights, onboarding)
+- 8 Lambda functions (inventory, transactions, purchases, AI insights, onboarding, users, payments)
 - Shared backend utilities (DB access, auth middleware, Pydantic models)
 - Terraform infrastructure (DynamoDB, Cognito, API Gateway, Lambda, S3, CloudFront)
 - React frontend (auth, dashboard, inventory, transactions, AI insights)
@@ -23,7 +23,8 @@ Before deploying, make sure you have:
 2. **Terraform 1.5+** installed
 3. **Python 3.12+** (for Lambda packaging -- the code targets Python 3.12 runtime)
 4. **Node.js 20+** (for frontend build)
-5. **An AWS account** with permissions to create: DynamoDB, Cognito, API Gateway, Lambda, S3, CloudFront, IAM roles
+5. **An AWS account** with permissions to create: DynamoDB, Cognito, API Gateway, Lambda, S3, CloudFront, Secrets Manager, IAM roles
+6. **Square Developer Account** (optional, for payment processing) -- sign up at [developer.squareup.com](https://developer.squareup.com)
 
 ---
 
@@ -54,9 +55,10 @@ This creates:
 - DynamoDB table (single-table, on-demand billing)
 - Cognito User Pool + SPA client
 - API Gateway HTTP API with JWT authorizer
-- 5 Lambda functions (with placeholder code)
+- 8 Lambda functions (with placeholder code)
 - S3 buckets (frontend + data)
 - CloudFront distribution
+- Secrets Manager secret (Square credentials placeholder)
 
 **Save the outputs** -- you'll need them:
 
@@ -84,7 +86,7 @@ NAME_PREFIX=$(terraform output -raw dynamodb_table_name | sed 's/-table$//')
 cd ..
 
 # Update each Lambda with real code
-for func in inventory transactions purchases ai_insights onboarding; do
+for func in inventory transactions purchases ai_insights onboarding users payments; do
     aws lambda update-function-code \
         --function-name "${NAME_PREFIX}-${func}" \
         --zip-file "fileb://infrastructure/packages/${func}.zip"
@@ -167,6 +169,97 @@ curl "$API_URL/inventory" -H "Authorization: Bearer $TOKEN"
 
 Note: USER_PASSWORD_AUTH flow needs to be enabled in the Cognito client. The default config uses SRP auth which requires the frontend SDK. The easiest path is to just use the frontend.
 
+### Step 6: Set Up Square Payment Processing
+
+Square integration is **optional** -- the system works without it (transactions are recorded manually). When you're ready to accept card payments:
+
+**6a. Create a Square Developer Account**
+
+1. Go to [developer.squareup.com](https://developer.squareup.com) and sign up
+2. Create a new application (e.g., "CRM AI Payments")
+3. Note down your **Application ID** and **Application Secret**
+
+**6b. Configure Terraform Variables**
+
+Add your Square Application ID to Terraform:
+
+```bash
+cd infrastructure
+terraform apply -var="square_application_id=YOUR_APP_ID" -var="square_environment=sandbox"
+```
+
+Use `sandbox` for testing, switch to `production` when ready for real charges.
+
+**6c. Store Secrets in AWS Secrets Manager**
+
+After `terraform apply`, update the placeholder secret with your real credentials:
+
+```bash
+aws secretsmanager put-secret-value \
+  --secret-id "crm-ai-dev-square-credentials" \
+  --secret-string '{
+    "application_secret": "YOUR_SQUARE_APP_SECRET",
+    "webhook_signature_key": "YOUR_WEBHOOK_SIGNATURE_KEY"
+  }'
+```
+
+> **Important:** Never put the application secret in Terraform variables or `.env` files. It belongs in Secrets Manager only.
+
+**6d. Register Square Webhook**
+
+In the Square Developer Dashboard:
+
+1. Go to your application > **Webhooks**
+2. Add a new webhook subscription
+3. Set the URL to: `<your_api_endpoint>/payments/webhook`
+4. Subscribe to these events:
+   - `payment.completed`
+   - `payment.updated`
+   - `refund.created`
+   - `refund.updated`
+5. Copy the **Signature Key** and update Secrets Manager (step 6c)
+
+**6e. Connect a Tenant's Square Account**
+
+Each tenant connects their own Square merchant account via OAuth:
+
+1. Tenant owner calls `GET /payments/square/connect` (returns an OAuth URL)
+2. Owner clicks the URL, authorizes your app in Square
+3. Square redirects back to `/payments/square/callback`
+4. Access token is stored in DynamoDB, linked to the tenant
+
+**6f. Test with Square Sandbox**
+
+Square's sandbox provides test card numbers and a simulated card reader:
+
+```bash
+# Check connection status
+curl "$API_URL/payments/square/status" -H "Authorization: Bearer $TOKEN"
+
+# Create a test card payment (sandbox nonce)
+curl -X POST "$API_URL/payments" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_id": "cnon:card-nonce-ok",
+    "amount": "25.00",
+    "currency": "USD",
+    "items": [{"product_id":"PROD_ID","product_name":"Chicken Breast","quantity":2,"unit_price":"12.50"}]
+  }'
+
+# Record a cash payment (no Square API call)
+curl -X POST "$API_URL/payments" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payment_method": "cash",
+    "amount": "15.00",
+    "items": [{"product_id":"PROD_ID","product_name":"Rice","quantity":5,"unit_price":"3.00"}]
+  }'
+```
+
+The sandbox nonce `cnon:card-nonce-ok` always succeeds. Use `cnon:card-nonce-declined` to test failures. See [Square Sandbox Testing](https://developer.squareup.com/docs/testing/sandbox) for all test values.
+
 ---
 
 ## AI Service Decision: Why Bedrock InvokeModel (Not AgentCore)
@@ -241,10 +334,15 @@ These are not blockers for deploying and testing, but should be addressed before
 - **Backup strategy** -- Enable DynamoDB point-in-time recovery (already in Terraform) + periodic exports
 - **CI/CD pipeline** -- GitHub Actions to run tests, package Lambdas, and deploy on merge to main
 
+### Completed (since MVP)
+
+- **Multi-user per tenant** -- Owner, manager, staff roles with invite flow, role hierarchy enforcement, and deactivation (Cognito + DynamoDB)
+- **Square payment integration** -- OAuth connect, in-store card payments (Square Terminal/Reader), online card payments (Web Payments SDK), cash recording, webhook processing for payment status updates
+
 ### Future (Phase 2/3)
 
-- **Stripe billing integration** -- Enforce free/starter/pro plan limits
-- **Multi-user per tenant** -- Manager, cashier, viewer roles (Cognito groups)
+- **Subscription billing** -- Enforce free/starter/pro plan limits (Stripe or Square Subscriptions)
+- **Custom domain** -- Route 53 + ACM certificate for `app.yourproduct.com`
 - **Receipt generation** -- PDF via Lambda + S3
 - **Mobile-responsive PWA** -- The React app is responsive but could be a PWA
 - **n8n webhook integration** -- Webhook endpoints for automation workflows

@@ -164,7 +164,41 @@ locals {
       memory_size = 256
       timeout     = 30
     }
+    users = {
+      memory_size = 256
+      timeout     = 30
+    }
   }
+}
+
+# Payments Lambda needs Square-specific env vars, defined separately
+resource "aws_lambda_function" "payments" {
+  function_name = "${local.name_prefix}-payments"
+  role          = aws_iam_role.lambda.arn
+  handler       = "handler.lambda_handler"
+  runtime       = "python3.12"
+
+  filename         = data.archive_file.lambda_placeholder.output_path
+  source_code_hash = data.archive_file.lambda_placeholder.output_base64sha256
+
+  memory_size = 256
+  timeout     = 30
+
+  environment {
+    variables = {
+      TABLE_NAME             = aws_dynamodb_table.main.name
+      COGNITO_USER_POOL_ID   = aws_cognito_user_pool.main.id
+      DATA_BUCKET            = aws_s3_bucket.data.id
+      SQUARE_APPLICATION_ID  = var.square_application_id
+      SQUARE_ENVIRONMENT     = var.square_environment
+      SQUARE_SECRET_ARN      = aws_secretsmanager_secret.square.arn
+      SQUARE_WEBHOOK_URL     = "${aws_apigatewayv2_api.main.api_endpoint}/payments/webhook"
+    }
+  }
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-payments"
+  })
 }
 
 resource "aws_lambda_function" "services" {

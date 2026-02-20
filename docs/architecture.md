@@ -27,15 +27,22 @@ graph TB
     Purchases["Purchases Service"]
     AIInsights["AI Insights Service"]
     Onboarding["Onboarding Service"]
+    Users["User Management Service"]
+    Payments["Payments Service"]
   end
 
   subgraph data [Data Layer]
     DynamoDB["DynamoDB Single Table"]
     S3Data["S3 Data Bucket"]
+    Secrets["Secrets Manager"]
   end
 
   subgraph ai [AI]
     Bedrock["Amazon Bedrock\nClaude Haiku"]
+  end
+
+  subgraph payments_ext [Payment Processing]
+    Square["Square API"]
   end
 
   subgraph hosting [Static Hosting]
@@ -52,6 +59,8 @@ graph TB
   APIGW --> Purchases
   APIGW --> AIInsights
   APIGW --> Onboarding
+  APIGW --> Users
+  APIGW --> Payments
   Inventory --> DynamoDB
   Transactions --> DynamoDB
   Purchases --> DynamoDB
@@ -59,10 +68,16 @@ graph TB
   AIInsights --> Bedrock
   Onboarding --> DynamoDB
   Onboarding --> Cognito
+  Users --> DynamoDB
+  Users --> Cognito
+  Payments --> DynamoDB
+  Payments --> Square
+  Payments --> Secrets
+  Square -->|Webhooks| Payments
   Transactions --> S3Data
 ```
 
-All services run as Lambda functions (Python 3.12) behind a single API Gateway HTTP API. Data is stored in a single DynamoDB table using a multi-tenant single-table design. The React SPA is served from S3 via CloudFront.
+All services run as Lambda functions (Python 3.12) behind a single API Gateway HTTP API. Data is stored in a single DynamoDB table using a multi-tenant single-table design. The React SPA is served from S3 via CloudFront. Square handles payment processing for both in-store (card readers) and online (Web Payments SDK) transactions. Square credentials are stored in AWS Secrets Manager.
 
 ---
 
@@ -120,29 +135,38 @@ erDiagram
 
 ### Access Patterns
 
-| Access Pattern                  | PK                | SK / Key Condition              | Index    |
-| ------------------------------- | ----------------- | ------------------------------- | -------- |
-| Get tenant                      | `TENANT#<tid>`    | `TENANT#<tid>`                  | Table    |
-| List all products               | `TENANT#<tid>`    | `begins_with(PRODUCT#)`         | Table    |
-| Get one product                 | `TENANT#<tid>`    | `PRODUCT#<pid>`                 | Table    |
-| Products by category            | `TENANT#<tid>`    | `CATEGORY#<cat>`                | GSI1     |
-| List suppliers                  | `TENANT#<tid>`    | `begins_with(SUPPLIER#)`        | Table    |
-| List purchase orders            | `TENANT#<tid>`    | `begins_with(PO#)`              | Table    |
-| List transactions (newest first)| `TENANT#<tid>`    | `begins_with(TXN#)` desc       | Table    |
-| Transactions by date range      | `TENANT#<tid>`    | `between(TXN#<start>, TXN#<end>)` | Table |
-| Get daily AI insight            | `TENANT#<tid>`    | `INSIGHT#<YYYY-MM-DD>`          | Table    |
-| Cross-entity query by SK        | --                | SK as partition key              | GSI2     |
+| Access Pattern                       | PK                          | SK / Key Condition                    | Index    |
+| ------------------------------------ | --------------------------- | ------------------------------------- | -------- |
+| Get tenant                           | `TENANT#<tid>`              | `TENANT#<tid>`                        | Table    |
+| List all products                    | `TENANT#<tid>`              | `begins_with(PRODUCT#)`               | Table    |
+| Get one product                      | `TENANT#<tid>`              | `PRODUCT#<pid>`                       | Table    |
+| Products by category                 | `TENANT#<tid>`              | `CATEGORY#<cat>`                      | GSI1     |
+| List suppliers                       | `TENANT#<tid>`              | `begins_with(SUPPLIER#)`              | Table    |
+| List purchase orders                 | `TENANT#<tid>`              | `begins_with(PO#)`                    | Table    |
+| List transactions (newest first)     | `TENANT#<tid>`              | `begins_with(TXN#)` desc             | Table    |
+| Transactions by date range           | `TENANT#<tid>`              | `between(TXN#<start>, TXN#<end>)`    | Table    |
+| Get daily AI insight                 | `TENANT#<tid>`              | `INSIGHT#<YYYY-MM-DD>`                | Table    |
+| List users in tenant                 | `TENANT#<tid>`              | `begins_with(USER#)`                  | Table    |
+| Get one user                         | `TENANT#<tid>`              | `USER#<uid>`                          | Table    |
+| List payments                        | `TENANT#<tid>`              | `begins_with(PAYMENT#)`               | Table    |
+| Get Square connection                | `TENANT#<tid>`              | `SQUARE#<tid>`                        | Table    |
+| Find payment by Square payment ID    | `SQUARE_PAYMENT#<sq_id>`    | --                                    | GSI1     |
+| Find tenant by Square merchant ID    | `SQUARE_MERCHANT#<mid>`     | --                                    | GSI1     |
+| Cross-entity query by SK             | --                          | SK as partition key                   | GSI2     |
 
 ### Entity Key Patterns
 
-| Entity         | PK             | SK                          | GSI1PK         | GSI1SK              |
-| -------------- | -------------- | --------------------------- | -------------- | ------------------- |
-| Tenant         | `TENANT#<tid>` | `TENANT#<tid>`              | --             | --                  |
-| Product        | `TENANT#<tid>` | `PRODUCT#<pid>`             | `TENANT#<tid>` | `CATEGORY#<cat>`    |
-| Supplier       | `TENANT#<tid>` | `SUPPLIER#<sid>`            | --             | --                  |
-| Purchase Order | `TENANT#<tid>` | `PO#<poid>`                 | --             | --                  |
-| Transaction    | `TENANT#<tid>` | `TXN#<timestamp>#<txnid>`   | --             | --                  |
-| AI Insight     | `TENANT#<tid>` | `INSIGHT#<YYYY-MM-DD>`      | --             | --                  |
+| Entity            | PK             | SK                          | GSI1PK                          | GSI1SK              |
+| ----------------- | -------------- | --------------------------- | ------------------------------- | ------------------- |
+| Tenant            | `TENANT#<tid>` | `TENANT#<tid>`              | --                              | --                  |
+| Product           | `TENANT#<tid>` | `PRODUCT#<pid>`             | `TENANT#<tid>`                  | `CATEGORY#<cat>`    |
+| Supplier          | `TENANT#<tid>` | `SUPPLIER#<sid>`            | --                              | --                  |
+| Purchase Order    | `TENANT#<tid>` | `PO#<poid>`                 | --                              | --                  |
+| Transaction       | `TENANT#<tid>` | `TXN#<timestamp>#<txnid>`   | --                              | --                  |
+| AI Insight        | `TENANT#<tid>` | `INSIGHT#<YYYY-MM-DD>`      | --                              | --                  |
+| User              | `TENANT#<tid>` | `USER#<uid>`                | --                              | --                  |
+| Payment           | `TENANT#<tid>` | `PAYMENT#<payid>`           | `SQUARE_PAYMENT#<sq_id>`        | `TENANT#<tid>`      |
+| Square Connection | `TENANT#<tid>` | `SQUARE#<tid>`              | `SQUARE_MERCHANT#<merchant_id>` | `TENANT#<tid>`      |
 
 Transactions use a composite SK with the ISO timestamp first, enabling efficient date-range queries and natural newest-first ordering with `ScanIndexForward=False`.
 
@@ -252,6 +276,101 @@ Key design decisions:
 - Results are cached in DynamoDB with a 7-day TTL for automatic cleanup
 - The prompt includes structured business data (inventory stats, transaction summaries) for grounded analysis
 - Claude Haiku is used for cost efficiency (~$0.25/M input tokens)
+
+---
+
+## Square Payment Flow
+
+### Card Payment (In-Store or Online)
+
+```mermaid
+sequenceDiagram
+  participant B as Browser / Card Reader
+  participant AG as API Gateway
+  participant P as Payments Lambda
+  participant SM as Secrets Manager
+  participant SQ as Square API
+  participant DB as DynamoDB
+
+  B->>AG: POST /payments (source_id, amount, items)
+  AG->>P: Invoke (JWT validated)
+
+  Note over P: Step 1 -- Get Square connection
+  P->>DB: GetItem(TENANT#<tid>, SQUARE#<tid>)
+  DB-->>P: access_token, location_id
+
+  Note over P: Step 2 -- Charge via Square
+  P->>SQ: CreatePayment(source_id, amount, location_id)
+  SQ-->>P: payment_id, status, card_details, receipt_url
+
+  Note over P: Step 3 -- Record atomically
+  P->>DB: TransactWrite: Put(TXN) + Put(PAYMENT) + Update(PRODUCT qty) x N
+  DB-->>P: OK
+
+  P-->>AG: 201 {transaction, payment}
+  AG-->>B: Payment complete
+
+  Note over SQ: Async webhook
+  SQ->>AG: POST /payments/webhook (HMAC signed)
+  AG->>P: Invoke (no JWT)
+  P->>SM: Get webhook signature key
+  SM-->>P: Key
+  P->>P: Verify HMAC-SHA256 signature
+  P->>DB: Update payment status via GSI1 lookup
+  P-->>AG: 200 OK
+```
+
+### OAuth Connection (One-Time Setup)
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant AG as API Gateway
+  participant P as Payments Lambda
+  participant SQ as Square OAuth
+  participant DB as DynamoDB
+
+  B->>AG: GET /payments/square/connect
+  AG->>P: Invoke
+  P-->>AG: {authorize_url}
+  AG-->>B: Square OAuth URL
+
+  B->>SQ: Owner authorizes app
+  SQ->>AG: GET /payments/square/callback?code=xxx&state=<tid>
+  AG->>P: Invoke (no JWT)
+
+  P->>SQ: ObtainToken(code)
+  SQ-->>P: access_token, refresh_token, merchant_id
+  P->>SQ: ListLocations()
+  SQ-->>P: location_id
+
+  P->>DB: PutItem(SQUARE_CONNECTION with GSI1 for merchant lookup)
+  P->>DB: Update tenant (square_connected=true)
+  P-->>AG: 200 {connected, merchant_id, location_id}
+  AG-->>B: Square connected
+```
+
+Key design decisions:
+- Square access tokens are stored per-tenant in DynamoDB (encrypted at rest), not in environment variables
+- GSI1 is used for webhook lookups: `SQUARE_PAYMENT#<id>` finds the payment record, `SQUARE_MERCHANT#<id>` finds the tenant
+- Payments and transactions are written atomically with inventory decrements using DynamoDB `TransactWriteItems`
+- Cash payments bypass Square API but still go through the same transaction + inventory pipeline
+- Webhook signatures are verified using HMAC-SHA256 with a key from Secrets Manager
+- Square app secret is stored in Secrets Manager, never in Terraform variables or Lambda env vars
+
+---
+
+## Multi-User Tenant Model
+
+Each tenant supports multiple users with a role hierarchy:
+
+| Role      | Level | Can Invite       | Can Manage       |
+| --------- | ----- | ---------------- | ---------------- |
+| `owner`   | 3     | managers + staff | managers + staff |
+| `manager` | 2     | staff only       | staff only       |
+| `staff`   | 1     | nobody           | nobody           |
+
+Users are created in both Cognito (for authentication) and DynamoDB (for tenant-scoped queries). The `custom:tenant_id` and `custom:role` JWT claims ensure data isolation and role enforcement at every API call.
 
 ---
 
