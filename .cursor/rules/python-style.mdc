@@ -1,0 +1,53 @@
+---
+description: Python coding standards and style conventions for this project
+globs: */.py
+alwaysApply: false
+---
+
+# Python Coding StyleNaming Conventions
+
+- Functions: camelCase for Lambda/production code (e.g. storeChatHistory, getEmbedding)
+- Variables: snake_case (e.g. access_token, file_name, source_bucket)
+- Constants: UPPER_SNAKE_CASE at module level (e.g. REGION, VECTOR_BUCKET)
+File Structure (in order)
+1. Module docstring (triple-quoted, describe purpose)
+2. Imports
+3. Logger setup
+4. AWS client initialization
+5. Configuration / constants
+6. Helper functions (grouped by section with divider comments)
+7. Lambda handler (for Lambda files)
+8. if __name__ == "__main__": block (for local testing)
+Section DividersUse this style for logical groupings:# =============================================================================
+# Section Name
+# =============================================================================
+Imports
+- Standard library first, then third-party, then local — separated by blank lines
+- Prefer import X for modules, from X import Y for specific items
+Logging
+- Use logging module, never print for operational output
+- Lambda files: logger = logging.getLogger() + logger.setLevel(logging.INFO)
+- Scripts/tests: logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s') + logger = logging.getLogger(__name__)
+- Use correct severity: logger.error() for failures, logger.info() for normal events
+Error Handling
+- Wrap handler logic in try/except Exception with structured error response
+- Catch specific exceptions first when available (e.g. ssm.exceptions.ParameterNotFound)
+- Lambda handlers return {'statusCode': int, 'body': json.dumps(...)}
+- Log errors before returning
+Configuration
+- All configuration via environment variables
+- Required: os.environ['KEY'] (will raise if missing)
+- Optional with defaults: os.environ.get('KEY', 'default')
+- Group config into a getConfig() function when there are many values
+Docstrings
+- Use Google-style docstrings with Args: and Returns: sections
+- Always include a module-level docstring describing the file's purpose
+Type Hints
+- Include type hints on function signatures (params and return type)
+- Use typing.Optional for nullable parameters
+Common Libraries
+- boto3 for AWS services
+- json for serialization
+- logging for structured logging
+- os for environment config
+- concurrent.futures.ThreadPoolExecutor for parallel work

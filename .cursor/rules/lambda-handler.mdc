@@ -1,0 +1,52 @@
+---
+description: Lambda handler structure and patterns
+globs: lambdas/*/.py
+alwaysApply: false
+---
+
+# Lambda Handler PatternHandler SignatureAlways handler(event, context) — no other names or signatures.Handler Structure
+
+1. Log entry point
+2. Load and validate config
+3. Execute business logic (delegate to helper functions)
+4. Return structured response
+5. Catch-all exception returns 500
+def handler(event, context):
+    """Brief description of what this Lambda does."""
+    logger.info("Starting <lambda-name>")
+
+    try:
+        config = getConfig()
+        if not all([config['required_key_1'], config['required_key_2']]):
+            raise ValueError("Missing required environment variables: ...")
+
+        # Delegate to helper functions
+        results = processData(config)
+
+        logger.info(f"Complete: {results['summary_field']}")
+        return {
+            'statusCode': 200,
+            'body': json.dumps({
+                'message': 'Success',
+                **results
+            })
+        }
+
+    except Exception as e:
+        logger.error(f"Error in handler: {str(e)}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': str(e)})
+        }
+Response FormatAlways return {'statusCode': int, 'body': json.dumps({...})}.
+- 200 for success with summary data in body
+- 500 for unhandled errors with error message in body
+Time-Aware ProcessingFor long-running Lambdas, check remaining execution time and stop early:if context and hasattr(context, 'get_remaining_time_in_millis'):
+    remaining_ms = context.get_remaining_time_in_millis()
+    if remaining_ms < 30_000:
+        logger.info(f"Only {remaining_ms}ms remaining - stopping early")
+        break
+Keep Handlers Thin
+- Handler validates config and orchestrates — never contains business logic directly
+- Helper functions do the real work
+- Each helper is independently testable

@@ -1,0 +1,54 @@
+---
+description: Terraform file structure and naming conventions for this project
+alwaysApply: false
+---
+
+| main.tf | Module wiring — instantiate modules and pass variables |
+| _variables.tf | Root input variables |
+| _providers.tf | AWS provider config with default tags |
+| _versions.tf | Terraform/provider version constraints and S3 backend |
+| _locals.tf | Computed values and tag maps |
+| _data.tf | Shared data sources |Prefix infrastructure files with _ to visually separate them from feature files.Module Directory LayoutEach module (e.g. teams-data/) follows:| File | Purpose |
+|------|---------|
+| _variables.tf | Module input variables |
+| _output.tf | Module outputs |
+| locals.tf | Derived names and identifiers |
+| data.tf | Data sources (archives, IAM policy docs) |
+| {feature}.tf | One file per feature/component (Lambda + IAM + triggers) |Naming ConventionsResources
+- Use hyphens: aws_lambda_function.teams-data, aws_iam_role.daily-embedding-sync-role
+- Pattern: {component}-{suffix} (e.g. teams-data-log-group)
+Locals for Display NamesDerive all resource names from application_identifier in locals.tf:locals {
+  application_identifier = var.application_identifier
+  vector_bucket_name     = "${local.application_identifier}-knowledge-${var.account_id}"
+  function_name          = "${local.application_identifier}-teams-data"
+}
+Variables
+- snake_case for standard inputs (environment, region, account_id)
+- PascalCase for external secrets/IDs (WebexCredentials, KnowledgeBaseId)
+Environment Configurationterraform/config/
+├── dev/
+│   ├── variables.tfvars
+│   └── backend.tfvars
+├── test/
+│   └── ...
+└── prod/
+    └── ...
+
+- Init: terraform init -backend-config=config/{env}/backend.tfvars
+- Plan: terraform plan -var-file=config/{env}/variables.tfvars
+Backend
+- S3 backend declared generically: backend "s3" {}
+- Actual config in backend.tfvars per environment
+- Bucket: cigna-tf-state-{account_id}, Key: {project}/{env}.tfstate
+- DynamoDB lock table: cigna-tf-lock-{account_id}
+TaggingDefault Tags (provider level)Corporate tags in _providers.tf: AssetOwner, CostCenter, ServiceNowBA, ServiceNowAS, SecurityReviewID, P2PResource Tags (locals)
+- tags — standard resource tags passed to all resources
+- data_tags — data classification tags for S3 (BusinessEntity, DataClassification, etc.)
+ServiceNowAS is environment-dependent via ASbyEnv map.Resource Grouping
+- Group related resources in a single file (Lambda + IAM role + policy + EventBridge trigger)
+- Use comment headers for sections within a file: ##### EventBridge trigger #####
+- Keep shared data sources in data.tf
+Provider
+- Default region: us-east-1
+- Profile: saml
+- CRR alias aws.crr for us-west-1 when cross-region replication is needed
