@@ -29,6 +29,19 @@ const DAILY_SUMMARY = {
   items_sold: 12,
 };
 
+const CONTACTS = [
+  { contact_id: 'con-001', name: 'Alice Smith', email: 'alice@example.com', phone: '+15551234567', source_channel: 'whatsapp', lead_status: 'closed_won', tier: 'gold', tags: [], created_ts: new Date().toISOString() },
+  { contact_id: 'con-002', name: 'Bob Jones', email: 'bob@example.com', phone: '+15559876543', source_channel: 'whatsapp', lead_status: 'interested', tier: 'silver', tags: [], created_ts: new Date().toISOString() },
+  { contact_id: 'con-003', name: 'Carol Lee', email: 'carol@example.com', phone: '+15557778888', source_channel: 'whatsapp', lead_status: 'prospect', tier: 'bronze', tags: [], created_ts: new Date().toISOString() },
+];
+
+const MESSAGES = [
+  { message_id: 'msg-001', channel: 'whatsapp', from_number: '+15551234567', to_number: '+15550000000', text: 'I want to order', contact_id: 'con-001', category: 'closed', created_ts: new Date().toISOString() },
+  { message_id: 'msg-002', channel: 'whatsapp', from_number: '+15550000000', to_number: '+15551234567', text: 'Your order has been confirmed!', contact_id: 'con-001', category: 'closed', created_ts: new Date().toISOString() },
+  { message_id: 'msg-003', channel: 'whatsapp', from_number: '+15559876543', to_number: '+15550000000', text: 'I want info', contact_id: 'con-002', category: 'active', created_ts: new Date().toISOString() },
+  { message_id: 'msg-004', channel: 'whatsapp', from_number: '+15557778888', to_number: '+15550000000', text: 'Order', contact_id: 'con-003', category: 'incomplete', created_ts: new Date().toISOString() },
+];
+
 const INSIGHTS = {
   insight: {
     summary: 'Your electronics category is driving 65% of revenue today. Wireless Earbuds Pro and Webcam HD 1080p are top sellers. Three products (USB-C Hub, Mechanical Keyboard, Laptop Stand) are critically low on stock and need immediate reordering to avoid stockouts this week.',
@@ -125,6 +138,73 @@ export const mockHandlers = {
     await delay(1500);
     INSIGHTS.insight.generated_at = new Date().toISOString();
     return INSIGHTS;
+  },
+
+  async 'GET /contacts'() {
+    await delay();
+    return { contacts: CONTACTS };
+  },
+  async 'GET /contacts/:id'(id) {
+    await delay();
+    const c = CONTACTS.find((x) => x.contact_id === id);
+    if (!c) throw new Error('Contact not found');
+    return c;
+  },
+  async 'POST /contacts'(_, body) {
+    await delay(300);
+    const newContact = { contact_id: `con-${Date.now()}`, ...body, created_ts: new Date().toISOString() };
+    CONTACTS.push(newContact);
+    return newContact;
+  },
+  async 'PUT /contacts/:id'(id, body) {
+    await delay(300);
+    const idx = CONTACTS.findIndex((c) => c.contact_id === id);
+    if (idx === -1) throw new Error('Contact not found');
+    Object.assign(CONTACTS[idx], body);
+    return CONTACTS[idx];
+  },
+  async 'PATCH /contacts/:id'(id, body) {
+    await delay(300);
+    const idx = CONTACTS.findIndex((c) => c.contact_id === id);
+    if (idx === -1) throw new Error('Contact not found');
+    Object.assign(CONTACTS[idx], body);
+    return CONTACTS[idx];
+  },
+  async 'DELETE /contacts/:id'(id) {
+    await delay(200);
+    const idx = CONTACTS.findIndex((c) => c.contact_id === id);
+    if (idx !== -1) CONTACTS.splice(idx, 1);
+    return null;
+  },
+  async 'GET /contacts/:id/messages'(id) {
+    await delay();
+    const list = MESSAGES.filter((m) => m.contact_id === id || m.from_number);
+    return { messages: list };
+  },
+
+  async 'GET /messages'() {
+    await delay();
+    return { messages: MESSAGES };
+  },
+  async 'POST /messages'(_, body) {
+    await delay(300);
+    const newMsg = { message_id: `msg-${Date.now()}`, category: 'active', ...body, created_ts: new Date().toISOString() };
+    MESSAGES.push(newMsg);
+    return newMsg;
+  },
+  async 'PATCH /messages/:id/flags'(id, body) {
+    await delay(200);
+    const idx = MESSAGES.findIndex((m) => m.message_id === id);
+    if (idx === -1) throw new Error('Message not found');
+    Object.assign(MESSAGES[idx], body);
+    return MESSAGES[idx];
+  },
+  async 'PATCH /transactions/:id'(id, body) {
+    await delay(300);
+    const idx = TRANSACTIONS.findIndex((t) => t.id === id);
+    if (idx === -1) throw new Error('Transaction not found');
+    Object.assign(TRANSACTIONS[idx], body);
+    return TRANSACTIONS[idx];
   },
 };
 

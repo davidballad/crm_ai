@@ -68,20 +68,24 @@ class TransactionItem(BaseModel):
 
 
 class Transaction(BaseModel):
-    """Sales/purchase transaction model."""
+    """Sales transaction with idempotency and delivery info."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: str | None = None
+    contact_id: str | None = None
     items: list[TransactionItem]
     total: Decimal
-    payment_method: Literal["cash", "card", "card_online", "other"]
+    payment_method: Literal["cash", "transfer", "card", "card_online", "other"]
+    delivery_method: Literal["pickup", "delivery"] | None = None
+    delivery_location: str | None = None
+    status: Literal["pending", "confirmed"] = "pending"
+    idempotency_key: str | None = None
     square_payment_id: str | None = None
     notes: str | None = None
     created_at: str | None = None
 
     def to_dynamo(self) -> dict[str, Any]:
-        """Return a dict suitable for DynamoDB."""
         data = self.model_dump(exclude_none=True)
         if "items" in data:
             data["items"] = [item.model_dump() if hasattr(item, "model_dump") else item for item in data["items"]]
@@ -90,7 +94,6 @@ class Transaction(BaseModel):
 
     @classmethod
     def from_dynamo(cls, item: dict[str, Any]) -> "Transaction":
-        """Create model from a DynamoDB item."""
         return cls.model_validate(item)
 
 
@@ -276,4 +279,51 @@ class AIInsight(BaseModel):
     @classmethod
     def from_dynamo(cls, item: dict[str, Any]) -> "AIInsight":
         """Create model from a DynamoDB item."""
+        return cls.model_validate(item)
+
+
+class Contact(BaseModel):
+    """Contact/lead model with fixed lead statuses and tiers."""
+
+    tenant_id: str | None = None
+    contact_id: str | None = None
+    name: str
+    phone: str | None = None
+    email: str | None = None
+    source_channel: str | None = None
+    lead_status: Literal["prospect", "interested", "closed_won", "abandoned"] = "prospect"
+    tier: Literal["bronze", "silver", "gold"] = "bronze"
+    last_activity_ts: str | None = None
+    tags: list[str] | None = None
+    created_ts: str | None = None
+
+    def to_dynamo(self) -> dict[str, Any]:
+        return _to_dynamo_value(self.model_dump(exclude_none=True))
+
+    @classmethod
+    def from_dynamo(cls, item: dict[str, Any]) -> "Contact":
+        return cls.model_validate(item)
+
+
+class Message(BaseModel):
+    """Inbound/outbound message (e.g. WhatsApp) with conversation category."""
+
+    tenant_id: str | None = None
+    message_id: str | None = None
+    channel: str = "whatsapp"
+    channel_message_id: str | None = None
+    from_number: str | None = None
+    to_number: str | None = None
+    text: str | None = None
+    metadata: dict[str, Any] | None = None
+    contact_id: str | None = None
+    category: Literal["active", "incomplete", "closed"] = "active"
+    processed_flags: list[str] | None = None
+    created_ts: str | None = None
+
+    def to_dynamo(self) -> dict[str, Any]:
+        return _to_dynamo_value(self.model_dump(exclude_none=True))
+
+    @classmethod
+    def from_dynamo(cls, item: dict[str, Any]) -> "Message":
         return cls.model_validate(item)

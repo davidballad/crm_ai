@@ -5,11 +5,11 @@
 resource "aws_apigatewayv2_api" "main" {
   name          = "${local.name_prefix}-api"
   protocol_type = "HTTP"
-  description   = "CRM AI API Gateway"
+  description   = "Clienta AI API Gateway"
 
   cors_configuration {
     allow_origins = ["*"]
-    allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allow_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     allow_headers = ["Content-Type", "Authorization"]
   }
 
@@ -92,6 +92,22 @@ resource "aws_apigatewayv2_integration" "payments" {
   payload_format_version = "2.0"
 }
 
+resource "aws_apigatewayv2_integration" "contacts" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.services["contacts"].invoke_arn
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_integration" "messages" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.services["messages"].invoke_arn
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
 # -----------------------------------------------------------------------------
 # Routes (with JWT authorizer except onboarding/tenant)
 # -----------------------------------------------------------------------------
@@ -153,6 +169,64 @@ resource "aws_apigatewayv2_route" "inventory_import_template" {
   target             = "integrations/${aws_apigatewayv2_integration.inventory.id}"
 }
 
+# Contacts routes
+resource "aws_apigatewayv2_route" "contacts_list" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /contacts"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
+resource "aws_apigatewayv2_route" "contacts_create" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /contacts"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
+resource "aws_apigatewayv2_route" "contacts_get" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /contacts/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
+resource "aws_apigatewayv2_route" "contacts_update" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "PUT /contacts/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
+resource "aws_apigatewayv2_route" "contacts_delete" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "DELETE /contacts/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
+resource "aws_apigatewayv2_route" "contacts_patch" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "PATCH /contacts/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
+# Messages routes (conversation history for a contact)
+resource "aws_apigatewayv2_route" "contacts_messages" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /contacts/{id}/messages"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.messages.id}"
+}
+
 # Transactions routes
 resource "aws_apigatewayv2_route" "transactions_list" {
   api_id             = aws_apigatewayv2_api.main.id
@@ -173,6 +247,14 @@ resource "aws_apigatewayv2_route" "transactions_create" {
 resource "aws_apigatewayv2_route" "transactions_get" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "GET /transactions/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+}
+
+resource "aws_apigatewayv2_route" "transactions_patch" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "PATCH /transactions/{id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   target             = "integrations/${aws_apigatewayv2_integration.transactions.id}"
@@ -315,6 +397,44 @@ resource "aws_apigatewayv2_route" "payments_webhook" {
   target    = "integrations/${aws_apigatewayv2_integration.payments.id}"
 }
 
+# Messages routes (authenticated)
+resource "aws_apigatewayv2_route" "messages_list" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /messages"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.messages.id}"
+}
+
+resource "aws_apigatewayv2_route" "messages_create" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /messages"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.messages.id}"
+}
+
+resource "aws_apigatewayv2_route" "messages_patch_flags" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "PATCH /messages/{id}/flags"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.messages.id}"
+}
+
+# Webhook: inbound message (no auth; Meta WhatsApp Cloud API; GET for verification)
+resource "aws_apigatewayv2_route" "webhooks_inbound_message_get" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /webhooks/inbound-message"
+  target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
+}
+
+resource "aws_apigatewayv2_route" "webhooks_inbound_message_post" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /webhooks/inbound-message"
+  target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
+}
+
 # Onboarding routes (POST /onboarding/tenant - no auth)
 resource "aws_apigatewayv2_route" "onboarding_tenant" {
   api_id    = aws_apigatewayv2_api.main.id
@@ -351,7 +471,7 @@ resource "aws_apigatewayv2_stage" "default" {
 # -----------------------------------------------------------------------------
 
 resource "aws_lambda_permission" "api_gateway" {
-  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users"])
+  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages"])
 
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"

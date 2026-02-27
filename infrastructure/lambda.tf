@@ -168,6 +168,14 @@ locals {
       memory_size = 256
       timeout     = 30
     }
+    contacts = {
+      memory_size = 256
+      timeout     = 30
+    }
+    messages = {
+      memory_size = 256
+      timeout     = 30
+    }
   }
 }
 
@@ -221,6 +229,8 @@ resource "aws_lambda_function" "services" {
       COGNITO_USER_POOL_ID = aws_cognito_user_pool.main.id
       DATA_BUCKET          = aws_s3_bucket.data.id
       BEDROCK_MODEL_ID     = var.bedrock_model_id
+      WEBHOOK_SECRET       = var.webhook_secret
+      WEBHOOK_TENANT_ID    = var.webhook_tenant_id
     }
   }
 

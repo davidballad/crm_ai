@@ -11,7 +11,8 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-from shared.db import query_items, transact_write, get_table
+from shared.db import query_items, transact_write, get_table, update_item, get_item
+from shared.db import DynamoDBError
 from shared.auth import require_auth
 from shared.response import success, created, not_found, error, server_error
 from shared.models import Transaction
@@ -121,12 +122,23 @@ def list_transactions(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
 
 def record_sale(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """Record a sale transaction and atomically decrement product quantities."""
+    """Record a sale transaction and atomically decrement product quantities.
+    Supports idempotency_key: if a transaction with the same key exists, return it.
+    """
     try:
         body = parse_body(event)
         transaction = Transaction.model_validate(body)
     except Exception as e:
         return error(f"Invalid request body: {e}")
+
+    # Idempotency check: if same key already stored, return existing transaction
+    idem_key = transaction.idempotency_key
+    if idem_key:
+        pk = build_pk(tenant_id)
+        existing_items, _ = query_items(pk, sk_prefix="TXN#", limit=200)
+        for item in existing_items:
+            if item.get("idempotency_key") == idem_key:
+                return success(Transaction.from_dynamo(item).model_dump(mode="json"))
 
     transaction_id = generate_id()
     created_at = now_iso()
@@ -207,6 +219,50 @@ def get_transaction(tenant_id: str, transaction_id: str) -> dict[str, Any]:
     return not_found("Transaction not found")
 
 
+def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """PATCH /transactions/{id} — update status (pending → confirmed) and notes."""
+    pk = build_pk(tenant_id)
+
+    # Find transaction by scanning TXN# sort keys
+    last_key: dict[str, Any] | None = None
+    target_sk = None
+    while True:
+        items, last_key = query_items(pk, sk_prefix="TXN#", limit=100, last_key=last_key)
+        for item in items:
+            if item.get("id") == transaction_id:
+                target_sk = item["sk"]
+                break
+        if target_sk or not last_key:
+            break
+
+    if not target_sk:
+        return not_found("Transaction not found")
+
+    try:
+        body = parse_body(event)
+    except (ValueError, json.JSONDecodeError):
+        return error("Invalid JSON body", 400)
+
+    allowed = {"status", "notes", "payment_method", "delivery_method", "delivery_location"}
+    updates: dict[str, Any] = {}
+    for key, value in body.items():
+        if key in allowed and value is not None:
+            updates[key] = value
+
+    if "status" in updates and updates["status"] not in ("pending", "confirmed"):
+        return error("status must be 'pending' or 'confirmed'", 400)
+
+    if not updates:
+        return error("Nothing to update", 400)
+
+    try:
+        updated_item = update_item(pk=pk, sk=target_sk, updates=updates)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+    return success(body=Transaction.from_dynamo(updated_item).model_dump(mode="json"))
+
+
 def get_daily_summary(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """Get daily transaction summary for a given date."""
     query_params = _get_query_params(event)
@@ -272,5 +328,10 @@ def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]
     # POST /transactions - record sale
     if method == "POST" and (path == "/transactions" or path.endswith("/transactions")):
         return record_sale(tenant_id, event)
+
+    # PATCH /transactions/{id} - update status
+    if method == "PATCH" and path.startswith("/transactions/"):
+        txn_id = path_params.get("id") or path.split("/")[-1]
+        return patch_transaction(tenant_id, txn_id, event)
 
     return error("Not found", 404)

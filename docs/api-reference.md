@@ -1,4 +1,4 @@
-# CRM AI -- API Reference
+# Clienta AI — API Reference
 
 Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 
@@ -314,16 +314,21 @@ Returns transactions in reverse chronological order (newest first).
 POST /transactions
 ```
 
-Records a sale and **atomically deducts** inventory quantities for each item. If any product has insufficient stock, the entire transaction is rejected.
+Records a sale and **atomically deducts** inventory quantities for each item. If any product has insufficient stock, the entire transaction is rejected. Supports idempotency: if `idempotency_key` is provided and a transaction with the same key already exists, the existing transaction is returned.
 
 **Request Body:**
 
-| Field            | Type   | Required | Description                           |
-| ---------------- | ------ | -------- | ------------------------------------- |
-| `items`          | array  | yes      | Line items (see below)                |
-| `total`          | decimal| yes      | Total sale amount                     |
-| `payment_method` | string | yes      | `"cash"`, `"card"`, or `"other"`      |
-| `notes`          | string | no       | Optional notes                        |
+| Field              | Type   | Required | Description                                      |
+| ------------------ | ------ | -------- | ------------------------------------------------ |
+| `items`            | array  | yes      | Line items (see below)                           |
+| `total`            | decimal| yes      | Total sale amount                                |
+| `payment_method`   | string | yes      | `"cash"`, `"transfer"`, `"card"`, or `"other"`   |
+| `delivery_method`  | string | no       | `"pickup"` or `"delivery"`                       |
+| `delivery_location`| string | no       | Address or coordinates (if delivery)             |
+| `contact_id`       | string | no       | Associated contact/lead ID                       |
+| `idempotency_key`  | string | no       | Unique key to prevent duplicate transactions     |
+| `status`           | string | no       | `"pending"` (default) or `"confirmed"`           |
+| `notes`            | string | no       | Optional notes                                   |
 
 **Line Item:**
 
@@ -334,22 +339,9 @@ Records a sale and **atomically deducts** inventory quantities for each item. If
 | `quantity`      | int     | yes      | Quantity sold (> 0)  |
 | `unit_price`   | decimal | yes      | Price per unit       |
 
-**Response:** `201 Created` -- the transaction object.
+**Response:** `201 Created` -- the transaction object. `200 OK` if idempotency_key matched an existing transaction.
 
 **Errors:** `400` if insufficient stock.
-
-**Example:**
-
-```bash
-curl -X POST "$API_URL/transactions" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "items": [{"product_id":"01HABC","product_name":"Chicken Breast","quantity":2,"unit_price":4.50}],
-    "total": 9.00,
-    "payment_method": "card"
-  }'
-```
 
 ---
 
@@ -360,6 +352,18 @@ GET /transactions/{id}
 ```
 
 **Response:** `200 OK` -- transaction object. `404` if not found.
+
+---
+
+### Update Transaction
+
+```
+PATCH /transactions/{id}
+```
+
+**Body:** `status` (`pending` or `confirmed`), `notes`, `payment_method`, `delivery_method`, `delivery_location`.
+
+**Response:** `200 OK` with updated transaction. Used by n8n post-order flow to confirm payment.
 
 ---
 
@@ -824,6 +828,122 @@ Gathers inventory and transaction data (last 30 days), sends to Amazon Bedrock (
 curl -X POST "$API_URL/insights/generate" \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+---
+
+## Contacts (Leads)
+
+### List Contacts
+
+```
+GET /contacts
+```
+
+**Query:** `phone` (optional — filter by exact phone), `limit`, `next_token`.
+
+**Response:** `200 OK` with `{ "contacts": [...], "next_token": "..." }`.
+
+Each contact: `contact_id`, `name`, `phone`, `email`, `source_channel`, `lead_status` (prospect | interested | closed_won | abandoned), `tier` (bronze | silver | gold), `tags`, `created_ts`, `last_activity_ts`.
+
+### Create Contact
+
+```
+POST /contacts
+```
+
+**Body:** `name` (required), `phone`, `email`, `source_channel`. Defaults: `lead_status=prospect`, `tier=bronze`.
+
+**Response:** `201 Created` with the created contact.
+
+### Get Contact
+
+```
+GET /contacts/{id}
+```
+
+**Response:** `200 OK` with contact object.
+
+### Patch Contact (partial update)
+
+```
+PATCH /contacts/{id}
+```
+
+**Body:** any of `name`, `phone`, `email`, `source_channel`, `lead_status`, `tier`, `last_activity_ts`, `tags`. Validates `lead_status` and `tier` enum values.
+
+**Response:** `200 OK` with updated contact.
+
+### Delete Contact
+
+```
+DELETE /contacts/{id}
+```
+
+**Response:** `204 No Content`.
+
+### List Contact Messages (conversation history)
+
+```
+GET /contacts/{id}/messages
+```
+
+**Query:** `limit`, `next_token`. **Response:** `200 OK` with `{ "messages": [...] }`.
+
+---
+
+## Messages
+
+### List Messages
+
+```
+GET /messages
+```
+
+**Query:** `contact_id`, `channel`, `category` (active | incomplete | closed), `limit`, `next_token`.
+
+**Response:** `200 OK` with `{ "messages": [...] }`. Each message: `message_id`, `channel`, `from_number`, `to_number`, `text`, `contact_id`, `category`, `processed_flags`, `created_ts`.
+
+### Create Message
+
+```
+POST /messages
+```
+
+**Body:** `channel`, `channel_message_id`, `from_number`, `to_number`, `text`, `contact_id`, `category`, `metadata`, `processed_flags`.
+
+**Response:** `201 Created` with the created message.
+
+### Update Message Flags
+
+```
+PATCH /messages/{id}/flags
+```
+
+**Body:** `category` (active | incomplete | closed) and/or `processed_flags` (array of strings).
+
+**Response:** `200 OK` with updated message.
+
+---
+
+## Webhooks
+
+### Inbound Message (WhatsApp / Meta Cloud API)
+
+**No authentication.** Used by Meta to deliver WhatsApp messages and for webhook verification.
+
+```
+GET /webhooks/inbound-message
+```
+
+**Query:** `hub.mode`, `hub.verify_token`, `hub.challenge` (Meta verification). **Response:** `200 OK` with body = `hub.challenge` (plain text).
+
+```
+POST /webhooks/inbound-message
+```
+
+**Headers:** `X-Hub-Signature-256`: `sha256=<hex>` (HMAC-SHA256 of raw body with app secret). Set `WEBHOOK_SECRET` (Lambda env) to your Meta app secret to validate.
+
+**Body:** Meta webhook payload (JSON). The Lambda stores the message with `category=active` and returns `200 OK` with `{ "message_id": "..." }`. Tenant is resolved from `to_number` via DynamoDB mapping (`pk=PHONE`, `sk=<normalized to_number>`). Fallback: `WEBHOOK_TENANT_ID` env.
 
 ---
 

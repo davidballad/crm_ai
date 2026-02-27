@@ -1,0 +1,31 @@
+{
+  "name": "Incomplete Order Handling",
+  "description": "Handles cases where user starts the order flow but stops responding. Sends reminders, then marks as abandoned after retries.",
+  "nodes": [
+    {
+      "name": "Schedule Check",
+      "type": "n8n-nodes-base.cron",
+      "notes": "Runs every 15 minutes. Queries messages with category='active' or 'incomplete' that have not received a reply in the configured timeout (e.g., 30 minutes)."
+    },
+    {
+      "name": "Find Stale Conversations",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "GET {{API_URL}}/messages?category=active — filter locally for messages older than 30 minutes without a follow-up. Also check category=incomplete for messages older than the retry window."
+    },
+    {
+      "name": "Send Reminder (1st)",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "Send WhatsApp message: 'Hi! Looks like you didn\\'t finish your order. Would you like to continue? Reply 1 to resume.' Mark message category as 'incomplete': PATCH {{API_URL}}/messages/{id}/flags — { category: 'incomplete' }."
+    },
+    {
+      "name": "Send Reminder (2nd / Final)",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "If still no reply after another 30 minutes, send final reminder: 'Your order will expire soon. Reply 1 to continue or we will cancel it.'"
+    },
+    {
+      "name": "Mark Abandoned",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "If no reply after final reminder timeout: PATCH {{API_URL}}/contacts/{id} — { lead_status: 'abandoned' }. PATCH {{API_URL}}/messages/{id}/flags — { category: 'closed' }."
+    }
+  ]
+}

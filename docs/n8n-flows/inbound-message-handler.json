@@ -1,0 +1,56 @@
+{
+  "name": "Inbound Message Handler",
+  "description": "Receives inbound WhatsApp messages via webhook, looks up or creates the contact, saves the message, and routes to the correct subflow based on user selection (Order / Info / Something Else).",
+  "nodes": [
+    {
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "notes": "POST /webhooks/inbound-message — receives the message payload forwarded from the backend Lambda (after HMAC validation). Payload: { message_id, from_number, to_number, text, channel_message_id, tenant_id }."
+    },
+    {
+      "name": "Lookup Contact by Phone",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "GET {{API_URL}}/contacts?phone={{from_number}}. If contacts array is non-empty, use the first match. Otherwise create a new contact."
+    },
+    {
+      "name": "Create Contact (if new)",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "POST {{API_URL}}/contacts — body: { name: from_number, phone: from_number, source_channel: 'whatsapp', lead_status: 'prospect', tier: 'bronze' }. Only runs if Lookup returned empty."
+    },
+    {
+      "name": "Save Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "POST {{API_URL}}/messages — body: { channel: 'whatsapp', channel_message_id, from_number, to_number, text, contact_id, category: 'active' }."
+    },
+    {
+      "name": "Is First Message?",
+      "type": "n8n-nodes-base.if",
+      "notes": "Check if contact.lead_status == 'prospect' and no prior conversation context (stored in n8n static data or a simple DynamoDB flag). If true, send the welcome menu. If false, check current flow state."
+    },
+    {
+      "name": "Send Welcome Menu",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "Send WhatsApp interactive message via Meta Cloud API: 'Welcome! Choose an option: 1) Order 2) Info 3) Something Else'. This uses the WhatsApp interactive list message format."
+    },
+    {
+      "name": "Route by Selection",
+      "type": "n8n-nodes-base.switch",
+      "notes": "Parse user text/selection: '1' or 'order' → Order Flow; '2' or 'info' → Info Flow; '3' or anything else → AI Chatbot subflow. Also check n8n static data for in-progress flow state."
+    },
+    {
+      "name": "→ Order Flow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "notes": "Trigger the Order Flow subworkflow (see order-flow.json). Passes contact_id, from_number, tenant_id."
+    },
+    {
+      "name": "→ Info Flow",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "Send store info message via WhatsApp: hours, directions, contact number, etc. Then send 'Would you like to order? Reply 1 to start an order.' If user replies 1, route to Order Flow. Set lead_status to 'interested': PATCH {{API_URL}}/contacts/{id} — { lead_status: 'interested' }."
+    },
+    {
+      "name": "→ AI Chatbot",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "Forward the message text to your AI chatbot endpoint (OpenAI, Anthropic, or custom). Return the response via WhatsApp. Set lead_status to 'interested' if not already set."
+    }
+  ]
+}

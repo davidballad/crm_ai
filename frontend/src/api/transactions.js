@@ -17,6 +17,10 @@ export function recordSale(data) {
   return api.post('/transactions', data);
 }
 
+export function patchTransaction(id, data) {
+  return api.patch(`/transactions/${id}`, data);
+}
+
 export function fetchDailySummary(date) {
   const qs = date ? `?date=${date}` : '';
   return api.get(`/transactions/summary${qs}`);

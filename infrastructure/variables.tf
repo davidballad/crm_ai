@@ -5,7 +5,7 @@
 variable "project_name" {
   description = "Project name used for resource naming"
   type        = string
-  default     = "crm-ai"
+  default     = "clienta-ai"
 }
 
 variable "environment" {
@@ -23,7 +23,7 @@ variable "aws_region" {
 variable "dynamodb_table_name" {
   description = "Name of the DynamoDB table"
   type        = string
-  default     = "crm-ai-table"
+  default     = "clienta-ai-table"
 }
 
 variable "bedrock_model_id" {
@@ -46,4 +46,21 @@ variable "square_environment" {
   description = "Square environment: sandbox or production"
   type        = string
   default     = "sandbox"
+}
+
+# -----------------------------------------------------------------------------
+# WhatsApp Webhook (Meta Cloud API)
+# -----------------------------------------------------------------------------
+
+variable "webhook_secret" {
+  description = "Meta app secret for X-Hub-Signature-256 validation (leave empty to skip)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "webhook_tenant_id" {
+  description = "Fallback tenant_id when to_number is not in PHONE mapping (single-tenant)"
+  type        = string
+  default     = ""
 }

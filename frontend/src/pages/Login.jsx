@@ -39,7 +39,7 @@ export default function Login() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600">
             <Layers className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Sign in to CRM AI</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Sign in to Clienta AI</h1>
           <p className="mt-2 text-sm text-gray-500">AI-powered business insights for your business</p>
         </div>
 

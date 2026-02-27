@@ -1,0 +1,56 @@
+{
+  "name": "Order Flow",
+  "description": "Guided WhatsApp order flow: menu → cart → delivery/pickup → location (if delivery) → payment method → confirm with name → create transaction.",
+  "nodes": [
+    {
+      "name": "Step 1: Show Menu",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "GET {{API_URL}}/inventory to fetch available products. Format as a WhatsApp interactive list message showing product names and prices. Send via Meta Cloud API. Update message category to 'active'."
+    },
+    {
+      "name": "Step 2: Collect Cart Items",
+      "type": "n8n-nodes-base.webhook",
+      "notes": "Wait for user reply with selected items and quantities. Store selections in n8n static data keyed by contact_id. User can add multiple items. Send 'Anything else? Reply DONE when finished.' loop."
+    },
+    {
+      "name": "Step 3: Delivery or Pickup",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "Send WhatsApp message: 'How would you like to receive your order? 1) Pickup 2) Delivery'. Wait for reply."
+    },
+    {
+      "name": "Step 4: Collect Location (if delivery)",
+      "type": "n8n-nodes-base.if",
+      "notes": "If delivery was selected, send 'Please share your delivery location (address or WhatsApp location pin).' Wait for reply and store location. If pickup, skip this step."
+    },
+    {
+      "name": "Step 5: Payment Method",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "Send WhatsApp message: 'Payment method? 1) Cash 2) Transfer'. Wait for reply and store selection."
+    },
+    {
+      "name": "Step 6: Confirm Order with Name",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "Send order summary: items, total, delivery/pickup, payment method. Ask 'Name for this order?' Wait for reply."
+    },
+    {
+      "name": "Step 7: Check Inventory",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "For each item in cart, GET {{API_URL}}/inventory/{product_id} and verify quantity >= requested. If any item is out of stock, notify user and offer to remove it or cancel."
+    },
+    {
+      "name": "Step 8: Create Transaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "POST {{API_URL}}/transactions — body: { items: [...cart], total, payment_method, delivery_method, delivery_location, contact_id, idempotency_key: channel_message_id, status: 'pending' }. The backend atomically decrements inventory."
+    },
+    {
+      "name": "Step 9: Update Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "PATCH {{API_URL}}/contacts/{id} — { lead_status: 'interested', last_activity_ts: now, name: (name from step 6 if contact had phone-only name) }."
+    },
+    {
+      "name": "Step 10: Send Confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "Send WhatsApp confirmation message with order details and 'Thank you, {{name}}! Your order is confirmed.' Update message category to 'closed': PATCH {{API_URL}}/messages/{id}/flags — { category: 'closed' }."
+    }
+  ]
+}
