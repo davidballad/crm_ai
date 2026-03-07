@@ -1,4 +1,4 @@
-"""Shared test fixtures for CRM AI backend tests."""
+"""Shared test fixtures for Clienta AI backend tests."""
 
 import os
 import sys
@@ -11,7 +11,7 @@ from decimal import Decimal
 # Ensure backend modules are importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-TABLE_NAME = "crm-ai-test-table"
+TABLE_NAME = "clienta-ai-test-table"
 TENANT_ID = "test-tenant-001"
 USER_EMAIL = "test@example.com"
 
@@ -21,7 +21,7 @@ def set_env(monkeypatch):
     """Set required environment variables for all tests."""
     monkeypatch.setenv("TABLE_NAME", TABLE_NAME)
     monkeypatch.setenv("COGNITO_USER_POOL_ID", "us-east-1_TESTPOOL")
-    monkeypatch.setenv("DATA_BUCKET", "crm-ai-test-data")
+    monkeypatch.setenv("DATA_BUCKET", "clienta-ai-test-data")
     monkeypatch.setenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")

@@ -1,4 +1,4 @@
-# CRM AI -- Deployment Guide & Next Steps
+# Clienta AI — Deployment Guide & Next Steps
 
 ## Current State
 
@@ -176,7 +176,7 @@ Square integration is **optional** -- the system works without it (transactions 
 **6a. Create a Square Developer Account**
 
 1. Go to [developer.squareup.com](https://developer.squareup.com) and sign up
-2. Create a new application (e.g., "CRM AI Payments")
+2. Create a new application (e.g., "Clienta AI Payments")
 3. Note down your **Application ID** and **Application Secret**
 
 **6b. Configure Terraform Variables**
@@ -196,7 +196,7 @@ After `terraform apply`, update the placeholder secret with your real credential
 
 ```bash
 aws secretsmanager put-secret-value \
-  --secret-id "crm-ai-dev-square-credentials" \
+  --secret-id "clienta-ai-dev-square-credentials" \
   --secret-string '{
     "application_secret": "YOUR_SQUARE_APP_SECRET",
     "webhook_signature_key": "YOUR_WEBHOOK_SIGNATURE_KEY"

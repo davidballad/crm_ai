@@ -1,4 +1,4 @@
-# CRM AI -- Architecture
+# Clienta AI — Architecture
 
 ## System Overview
 

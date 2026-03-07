@@ -1,4 +1,4 @@
-# CRM AI
+# Clienta AI
 
 Multi-tenant SaaS CRM with AI-powered business insights, built for small businesses (restaurants, retail, bars).
 
@@ -19,7 +19,7 @@ See [docs/architecture.md](docs/architecture.md) for detailed diagrams (system o
 ## Project Structure
 
 ```
-crm-ai/
+clienta-ai/
   infrastructure/          # Terraform modules
   backend/
     functions/             # Lambda functions (Python)

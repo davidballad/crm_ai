@@ -13,7 +13,7 @@ const poolData = {
 const userPool = poolData.UserPoolId ? new CognitoUserPool(poolData) : null;
 
 const DEMO_USER = {
-  email: 'demo@crm-ai.local',
+  email: 'demo@clienta.ai',
   tenantId: 'demo-tenant',
   role: 'admin',
   sub: 'demo-user-001',

@@ -12,6 +12,9 @@ import InventoryForm from './pages/InventoryForm';
 import TransactionList from './pages/TransactionList';
 import TransactionNew from './pages/TransactionNew';
 import Insights from './pages/Insights';
+import LeadsList from './pages/LeadsList';
+import LeadProfile from './pages/LeadProfile';
+import MessagesInbox from './pages/MessagesInbox';
 
 export default function App() {
   const { token } = useAuth();
@@ -38,6 +41,9 @@ export default function App() {
         <Route path="transactions" element={<TransactionList />} />
         <Route path="transactions/new" element={<TransactionNew />} />
         <Route path="insights" element={<Insights />} />
+        <Route path="leads" element={<LeadsList />} />
+        <Route path="leads/:id" element={<LeadProfile />} />
+        <Route path="messages" element={<MessagesInbox />} />
       </Route>
     </Routes>
   );

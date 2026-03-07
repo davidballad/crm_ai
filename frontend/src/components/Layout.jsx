@@ -9,11 +9,14 @@ import {
   LogOut,
   Menu,
   X,
-  Layers,
+  Users,
+  MessageSquare,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/messages', icon: MessageSquare, label: 'Messages' },
+  { to: '/leads', icon: Users, label: 'Leads' },
   { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/transactions', icon: ShoppingCart, label: 'Transactions' },
   { to: '/insights', icon: BrainCircuit, label: 'AI Insights' },
@@ -53,9 +56,9 @@ export default function Layout() {
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 border-b border-gray-200 px-5 py-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600">
-          <Layers className="h-4 w-4 text-white" />
+          <LayoutDashboard className="h-4 w-4 text-white" />
         </div>
-        <span className="text-lg font-bold text-gray-900">CRM AI</span>
+        <span className="text-lg font-bold text-gray-900">Clienta AI</span>
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">

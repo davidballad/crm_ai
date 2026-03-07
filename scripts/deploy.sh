@@ -13,7 +13,7 @@ INFRA_DIR="$PROJECT_ROOT/infrastructure"
 ACTION="${1:-apply}"
 
 echo "============================================"
-echo "  CRM AI Full Deployment"
+echo "  Clienta AI Full Deployment"
 echo "  Action: $ACTION"
 echo "============================================"
 echo ""

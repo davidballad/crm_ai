@@ -1,0 +1,26 @@
+{
+  "name": "Post Order Finalization",
+  "description": "Triggered when payment is confirmed. Updates transaction status and contact lead status. Tier is recalculated nightly by counting confirmed transactions.",
+  "nodes": [
+    {
+      "name": "Payment Confirmation Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "notes": "Triggered manually or by a payment callback. Receives transaction_id and tenant_id. For cash/transfer payments, this can be triggered by a staff member confirming receipt in the UI or via a simple webhook."
+    },
+    {
+      "name": "Confirm Transaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "PATCH {{API_URL}}/transactions/{id} — { status: 'confirmed' }."
+    },
+    {
+      "name": "Update Contact to Closed Won",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "PATCH {{API_URL}}/contacts/{id} — { lead_status: 'closed_won', last_activity_ts: now }."
+    },
+    {
+      "name": "Send Thank You",
+      "type": "n8n-nodes-base.httpRequest",
+      "notes": "Send WhatsApp message: 'Payment received! Thank you for your order. Your current tier: {{tier}}.'"
+    }
+  ]
+}
