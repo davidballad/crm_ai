@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchProducts, fetchProduct, createProduct, updateProduct, deleteProduct } from '../api/inventory';
+import { fetchProducts, fetchProduct, createProduct, updateProduct, deleteProduct, importFromCsv } from '../api/inventory';
 
 export function useProducts(filters) {
   return useQuery({
@@ -36,6 +36,14 @@ export function useDeleteProduct() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: deleteProduct,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  });
+}
+
+export function useImportProducts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: importFromCsv,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
   });
 }

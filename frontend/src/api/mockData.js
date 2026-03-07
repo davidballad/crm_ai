@@ -1,7 +1,7 @@
 const today = new Date().toISOString().slice(0, 10);
 
 const PRODUCTS = [
-  { id: 'prod-001', name: 'Wireless Earbuds Pro', category: 'Electronics', quantity: 145, unit_cost: 29.99, reorder_threshold: 20, sku: 'WEP-001' },
+  { id: 'prod-001', name: 'Wireless Earbuds Pro', category: 'Electronics', quantity: 145, unit_cost: 29.99, reorder_threshold: 20, sku: 'WEP-001', image_url: 'https://images.unsplash.com/photo-1598331668826-20cecc596b86?w=100' },
   { id: 'prod-002', name: 'USB-C Hub 7-in-1', category: 'Electronics', quantity: 8, unit_cost: 45.00, reorder_threshold: 15, sku: 'UCH-002' },
   { id: 'prod-003', name: 'Ergonomic Mouse', category: 'Accessories', quantity: 62, unit_cost: 34.50, reorder_threshold: 10, sku: 'ERM-003' },
   { id: 'prod-004', name: 'Mechanical Keyboard', category: 'Accessories', quantity: 5, unit_cost: 89.99, reorder_threshold: 10, sku: 'MKB-004' },
@@ -110,6 +110,48 @@ export const mockHandlers = {
     const idx = PRODUCTS.findIndex((p) => p.id === id);
     if (idx !== -1) PRODUCTS.splice(idx, 1);
     return null;
+  },
+
+  async 'POST /inventory/import'(csvText) {
+    await delay(500);
+    if (!csvText || typeof csvText !== 'string') return { imported_count: 0, error_count: 0, imported: [], errors: [] };
+    const lines = csvText.trim().split(/\r?\n/);
+    if (lines.length < 2) return { imported_count: 0, error_count: 0, imported: [], errors: [{ row: 1, error: 'No data rows' }] };
+    const headers = lines[0].toLowerCase().split(',').map((h) => h.trim());
+    const nameIdx = headers.indexOf('name');
+    const qtyIdx = headers.indexOf('quantity');
+    if (nameIdx === -1 || qtyIdx === -1) return { imported_count: 0, error_count: 1, imported: [], errors: [{ error: 'CSV must have name and quantity columns' }] };
+    const imported = [];
+    const errors = [];
+    for (let i = 1; i < lines.length; i++) {
+      const vals = lines[i].split(',').map((v) => v.trim());
+      const name = vals[nameIdx];
+      const qty = parseInt(vals[qtyIdx], 10);
+      if (!name) { errors.push({ row: i + 1, error: 'name required' }); continue; }
+      if (isNaN(qty) || qty < 0) { errors.push({ row: i + 1, name, error: 'invalid quantity' }); continue; }
+      const id = `prod-${Date.now()}-${i}`;
+      const unitCost = parseFloat(vals[headers.indexOf('unit_cost')]);
+      const cat = vals[headers.indexOf('category')];
+      const unit = vals[headers.indexOf('unit')] || 'each';
+      const sku = vals[headers.indexOf('sku')];
+      const imageUrl = vals[headers.indexOf('image_url')];
+      const notes = vals[headers.indexOf('notes')];
+      const reorder = parseInt(vals[headers.indexOf('reorder_threshold')], 10) || 10;
+      PRODUCTS.push({
+        id,
+        name,
+        category: cat || null,
+        quantity: qty,
+        unit_cost: isNaN(unitCost) ? null : unitCost,
+        reorder_threshold: isNaN(reorder) ? 10 : reorder,
+        unit: unit || 'each',
+        sku: sku || null,
+        image_url: imageUrl || null,
+        notes: notes || null,
+      });
+      imported.push({ id, name, quantity: qty });
+    }
+    return { imported_count: imported.length, error_count: errors.length, imported, errors: errors.slice(0, 50) };
   },
 
   async 'GET /transactions'() {

@@ -11,6 +11,7 @@ const EMPTY = {
   reorder_threshold: 10,
   sku: '',
   unit: 'each',
+  image_url: '',
   notes: '',
 };
 
@@ -36,6 +37,7 @@ export default function InventoryForm() {
         reorder_threshold: product.reorder_threshold ?? 10,
         sku: product.sku || '',
         unit: product.unit || 'each',
+        image_url: product.image_url || '',
         notes: product.notes || '',
       });
     }
@@ -51,6 +53,7 @@ export default function InventoryForm() {
       quantity: Number(form.quantity),
       unit_cost: form.unit_cost ? Number(form.unit_cost) : undefined,
       reorder_threshold: Number(form.reorder_threshold),
+      image_url: form.image_url?.trim() || undefined,
     };
 
     try {
@@ -129,6 +132,16 @@ export default function InventoryForm() {
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Reorder threshold</label>
             <input type="number" min="0" value={form.reorder_threshold} onChange={update('reorder_threshold')} className="input-field" />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-gray-700">Image URL</label>
+            <input type="url" value={form.image_url} onChange={update('image_url')} className="input-field" placeholder="https://..." />
+            {form.image_url && (
+              <div className="mt-2">
+                <img src={form.image_url} alt="" className="h-20 w-20 rounded border border-gray-200 object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+              </div>
+            )}
           </div>
 
           <div className="sm:col-span-2">

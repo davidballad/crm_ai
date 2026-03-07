@@ -9,6 +9,10 @@ export function setTokenGetter(fn) {
   getToken = fn;
 }
 
+export function getTokenGetter() {
+  return getToken;
+}
+
 function mockRequest(method, path, body) {
   const match = matchMockRoute(method, path);
   if (!match) {
@@ -21,14 +25,14 @@ async function request(path, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
 
   if (USE_MOCKS) {
-    const body = options.body ? JSON.parse(options.body) : undefined;
+    const body = options.rawBody ? options.body : (options.body ? JSON.parse(options.body) : undefined);
     return mockRequest(method, path, body);
   }
 
   const token = getToken();
   const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers,
+    ...(options.headers || {}),
+    'Content-Type': options.headers?.['Content-Type'] ?? 'application/json',
   };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -51,6 +55,9 @@ async function request(path, options = {}) {
 export const api = {
   get: (path) => request(path),
   post: (path, data) => request(path, { method: 'POST', body: JSON.stringify(data) }),
+  /** POST with raw body (e.g. CSV). body is string, contentType defaults to text/csv. */
+  postRaw: (path, body, contentType = 'text/csv') =>
+    request(path, { method: 'POST', body, rawBody: true, headers: { 'Content-Type': contentType } }),
   put: (path, data) => request(path, { method: 'PUT', body: JSON.stringify(data) }),
   patch: (path, data) => request(path, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (path) => request(path, { method: 'DELETE' }),

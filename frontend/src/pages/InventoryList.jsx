@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useProducts, useDeleteProduct } from '../hooks/useProducts';
+import { useProducts, useDeleteProduct, useImportProducts } from '../hooks/useProducts';
+import { downloadImportTemplate } from '../api/inventory';
 import LowStockBadge from '../components/LowStockBadge';
-import { Plus, Search, Pencil, Trash2, Package } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Package, Upload, Download } from 'lucide-react';
 
 export default function InventoryList() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
+  const [importResult, setImportResult] = useState(null);
+  const fileInputRef = useRef(null);
   const { data, isLoading, error } = useProducts(category ? { category } : undefined);
   const deleteMutation = useDeleteProduct();
+  const importMutation = useImportProducts();
 
   const products = data?.products || data?.items || [];
   const filtered = products.filter(
@@ -23,6 +27,28 @@ export default function InventoryList() {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      await downloadImportTemplate();
+    } catch (e) {
+      setImportResult({ error: e.message });
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImportResult(null);
+    try {
+      const text = await file.text();
+      const result = await importMutation.mutateAsync(text);
+      setImportResult(result);
+    } catch (err) {
+      setImportResult({ error: err.message });
+    }
+  };
+
   return (
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -30,10 +56,50 @@ export default function InventoryList() {
           <h1 className="text-xl font-bold text-gray-900">Inventory</h1>
           <p className="text-sm text-gray-500">{products.length} products</p>
         </div>
-        <Link to="/inventory/new" className="btn-primary gap-2">
-          <Plus className="h-4 w-4" /> Add product
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadTemplate}
+            className="btn-secondary gap-2"
+          >
+            <Download className="h-4 w-4" /> Template
+          </button>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importMutation.isPending}
+            className="btn-secondary gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            {importMutation.isPending ? 'Importing...' : 'Import CSV'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <Link to="/inventory/new" className="btn-primary gap-2">
+            <Plus className="h-4 w-4" /> Add product
+          </Link>
+        </div>
       </div>
+
+      {importResult && (
+        <div className={`mb-4 rounded-lg p-3 text-sm ${importResult.error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
+          {importResult.error ? (
+            importResult.error
+          ) : (
+            <>
+              Imported <strong>{importResult.imported_count}</strong> products
+              {importResult.error_count > 0 && (
+                <span className="ml-2">({importResult.error_count} row(s) skipped)</span>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
@@ -93,7 +159,14 @@ export default function InventoryList() {
             <tbody className="divide-y divide-gray-100">
               {filtered.map((p) => (
                 <tr key={p.id || p.sk} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt="" className="h-9 w-9 shrink-0 rounded border border-gray-200 object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+                      ) : null}
+                      <span className="font-medium text-gray-900">{p.name}</span>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-gray-500">{p.category || '—'}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{p.quantity}</td>
                   <td className="px-4 py-3 text-right tabular-nums">
