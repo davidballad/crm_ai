@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useTransactions, useDailySummary } from '../hooks/useTransactions';
 import StatsCard from '../components/StatsCard';
-import { Plus, ShoppingCart, DollarSign, Receipt, CreditCard } from 'lucide-react';
+import { ShoppingCart, DollarSign, Receipt, CreditCard } from 'lucide-react';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -17,14 +16,9 @@ export default function TransactionList() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Transactions</h1>
-          <p className="text-sm text-gray-500">Sales history and daily overview</p>
-        </div>
-        <Link to="/transactions/new" className="btn-primary gap-2">
-          <Plus className="h-4 w-4" /> Record sale
-        </Link>
+      <div className="mb-6">
+        <h1 className="text-xl font-bold text-gray-900">Transactions</h1>
+        <p className="text-sm text-gray-500">Sales history (orders come from WhatsApp flow)</p>
       </div>
 
       {/* Daily summary cards */}
@@ -68,10 +62,7 @@ export default function TransactionList() {
         <div className="card flex flex-col items-center justify-center py-12 text-center">
           <Receipt className="mb-3 h-10 w-10 text-gray-300" />
           <p className="font-medium text-gray-600">No transactions yet</p>
-          <p className="mt-1 text-sm text-gray-400">Record your first sale to see it here</p>
-          <Link to="/transactions/new" className="btn-primary mt-4 gap-2">
-            <Plus className="h-4 w-4" /> Record sale
-          </Link>
+          <p className="mt-1 text-sm text-gray-400">Transactions are created when orders are completed via WhatsApp</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">

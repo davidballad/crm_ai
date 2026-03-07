@@ -153,6 +153,8 @@ def create_product(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         item["supplier_id"] = product_data.supplier_id
     if product_data.sku is not None:
         item["sku"] = product_data.sku
+    if product_data.image_url is not None:
+        item["image_url"] = product_data.image_url
     if product_data.notes is not None:
         item["notes"] = product_data.notes
 
@@ -208,7 +210,7 @@ def update_product(
     # Build updates from allowed fields
     allowed = {
         "name", "category", "quantity", "unit_cost", "reorder_threshold",
-        "supplier_id", "sku", "unit", "notes",
+        "supplier_id", "sku", "unit", "image_url", "notes",
     }
     updates: dict[str, Any] = {}
     for key, value in body.items():
@@ -245,12 +247,12 @@ def delete_product(tenant_id: str, product_id: str) -> dict[str, Any]:
     return no_content()
 
 
-CSV_TEMPLATE = "name,category,quantity,unit_cost,reorder_threshold,unit,sku,notes\n"
+CSV_TEMPLATE = "name,category,quantity,unit_cost,reorder_threshold,unit,sku,image_url,notes\n"
 
 REQUIRED_CSV_COLUMNS = {"name", "quantity"}
 VALID_CSV_COLUMNS = {
     "name", "category", "quantity", "unit_cost",
-    "reorder_threshold", "unit", "sku", "notes",
+    "reorder_threshold", "unit", "sku", "image_url", "notes",
 }
 
 
@@ -351,6 +353,7 @@ def import_csv(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         category = row.get("category", "").strip() or None
         unit = row.get("unit", "").strip() or "each"
         sku = row.get("sku", "").strip() or None
+        image_url = row.get("image_url", "").strip() or None
         notes = row.get("notes", "").strip() or None
 
         product_id = generate_id()
@@ -376,6 +379,8 @@ def import_csv(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             item["unit_cost"] = unit_cost
         if sku:
             item["sku"] = sku
+        if image_url:
+            item["image_url"] = image_url
         if notes:
             item["notes"] = notes
 

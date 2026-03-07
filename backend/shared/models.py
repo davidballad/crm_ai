@@ -33,6 +33,7 @@ class Product(BaseModel):
     supplier_id: str | None = None
     sku: str | None = None
     unit: str = "each"
+    image_url: str | None = None
     notes: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
