@@ -1,0 +1,1004 @@
+{
+  "name": "Clienta AI — WhatsApp CRM Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "id": "30031774-3768-4bd8-aa50-69024c1e30e9",
+      "name": "Webhook Verify",
+      "webhookId": "cf9570ce-491f-4818-8a75-b24b87e4913b"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [300, 0],
+      "id": "d316ccbd-1bd1-476e-9fb7-4a1f3b3815a1",
+      "name": "Return Challenge"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 300],
+      "id": "5cb8330d-46ca-4e2f-9c59-1a62d579deb7",
+      "name": "Inbound Webhook",
+      "webhookId": "cf9570ce-491f-4818-8a75-b24b87e4913b"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ══════════════════════════════════════════════════════════════\n// CONFIGURATION — Set YOUR_API_BASE_URL and YOUR_SERVICE_API_KEY (or use n8n env vars)\n// ══════════════════════════════════════════════════════════════\nconst API_URL = \"YOUR_API_BASE_URL\";\nconst SERVICE_API_KEY = \"YOUR_SERVICE_API_KEY\";\n// ══════════════════════════════════════════════════════════════\n\nconst data = $input.first().json;\nconst body = data.body || data;\nconst entry = body.entry?.[0];\nconst changes = entry?.changes?.[0];\nconst value = changes?.value;\n\nif (!value?.messages || value.messages.length === 0) {\n  return [];\n}\n\nconst message = value.messages[0];\nconst metadata = value.metadata;\n\nreturn [{\n  json: {\n    api_url: API_URL,\n    service_api_key: SERVICE_API_KEY,\n    phone_number_id: metadata.phone_number_id,\n    display_phone_number: metadata.display_phone_number,\n    from_number: message.from,\n    message_id: message.id,\n    message_type: message.type,\n    message_text: message.type === 'text' ? message.text?.body : (message.interactive?.button_reply ? message.interactive.button_reply.title : `[${message.type}]`),\n    button_reply_id: message.interactive?.button_reply?.id || null,\n    contact_name: value.contacts?.[0]?.profile?.name || message.from,\n    timestamp: message.timestamp\n  }\n}];",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [350, 300],
+      "id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
+      "name": "Extract & Filter",
+      "notesInFlow": true,
+      "notes": "Parses Meta payload, skips status updates"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.api_url }}/onboarding/resolve-phone",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Service-Key",
+              "value": "={{ $json.service_api_key }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "phone_number_id",
+              "value": "={{ $json.phone_number_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 300],
+      "id": "e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b",
+      "name": "Resolve Tenant",
+      "notesInFlow": true,
+      "notes": "GET /onboarding/resolve-phone"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Extract & Filter').item.json.api_url }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Service-Key",
+              "value": "={{ $('Extract & Filter').item.json.service_api_key }}"
+            },
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $json.tenant_id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: 'whatsapp', direction: 'inbound', from_number: $('Extract & Filter').item.json.from_number, to_number: $('Extract & Filter').item.json.display_phone_number, text: $('Extract & Filter').item.json.message_text, channel_message_id: $('Extract & Filter').item.json.message_id, contact_name: $('Extract & Filter').item.json.contact_name, category: 'active' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 300],
+      "id": "f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8a9b0c",
+      "name": "Store Inbound",
+      "notesInFlow": true,
+      "notes": "POST /messages (save inbound)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const bid = $('Extract & Filter').item.json.button_reply_id || '';\nlet route = 'show_options';\nlet product_id = null;\nif (bid === 'products') route = 'products';\nelse if (bid === 'order') route = 'order';\nelse if (bid === 'more_info') route = 'more_info';\nelse if (bid.startsWith('add_')) { route = 'add_to_cart'; product_id = bid.replace(/^add_/, ''); }\nelse if (bid === 'view_cart') route = 'view_cart';\nelse if (bid === 'checkout') route = 'checkout';\nreturn [{ json: { route, product_id } }];",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 300],
+      "id": "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+      "name": "Route",
+      "notesInFlow": true,
+      "notes": "show_options | products | order | something_else | add_to_cart | view_cart | checkout"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true, "leftValue": "" }, "conditions": [{ "id": "r1", "leftValue": "={{ $json.route }}", "rightValue": "show_options", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Show 3 options" },
+            { "conditions": { "options": { "caseSensitive": true, "leftValue": "" }, "conditions": [{ "id": "r2", "leftValue": "={{ $json.route }}", "rightValue": "products", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Products" },
+            { "conditions": { "options": { "caseSensitive": true, "leftValue": "" }, "conditions": [{ "id": "r3", "leftValue": "={{ $json.route }}", "rightValue": "order", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Order" },
+            { "conditions": { "options": { "caseSensitive": true, "leftValue": "" }, "conditions": [{ "id": "r4", "leftValue": "={{ $json.route }}", "rightValue": "more_info", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Something else (AI)" },
+            { "conditions": { "options": { "caseSensitive": true, "leftValue": "" }, "conditions": [{ "id": "r5", "leftValue": "={{ $json.route }}", "rightValue": "add_to_cart", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Add to cart" },
+            { "conditions": { "options": { "caseSensitive": true, "leftValue": "" }, "conditions": [{ "id": "r6", "leftValue": "={{ $json.route }}", "rightValue": "view_cart", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "View cart" },
+            { "conditions": { "options": { "caseSensitive": true, "leftValue": "" }, "conditions": [{ "id": "r7", "leftValue": "={{ $json.route }}", "rightValue": "checkout", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" }, "renameOutput": true, "outputKey": "Checkout" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [1350, 300],
+      "id": "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f",
+      "name": "Switch",
+      "notesInFlow": true,
+      "notes": "First message → 3 options; tap → Products | Order | Something else (AI)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Extract & Filter').item.json.phone_number_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.META_ACCESS_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: $('Extract & Filter').item.json.from_number.replace(/^\\+/,''), type: 'interactive', interactive: { type: 'button', body: { text: \"What would you like to do?\" }, action: { buttons: [ { type: 'reply', reply: { id: 'order', title: 'Order' } }, { type: 'reply', reply: { id: 'products', title: 'Products' } }, { type: 'reply', reply: { id: 'more_info', title: 'Something else' } } ] } } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 80],
+      "id": "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f7a",
+      "name": "Send 3 Buttons",
+      "notesInFlow": true,
+      "notes": "WhatsApp interactive buttons. Set n8n env META_ACCESS_TOKEN or use Header Auth credential."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Extract & Filter').item.json.api_url }}/inventory",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Service-Key", "value": "={{ $('Extract & Filter').item.json.service_api_key }}" },
+            { "name": "X-Tenant-Id", "value": "={{ $('Resolve Tenant').item.json.tenant_id }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 200],
+      "id": "e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7a8b",
+      "name": "Get Inventory"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $input.first().json;\nconst products = inv.products || inv || [];\nconst list = Array.isArray(products) ? products : [];\nconst text = list.length === 0 ? 'No products right now.' : list.map((p, i) => `${i+1}. ${p.name || p.product_name || 'Item'}${p.unit_cost != null ? ' — ' + p.unit_cost : ''}`).join('\\n');\nreturn [{ json: { output: text, product_count: list.length } }];",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 200],
+      "id": "f5a6b7c8-d9e0-4f1a-2b3c-4d5e6f7a8b9c",
+      "name": "Format Products"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $('Extract & Filter').item.json.phone_number_id }}",
+        "recipientPhoneNumber": "={{ $('Extract & Filter').item.json.from_number }}",
+        "textBody": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [2100, 200],
+      "id": "a6b7c8d9-e0f1-4a2b-3c4d-5e6f7a8b9c0d",
+      "name": "Send Products",
+      "credentials": { "whatsAppApi": { "id": "WuONTcIGxTpQAESV", "name": "WhatsApp account" } }
+    },
+    {
+      "parameters": {
+        "content": "**Order flow** (template, no chatbot)\nProducts as carousel (image + description + Add to cart). Tap Add to cart → API adds item → View cart / Keep browsing. View cart → Checkout → order created, payment link to follow.",
+        "height": 120,
+        "width": 320,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1600, 320],
+      "id": "b7c8d9e0-f1a2-4b3c-4d5e-6f7a8b9c0d1e",
+      "name": "Order Flow (expand)"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Extract & Filter').item.json.api_url }}/inventory",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Service-Key", "value": "={{ $('Extract & Filter').item.json.service_api_key }}" },
+            { "name": "X-Tenant-Id", "value": "={{ $('Resolve Tenant').item.json.tenant_id }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 320],
+      "id": "c8d9e0f1-a2b3-4c4d-5e6f-7a8b9c0d1e2f",
+      "name": "Get Inventory for Order"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ext = $('Extract & Filter').item.json;\nconst inv = $input.first().json;\nconst products = inv.products || inv || [];\nconst list = Array.isArray(products) ? products : [];\nconst to = (ext.from_number || '').replace(/^\\\\+/,'');\nconst placeholderImg = 'https://via.placeholder.com/300x300?text=Product';\nif (list.length >= 2) {\n  const cards = list.slice(0, 10).map((p, i) => ({\n    card_index: i,\n    type: 'cta_url',\n    header: { type: 'image', image: { link: p.image_url || placeholderImg } },\n    body: { text: (p.name || p.product_name || 'Item') + (p.unit_cost != null ? ' — ' + p.unit_cost : '') + (p.notes ? '\\n' + (p.notes || '').slice(0, 100) : '') },\n    action: { buttons: [ { type: 'quick_reply', quick_reply: { id: 'add_' + (p.id || p.product_id || String(i)), title: 'Add to cart' } } ] }\n  }));\n  const graphPayload = { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'interactive', interactive: { type: 'carousel', body: { text: 'Choose a product and tap Add to cart:' }, action: { cards } } };\n  return [{ json: { graphPayload } }];\n}\nconst listText = list.length === 0 ? 'No products right now.' : list.map((p, i) => `${i+1}. ${p.name || p.product_name || 'Item'}${p.unit_cost != null ? ' — ' + p.unit_cost : ''}`).join('\\\\n');\nconst orderCTA = list.length > 0 ? '\\n\\nTap **Order** again to see products with Add to cart, or reply with item numbers (e.g. 1x2).' : '';\nreturn [{ json: { output: listText + orderCTA } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 320],
+      "id": "d9e0f1a2-b3c4-4d5e-6f7a-8b9c0d1e2f3a",
+      "name": "Build Order Products Message"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [{ "id": "c1", "leftValue": "={{ $json.graphPayload }}", "rightValue": "", "operator": { "type": "string", "operation": "notEmpty" } }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2050, 320],
+      "id": "e0f1a2b3-c4d5-4e6f-7a8b-9c0d1e2f3a4b",
+      "name": "Has carousel?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Extract & Filter').item.json.phone_number_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.META_ACCESS_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.graphPayload) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2250, 260],
+      "id": "f1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c",
+      "name": "Send Product Carousel"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $('Extract & Filter').item.json.phone_number_id }}",
+        "recipientPhoneNumber": "={{ $('Extract & Filter').item.json.from_number }}",
+        "textBody": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [2250, 380],
+      "id": "a2b3c4d5-e6f7-4a8b-9c0d-1e2f3a4b5c6d",
+      "name": "Send Order Text (0-1 products)",
+      "credentials": { "whatsAppApi": { "id": "WuONTcIGxTpQAESV", "name": "WhatsApp account" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Extract & Filter').item.json.api_url }}/cart/items",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Service-Key", "value": "={{ $('Extract & Filter').item.json.service_api_key }}" },
+            { "name": "X-Tenant-Id", "value": "={{ $('Resolve Tenant').item.json.tenant_id }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customer_id: $('Extract & Filter').item.json.from_number, product_id: $json.product_id, quantity: 1 }) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 440],
+      "id": "b3c4d5e6-f7a8-4b9c-0d1e-2f3a4b5c6d7e",
+      "name": "Add to Cart API"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Extract & Filter').item.json.phone_number_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.META_ACCESS_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: $('Extract & Filter').item.json.from_number.replace(/^\\\\+/,''), type: 'interactive', interactive: { type: 'button', body: { text: 'Added to cart!' }, action: { buttons: [ { type: 'reply', reply: { id: 'view_cart', title: 'View cart' } }, { type: 'reply', reply: { id: 'order', title: 'Keep browsing' } } ] } } }) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1850, 440],
+      "id": "c4d5e6f7-a8b9-4c0d-1e2f-3a4b5c6d7e8f",
+      "name": "Send Added"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Extract & Filter').item.json.api_url }}/cart",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Service-Key", "value": "={{ $('Extract & Filter').item.json.service_api_key }}" },
+            { "name": "X-Tenant-Id", "value": "={{ $('Resolve Tenant').item.json.tenant_id }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "customer_id", "value": "={{ $('Extract & Filter').item.json.from_number }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 560],
+      "id": "d5e6f7a8-b9c0-4d1e-2f3a-4b5c6d7e8f9a",
+      "name": "Get Cart"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cart = $input.first().json;\nconst items = cart.items || [];\nconst lines = items.map(i => `${i.product_name || 'Item'} x${i.quantity} — ${i.unit_price || '0'}`);\nconst total = items.reduce((s, i) => s + (parseFloat(i.unit_price || 0) * (i.quantity || 1)), 0);\nconst text = items.length === 0 ? 'Your cart is empty.' : lines.join('\\n') + '\\n———\\nTotal: ' + total.toFixed(2);\nreturn [{ json: { output: text, item_count: items.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1850, 560],
+      "id": "e6f7a8b9-c0d1-4e2f-3a4b-5c6d7e8f9a0b",
+      "name": "Format Cart"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Extract & Filter').item.json.phone_number_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.META_ACCESS_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: $('Extract & Filter').item.json.from_number.replace(/^\\\\+/,''), type: 'interactive', interactive: { type: 'button', body: { text: $json.output }, action: { buttons: [ { type: 'reply', reply: { id: 'checkout', title: 'Checkout' } }, { type: 'reply', reply: { id: 'order', title: 'Keep browsing' } } ] } } }) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 560],
+      "id": "f7a8b9c0-d1e2-4f3a-4b5c-6d7e8f9a0b1c",
+      "name": "Send Cart Message"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Extract & Filter').item.json.api_url }}/cart/checkout",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Service-Key", "value": "={{ $('Extract & Filter').item.json.service_api_key }}" },
+            { "name": "X-Tenant-Id", "value": "={{ $('Resolve Tenant').item.json.tenant_id }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ customer_id: $('Extract & Filter').item.json.from_number, customer_name: $('Extract & Filter').item.json.contact_name, customer_phone: $('Extract & Filter').item.json.from_number }) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 680],
+      "id": "a8b9c0d1-e2f3-4a4b-5c6d-7e8f9a0b1c2d",
+      "name": "Checkout API"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('Extract & Filter').item.json.phone_number_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.META_ACCESS_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: $('Extract & Filter').item.json.from_number.replace(/^\\\\+/,''), type: 'text', text: { body: 'Order placed! Total: ' + (typeof $json.total === 'number' ? $json.total : ($json.total != null ? String($json.total) : '')) + '. We will send the payment link shortly.' }) }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1850, 680],
+      "id": "b9c0d1e2-f3a4-4b5c-6d7e-8f9a0b1c2d3e",
+      "name": "Send Order Placed"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Customer {{ $('Extract & Filter').item.json.contact_name }} ({{ $('Extract & Filter').item.json.from_number }}) says:\n\n{{ $('Extract & Filter').item.json.message_text }}",
+        "options": {
+          "systemMessage": "={{ $('Resolve Tenant').item.json.ai_system_prompt || 'You are a helpful store assistant for ' + ($('Resolve Tenant').item.json.business_name || 'this business') + '. Answer customer questions about the store only: opening hours, location, services, policies, and general information. Be friendly and concise. Respond in the same language the customer uses. Do not take orders—direct customers to use the Order button. You can use search_products only if they ask what products exist; for placing orders they must use the Order flow.' }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [1400, 300],
+      "id": "a7b8c9d0-e1f2-4a3b-4c5d-6e7f8a9b0c1d",
+      "name": "AI Agent",
+      "notesInFlow": true,
+      "notes": "Something else: store-info Q&A only"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [1150, 600],
+      "id": "dc8d8540-282e-47cc-bcd8-48c5c61a84c9",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "xznfR6khdBdL6x1g",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "search_products",
+        "description": "Search the product catalog or menu. Use when a customer asks about available products, menu items, prices, or stock. Returns matching products with name, price, and availability.",
+        "method": "GET",
+        "url": "={{ $('Extract & Filter').item.json.api_url }}/inventory",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "X-Service-Key",
+              "value": "={{ $('Extract & Filter').item.json.service_api_key }}"
+            },
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $('Resolve Tenant').item.json.tenant_id }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "parametersQuery": {
+          "values": [
+            {
+              "name": "search",
+              "value": "={{ $fromAI('query', 'Search term for products or menu items', 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [1400, 600],
+      "id": "c9d0e1f2-a3b4-4c5d-6e7f-8a9b0c1d2e3f",
+      "name": "Search Products"
+    },
+    {
+      "parameters": {
+        "name": "create_order",
+        "description": "Create a new order (transaction). Use when a customer confirms they want to place an order. Provide the full order as a JSON body with: items (array of {product_id, name, quantity, unit_price}), customer_name, and customer_phone.",
+        "method": "POST",
+        "url": "={{ $('Extract & Filter').item.json.api_url }}/transactions",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "X-Service-Key",
+              "value": "={{ $('Extract & Filter').item.json.service_api_key }}"
+            },
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $('Resolve Tenant').item.json.tenant_id }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $fromAI('order_body', 'JSON object with: items (array of {product_id, name, quantity, unit_price}), customer_name, customer_phone', 'json') }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [1650, 600],
+      "id": "d0e1f2a3-b4c5-4d6e-7f8a-9b0c1d2e3f4a",
+      "name": "Create Order"
+    },
+    {
+      "parameters": {
+        "name": "find_contact",
+        "description": "Find an existing customer contact by phone number. Returns contact details including name, lead status, tier, and past interactions.",
+        "method": "GET",
+        "url": "={{ $('Extract & Filter').item.json.api_url }}/contacts",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "X-Service-Key",
+              "value": "={{ $('Extract & Filter').item.json.service_api_key }}"
+            },
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $('Resolve Tenant').item.json.tenant_id }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "parametersQuery": {
+          "values": [
+            {
+              "name": "phone",
+              "value": "={{ $fromAI('phone', 'Customer phone number to search for', 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [1400, 800],
+      "id": "e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b",
+      "name": "Find Contact"
+    },
+    {
+      "parameters": {
+        "name": "create_contact",
+        "description": "Create a new customer contact. Use when a new customer interacts and no existing contact is found via find_contact. Provide name, phone, and source_channel.",
+        "method": "POST",
+        "url": "={{ $('Extract & Filter').item.json.api_url }}/contacts",
+        "sendHeaders": true,
+        "parametersHeaders": {
+          "values": [
+            {
+              "name": "X-Service-Key",
+              "value": "={{ $('Extract & Filter').item.json.service_api_key }}"
+            },
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $('Resolve Tenant').item.json.tenant_id }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $fromAI('contact_body', 'JSON object with: name (string), phone (string), source_channel (always whatsapp)', 'json') }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [1650, 800],
+      "id": "f2a3b4c5-1111-4e7f-8a9b-0c1d2e3f4a5b",
+      "name": "Create Contact"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $('Extract & Filter').item.json.phone_number_id }}",
+        "recipientPhoneNumber": "={{ $('Extract & Filter').item.json.from_number }}",
+        "textBody": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [1750, 300],
+      "id": "8acde7da-f912-459e-9967-94bd318a93d4",
+      "name": "Send Reply",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "WuONTcIGxTpQAESV",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Extract & Filter').item.json.api_url }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Service-Key",
+              "value": "={{ $('Extract & Filter').item.json.service_api_key }}"
+            },
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $('Resolve Tenant').item.json.tenant_id }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: 'whatsapp', direction: 'outbound', from_number: $('Extract & Filter').item.json.display_phone_number, to_number: $('Extract & Filter').item.json.from_number, text: $('AI Agent').item.json.output, category: 'active' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 300],
+      "id": "a3b4c5d6-e7f8-4a9b-0c1d-2e3f4a5b6c7d",
+      "name": "Store Outbound",
+      "notesInFlow": true,
+      "notes": "POST /messages (save outbound)"
+    },
+    {
+      "parameters": {
+        "content": "### Setup Checklist\n\n**1. Service API Key** — In **Extract & Filter**, set your real key.\n**2. Meta Webhook** — App Dashboard → WhatsApp: URL = {n8n}/webhook/whatsapp.\n**3. Tenant** — POST /onboarding/setup with meta_phone_number_id (and ai_system_prompt for Something else).\n**4. Send 3 Buttons** — Set META_ACCESS_TOKEN in n8n env or use Header Auth credential (Bearer token).\n**5. Credentials** — WhatsApp API, Google Gemini.\n\n---\n\n### Flow (templates + one chatbot path)\nFirst message → **Send 3 Buttons**: Order | Products | Something else.\n• **Products** → Get Inventory → **Send Products** (list only).\n• **Order** → Get Inventory → **Format Order Products** → **Send Order Products** (list + add-to-cart CTA). Follow-up: handle reply (e.g. 1x2, 3x1) in another flow → POST /transactions, payment link.\n• **Something else** → **AI Agent** (store-info Q&A only) → Send Reply → Store Outbound.",
+        "height": 540,
+        "width": 400,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-480, -80],
+      "id": "87ea4541-b998-44fb-91e1-3734a01a8147",
+      "name": "Setup Instructions"
+    }
+  ],
+  "connections": {
+    "Webhook Verify": {
+      "main": [
+        [
+          {
+            "node": "Return Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inbound Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract & Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Filter": {
+      "main": [
+        [
+          {
+            "node": "Resolve Tenant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Tenant": {
+      "main": [
+        [
+          {
+            "node": "Store Inbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Inbound": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Send 3 Buttons",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Inventory",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Inventory for Order",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add to Cart API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Cart",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Checkout API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Inventory": {
+      "main": [
+        [
+          {
+            "node": "Format Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Products": {
+      "main": [
+        [
+          {
+            "node": "Send Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reply": {
+      "main": [
+        [
+          {
+            "node": "Store Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Inventory for Order": {
+      "main": [
+        [
+          {
+            "node": "Build Order Products Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Order Products Message": {
+      "main": [
+        [
+          {
+            "node": "Has carousel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has carousel?": {
+      "main": [
+        [
+          {
+            "node": "Send Product Carousel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Order Text (0-1 products)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Cart API": {
+      "main": [
+        [
+          {
+            "node": "Send Added",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Cart": {
+      "main": [
+        [
+          {
+            "node": "Format Cart",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Cart": {
+      "main": [
+        [
+          {
+            "node": "Send Cart Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checkout API": {
+      "main": [
+        [
+          {
+            "node": "Send Order Placed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Products": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Order": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Contact": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Contact": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c91f26522a04f267408f611dedee2ca46bdc2e467732f3c5c8642e81c8c5f9ad"
+  },
+  "id": "uMlF70ymiDbaAYx4",
+  "tags": []
+}

@@ -37,6 +37,11 @@ output "cloudfront_url" {
   value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
 }
 
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID (for cache invalidation)"
+  value       = aws_cloudfront_distribution.frontend.id
+}
+
 output "dynamodb_table_name" {
   description = "DynamoDB table name"
   value       = aws_dynamodb_table.main.name

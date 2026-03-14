@@ -308,7 +308,7 @@ def create_payment(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     amount_cents = int(amount * 100)
 
     try:
-        txn_items = [TransactionItem.model_validate(i) for i in items_raw]
+        txn_items = [TransactionItem.from_dynamo(i) for i in items_raw]
     except Exception as e:
         return error(f"Invalid items: {e}", 400)
 
@@ -452,8 +452,8 @@ def create_payment(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         return server_error(f"Failed to record transaction: {e}")
 
     return created({
-        "transaction": transaction.model_dump(mode="json"),
-        "payment": payment.model_dump(mode="json"),
+        "transaction": transaction.to_dict(),
+        "payment": payment.to_dict(),
     })
 
 

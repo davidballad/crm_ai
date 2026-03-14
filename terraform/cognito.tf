@@ -43,6 +43,11 @@ resource "aws_cognito_user_pool" "main" {
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-user-pool"
   })
+
+  # Schema cannot be modified after pool creation; ignore drift to avoid "cannot modify or remove schema items" error.
+  lifecycle {
+    ignore_changes = [schema]
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -53,13 +58,20 @@ resource "aws_cognito_user_pool_client" "spa" {
   name         = "${local.name_prefix}-spa-client"
   user_pool_id = aws_cognito_user_pool.main.id
 
-  generate_secret                      = false
-  explicit_auth_flows                   = ["ALLOW_USER_SRP_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]
-  prevent_user_existence_errors        = "ENABLED"
-  enable_token_revocation              = true
-  refresh_token_validity                = 30
-  access_token_validity                = 60
-  id_token_validity                    = 60
+  generate_secret               = false
+  explicit_auth_flows            = ["ALLOW_USER_SRP_AUTH", "ALLOW_REFRESH_TOKEN_AUTH"]
+  prevent_user_existence_errors  = "ENABLED"
+  enable_token_revocation        = true
+  refresh_token_validity        = 30
+  access_token_validity          = 60
+  id_token_validity              = 60
+
+  # Include custom attributes in ID token so API Gateway / Lambdas get tenant_id and role
+  read_attributes  = ["email", "custom:tenant_id", "custom:role"]
+  write_attributes  = ["email"]
+
+  callback_urls = var.cognito_callback_urls
+  logout_urls   = var.cognito_logout_urls
 
   token_validity_units {
     access_token  = "minutes"

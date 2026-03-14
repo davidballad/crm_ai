@@ -9,7 +9,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-INFRA_DIR="$PROJECT_ROOT/infrastructure"
+INFRA_DIR="$PROJECT_ROOT/terraform"
 ACTION="${1:-apply}"
 
 echo "============================================"

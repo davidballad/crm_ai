@@ -1,53 +1,88 @@
 ---
 description: Python coding standards and style conventions for this project
-globs: */.py
+globs: **/*.py
 alwaysApply: false
 ---
 
-# Python Coding StyleNaming Conventions
+# Python Coding Style
 
-- Functions: camelCase for Lambda/production code (e.g. storeChatHistory, getEmbedding)
-- Variables: snake_case (e.g. access_token, file_name, source_bucket)
-- Constants: UPPER_SNAKE_CASE at module level (e.g. REGION, VECTOR_BUCKET)
-File Structure (in order)
+## Naming Conventions
+
+- Functions: snake_case (e.g. extract_tenant_id, create_message, parse_body)
+- Variables: snake_case (e.g. access_token, file_name, tenant_id)
+- Constants: UPPER_SNAKE_CASE at module level (e.g. LIMIT_DEFAULT, MESSAGE_SK_PREFIX)
+- Classes: PascalCase (e.g. Tenant, Product, DynamoDBError)
+
+## File Structure (in order)
+
 1. Module docstring (triple-quoted, describe purpose)
-2. Imports
-3. Logger setup
-4. AWS client initialization
-5. Configuration / constants
-6. Helper functions (grouped by section with divider comments)
-7. Lambda handler (for Lambda files)
-8. if __name__ == "__main__": block (for local testing)
-Section DividersUse this style for logical groupings:# =============================================================================
+2. `from __future__ import annotations`
+3. Imports (stdlib → third-party → local, separated by blank lines)
+4. Constants
+5. Helper functions (private prefixed with `_`, grouped by section with divider comments)
+6. Public/route handler functions
+7. `lambda_handler(event, context)` router (for Lambda files)
+
+## Section Dividers
+
+Use this style for logical groupings:
+
+```python
+# ---------------------------------------------------------------------------
+# Section Name
+# ---------------------------------------------------------------------------
+```
+
+Use heavier dividers for top-level sections:
+
+```python
+# =============================================================================
 # Section Name
 # =============================================================================
-Imports
+```
+
+## Imports
+
 - Standard library first, then third-party, then local — separated by blank lines
-- Prefer import X for modules, from X import Y for specific items
-Logging
-- Use logging module, never print for operational output
-- Lambda files: logger = logging.getLogger() + logger.setLevel(logging.INFO)
-- Scripts/tests: logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s') + logger = logging.getLogger(__name__)
-- Use correct severity: logger.error() for failures, logger.info() for normal events
-Error Handling
+- Prefer `from X import Y` for specific items
+- Use `sys.path.insert(0, ...)` for shared module imports in Lambda functions
+
+## Error Handling
+
 - Wrap handler logic in try/except Exception with structured error response
-- Catch specific exceptions first when available (e.g. ssm.exceptions.ParameterNotFound)
-- Lambda handlers return {'statusCode': int, 'body': json.dumps(...)}
-- Log errors before returning
-Configuration
+- Catch specific exceptions first (e.g. DynamoDBError, ClientError, json.JSONDecodeError)
+- Use shared response helpers: `success()`, `error()`, `created()`, `not_found()`, `server_error()`
+- Return structured responses: `{'statusCode': int, 'headers': {...}, 'body': json.dumps(...)}`
+
+## Configuration
+
 - All configuration via environment variables
-- Required: os.environ['KEY'] (will raise if missing)
-- Optional with defaults: os.environ.get('KEY', 'default')
-- Group config into a getConfig() function when there are many values
-Docstrings
-- Use Google-style docstrings with Args: and Returns: sections
-- Always include a module-level docstring describing the file's purpose
-Type Hints
-- Include type hints on function signatures (params and return type)
-- Use typing.Optional for nullable parameters
-Common Libraries
+- Required: `os.environ['KEY']` or `os.environ.get('KEY')` with validation
+- Optional with defaults: `os.environ.get('KEY', 'default')`
+
+## Docstrings
+
+- Use concise single-line docstrings for functions: `"""GET /messages — list messages."""`
+- Include a module-level docstring describing the file's purpose
+
+## Type Hints
+
+- Use `from __future__ import annotations` for modern syntax
+- Include type hints on function signatures: `def func(param: str) -> dict[str, Any]:`
+- Use `str | None` instead of `Optional[str]`
+- Import `Any` from typing
+
+## Models (Pydantic)
+
+- Use `BaseModel` with `ConfigDict` when needed
+- Include `to_dynamo()` and `from_dynamo()` class methods
+- Use `Literal` for constrained string fields
+- Use `model_dump(mode="json")` for serialization
+
+## Common Libraries
+
 - boto3 for AWS services
 - json for serialization
-- logging for structured logging
 - os for environment config
-- concurrent.futures.ThreadPoolExecutor for parallel work
+- pydantic for data models
+- ulid for ID generation

@@ -1,13 +1,11 @@
-"""Messages Lambda: CRUD, conversation history, and inbound webhook (Meta WhatsApp Cloud API)."""
+"""Messages Lambda: CRUD and conversation history for WhatsApp messages."""
 
 from __future__ import annotations
 
 import base64
-import hmac
-import hashlib
 import json
-import os
 import sys
+import os
 from typing import Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -19,12 +17,14 @@ from shared.response import created, error, not_found, server_error, success
 from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
 
 MESSAGE_SK_PREFIX = "MESSAGE#"
-PHONE_PK = "PHONE"
 LIMIT_DEFAULT = 50
 LIMIT_MAX = 100
-META_SIGNATURE_HEADER = "x-hub-signature-256"
 VALID_CATEGORIES = {"active", "incomplete", "closed"}
 
+
+# ---------------------------------------------------------------------------
+# Pagination helpers
+# ---------------------------------------------------------------------------
 
 def _decode_next_token(token: str | None) -> dict[str, Any] | None:
     if not token:
@@ -40,70 +40,6 @@ def _encode_next_token(last_key: dict[str, Any] | None) -> str | None:
     if not last_key:
         return None
     return base64.b64encode(json.dumps(last_key, default=str).encode()).decode()
-
-
-def _get_raw_body(event: dict[str, Any]) -> bytes:
-    body = event.get("body") or ""
-    if event.get("isBase64Encoded"):
-        return base64.b64decode(body)
-    if isinstance(body, str):
-        return body.encode("utf-8")
-    return body
-
-
-def _verify_meta_webhook_signature(event: dict[str, Any], secret: str) -> bool:
-    if not secret:
-        return False
-    raw_body = _get_raw_body(event)
-    headers = event.get("headers") or {}
-    sig_header = headers.get(META_SIGNATURE_HEADER) or headers.get("X-Hub-Signature-256")
-    if not sig_header:
-        return False
-    expected_sig = sig_header[7:] if sig_header.startswith("sha256=") else sig_header
-    computed = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(computed, expected_sig)
-
-
-def _extract_message_from_meta_payload(body: dict[str, Any]) -> dict[str, Any] | None:
-    try:
-        entry = (body.get("entry") or [None])[0]
-        if not entry:
-            return None
-        changes = (entry.get("changes") or [None])[0]
-        if not changes or changes.get("field") != "messages":
-            return None
-        value = changes.get("value") or {}
-        messages = value.get("messages") or []
-        if not messages:
-            return None
-        msg = messages[0]
-        text = ""
-        if "text" in msg:
-            text = (msg["text"] or {}).get("body") or ""
-        to_number = (value.get("metadata") or {}).get("display_phone_number") or ""
-        return {
-            "from_number": str(msg.get("from") or ""),
-            "to_number": str(to_number),
-            "text": text,
-            "channel_message_id": msg.get("id"),
-        }
-    except (IndexError, KeyError, TypeError):
-        return None
-
-
-def _resolve_tenant_from_phone(to_number: str) -> str | None:
-    if not to_number:
-        return None
-    normalized = to_number.strip().replace(" ", "").replace("-", "").replace("+", "")
-    if not normalized:
-        return None
-    try:
-        item = get_item(pk=PHONE_PK, sk=normalized)
-        if item:
-            return item.get("tenant_id")
-    except DynamoDBError:
-        pass
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +62,7 @@ def list_messages(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     last_key = _decode_next_token(next_token)
     try:
         items, last_eval = query_items(pk=pk, sk_prefix=MESSAGE_SK_PREFIX, limit=limit, last_key=last_key)
-        messages = [Message.from_dynamo(item).model_dump(mode="json") for item in items]
+        messages = [Message.from_dynamo(item).to_dict() for item in items]
         if contact_id:
             messages = [m for m in messages if m.get("contact_id") == contact_id]
         if channel:
@@ -155,7 +91,7 @@ def list_contact_messages(tenant_id: str, contact_id: str, event: dict[str, Any]
     try:
         items, last_eval = query_items(pk=pk, sk_prefix=MESSAGE_SK_PREFIX, limit=limit, last_key=last_key)
         messages = [
-            Message.from_dynamo(item).model_dump(mode="json")
+            Message.from_dynamo(item).to_dict()
             for item in items
             if item.get("contact_id") == contact_id
         ]
@@ -197,7 +133,7 @@ def create_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     except DynamoDBError as e:
         return server_error(str(e))
 
-    return created(Message.from_dynamo(item).model_dump(mode="json"))
+    return created(Message.from_dynamo(item).to_dict())
 
 
 def patch_message_flags(tenant_id: str, message_id: str, event: dict[str, Any]) -> dict[str, Any]:
@@ -232,68 +168,7 @@ def patch_message_flags(tenant_id: str, message_id: str, event: dict[str, Any]) 
     except DynamoDBError as e:
         return server_error(str(e))
 
-    return success(body=Message.from_dynamo(updated_item).model_dump(mode="json"))
-
-
-# ---------------------------------------------------------------------------
-# Webhook (no auth)
-# ---------------------------------------------------------------------------
-
-def handle_inbound_webhook(event: dict[str, Any]) -> dict[str, Any]:
-    """GET = Meta verification; POST = validate HMAC, store message."""
-    method = (event.get("requestContext") or {}).get("http", {}).get("method", "GET")
-
-    if method == "GET":
-        params = event.get("queryStringParameters") or {}
-        hub_mode = params.get("hub.mode") or params.get("hub_mode")
-        hub_challenge = params.get("hub.challenge") or params.get("hub_challenge")
-        if hub_mode == "subscribe" and hub_challenge:
-            return {"statusCode": 200, "headers": {"Content-Type": "text/plain"}, "body": str(hub_challenge)}
-        return error("Verification failed", 400)
-
-    secret = os.environ.get("WEBHOOK_SECRET", "").strip()
-    if secret and not _verify_meta_webhook_signature(event, secret):
-        return error("Invalid signature", 401)
-
-    try:
-        body_str = _get_raw_body(event).decode("utf-8")
-        body = json.loads(body_str)
-    except (ValueError, json.JSONDecodeError):
-        return error("Invalid JSON body", 400)
-
-    payload = _extract_message_from_meta_payload(body)
-    if not payload:
-        return success(body={"status": "ignored"})
-
-    to_number = payload.get("to_number") or ""
-    tenant_id = _resolve_tenant_from_phone(to_number) or os.environ.get("WEBHOOK_TENANT_ID")
-    if not tenant_id:
-        return error("Tenant could not be resolved for to_number", 400)
-
-    message_id = generate_id()
-    created_ts = now_iso()
-    pk = build_pk(tenant_id)
-    sk = build_sk("MESSAGE", message_id)
-
-    item = {
-        "pk": pk,
-        "sk": sk,
-        "tenant_id": tenant_id,
-        "message_id": message_id,
-        "channel": "whatsapp",
-        "channel_message_id": payload.get("channel_message_id"),
-        "from_number": payload.get("from_number"),
-        "to_number": to_number,
-        "text": payload.get("text"),
-        "category": "active",
-        "created_ts": created_ts,
-    }
-    try:
-        put_item(item)
-    except DynamoDBError as e:
-        return server_error(str(e))
-
-    return success(body={"message_id": message_id})
+    return success(body=Message.from_dynamo(updated_item).to_dict())
 
 
 # ---------------------------------------------------------------------------
@@ -301,16 +176,12 @@ def handle_inbound_webhook(event: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Route message requests. All routes require auth (JWT or service key)."""
     try:
         method = (event.get("requestContext") or {}).get("http", {}).get("method", "")
         path = event.get("path", "") or event.get("rawPath", "")
         path_params = event.get("pathParameters") or {}
 
-        # Webhook: no auth
-        if path.rstrip("/").endswith("webhooks/inbound-message"):
-            return handle_inbound_webhook(event)
-
-        # Authenticated routes
         tenant_id = extract_tenant_id(event)
         if not tenant_id:
             return error("Unauthorized", 401)

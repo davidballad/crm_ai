@@ -2,7 +2,22 @@
 
 Base URL: `https://<api-id>.execute-api.<region>.amazonaws.com`
 
-All endpoints require a JWT `Authorization: Bearer <token>` header unless noted otherwise. The JWT is obtained from Cognito after sign-in and contains `custom:tenant_id` and `custom:role` claims.
+## Authentication
+
+### JWT (Frontend / Dashboard)
+
+Most endpoints accept a JWT `Authorization: Bearer <token>` header. The JWT is obtained from Cognito after sign-in and contains `custom:tenant_id` and `custom:role` claims.
+
+### Service Key (n8n / External Services)
+
+Endpoints also accept service key auth for machine-to-machine calls (e.g. from n8n). Send two headers:
+
+```
+X-Service-Key: <shared-secret>
+X-Tenant-Id: <tenant-id>
+```
+
+The service key is set via the `SERVICE_API_KEY` Lambda environment variable. The Lambda validates the key and extracts the tenant from `X-Tenant-Id`.
 
 ---
 
@@ -58,12 +73,20 @@ Finalizes tenant setup after first login. Updates settings and seeds sample prod
 
 **Request Body (all optional):**
 
-| Field            | Type   | Description                        |
-| ---------------- | ------ | ---------------------------------- |
-| `currency`       | string | e.g. `"USD"`, `"EUR"`             |
-| `timezone`       | string | e.g. `"America/New_York"`         |
-| `business_hours` | object | e.g. `{"open": "09:00", "close": "22:00"}` |
-| `settings`       | object | Arbitrary settings key-value pairs |
+| Field                   | Type     | Description                                          |
+| ----------------------- | -------- | ---------------------------------------------------- |
+| `currency`              | string   | e.g. `"USD"`, `"EUR"`, `"MXN"`                     |
+| `timezone`              | string   | e.g. `"America/New_York"`                           |
+| `business_hours`        | object   | e.g. `{"open": "09:00", "close": "22:00"}`         |
+| `settings`              | object   | Arbitrary settings key-value pairs                   |
+| `phone_number`          | string   | Business WhatsApp phone number                       |
+| `meta_phone_number_id`  | string   | Meta's phone_number_id (from WhatsApp Cloud API)    |
+| `ai_system_prompt`      | string   | System prompt for the n8n AI agent                   |
+| `capabilities`          | string[] | Enabled features, e.g. `["ordering", "menu_info"]` |
+| `delivery_enabled`      | boolean  | Whether delivery is available                        |
+| `payment_methods`       | string[] | e.g. `["cash", "transfer", "card"]`                |
+
+When `meta_phone_number_id` is provided, a `PHONE_NUMBER_ID` mapping is created in DynamoDB for tenant resolution.
 
 **Response:** `200 OK`
 
@@ -71,6 +94,66 @@ Finalizes tenant setup after first login. Updates settings and seeds sample prod
 {
   "message": "Setup complete. Your workspace is ready."
 }
+```
+
+---
+
+### Get Tenant Config
+
+```
+GET /onboarding/config
+```
+
+Returns the full tenant configuration. Used by the frontend settings page and by n8n to load AI agent context.
+
+**Response:** `200 OK`
+
+```json
+{
+  "id": "01HXYZ...",
+  "business_name": "Maria's Kitchen",
+  "business_type": "restaurant",
+  "owner_email": "maria@kitchen.com",
+  "plan": "free",
+  "phone_number": "+34915551234",
+  "meta_phone_number_id": "102938...",
+  "ai_system_prompt": "You are the virtual assistant for Maria's Kitchen...",
+  "capabilities": ["ordering", "menu_info", "hours_info"],
+  "delivery_enabled": true,
+  "payment_methods": ["cash", "transfer"],
+  "currency": "MXN",
+  "timezone": "America/Mexico_City",
+  "business_hours": {"open": "09:00", "close": "21:00"}
+}
+```
+
+---
+
+### Resolve Tenant by Phone Number ID
+
+**Service key auth required** (no JWT).
+
+```
+GET /onboarding/resolve-phone?phone_number_id=102938...
+```
+
+Resolves a Meta `phone_number_id` to a tenant and returns the full tenant config. Used by n8n when an inbound WhatsApp message arrives.
+
+**Query Parameters:**
+
+| Param              | Type   | Required | Description                     |
+| ------------------ | ------ | -------- | ------------------------------- |
+| `phone_number_id`  | string | yes      | Meta's phone_number_id          |
+
+**Response:** `200 OK` — same shape as GET /onboarding/config.
+
+**Errors:** `400` missing parameter, `401` invalid service key, `404` no tenant mapped.
+
+**Example:**
+
+```bash
+curl "$API_URL/onboarding/resolve-phone?phone_number_id=102938..." \
+  -H "X-Service-Key: $SERVICE_API_KEY"
 ```
 
 ---
@@ -393,6 +476,40 @@ GET /transactions/summary
   }
 }
 ```
+
+---
+
+## Cart (WhatsApp order flow)
+
+Cart is keyed by tenant and customer (e.g. WhatsApp `from` number). Used by the n8n workflow for Add to cart → View cart → Checkout. Auth: `X-Service-Key` + `X-Tenant-Id`.
+
+### Get cart
+
+```
+GET /cart?customer_id=<wa_phone>
+```
+
+**Response:** `200 OK` — `{ "items": [{ "product_id", "product_name", "quantity", "unit_price" }], "updated_at": "..." }`
+
+### Add to cart
+
+```
+POST /cart/items
+```
+
+**Body:** `{ "customer_id": "<wa_phone>", "product_id": "<product_id>", "quantity": 1 }`
+
+**Response:** `200 OK` — cart after add.
+
+### Checkout (create order from cart)
+
+```
+POST /cart/checkout
+```
+
+**Body:** `{ "customer_id": "<wa_phone>", "customer_name": "...", "customer_phone": "..." }`
+
+**Response:** `201 Created` — transaction object. Cart is cleared.
 
 ---
 
@@ -922,28 +1039,6 @@ PATCH /messages/{id}/flags
 **Body:** `category` (active | incomplete | closed) and/or `processed_flags` (array of strings).
 
 **Response:** `200 OK` with updated message.
-
----
-
-## Webhooks
-
-### Inbound Message (WhatsApp / Meta Cloud API)
-
-**No authentication.** Used by Meta to deliver WhatsApp messages and for webhook verification.
-
-```
-GET /webhooks/inbound-message
-```
-
-**Query:** `hub.mode`, `hub.verify_token`, `hub.challenge` (Meta verification). **Response:** `200 OK` with body = `hub.challenge` (plain text).
-
-```
-POST /webhooks/inbound-message
-```
-
-**Headers:** `X-Hub-Signature-256`: `sha256=<hex>` (HMAC-SHA256 of raw body with app secret). Set `WEBHOOK_SECRET` (Lambda env) to your Meta app secret to validate.
-
-**Body:** Meta webhook payload (JSON). The Lambda stores the message with `category=active` and returns `200 OK` with `{ "message_id": "..." }`. Tenant is resolved from `to_number` via DynamoDB mapping (`pk=PHONE`, `sk=<normalized to_number>`). Fallback: `WEBHOOK_TENANT_ID` env.
 
 ---
 

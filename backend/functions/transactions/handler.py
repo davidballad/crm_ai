@@ -11,11 +11,11 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-from shared.db import query_items, transact_write, get_table, update_item, get_item
+from shared.db import query_items, transact_write, get_table, update_item, get_item, put_item
 from shared.db import DynamoDBError
 from shared.auth import require_auth
 from shared.response import success, created, not_found, error, server_error
-from shared.models import Transaction
+from shared.models import Transaction, TransactionItem
 from shared.utils import generate_id, now_iso, today_str, build_pk, build_sk, parse_body
 
 from boto3.dynamodb.conditions import Key
@@ -109,7 +109,7 @@ def list_transactions(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
         transactions = [Transaction.from_dynamo(i) for i in items]
         result: dict[str, Any] = {
-            "transactions": [t.model_dump(mode="json") for t in transactions]
+            "transactions": [t.to_dict() for t in transactions]
         }
         if last_eval:
             result["next_token"] = _encode_next_token(last_eval)
@@ -127,7 +127,7 @@ def record_sale(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """
     try:
         body = parse_body(event)
-        transaction = Transaction.model_validate(body)
+        transaction = Transaction.from_dynamo(body)
     except Exception as e:
         return error(f"Invalid request body: {e}")
 
@@ -138,7 +138,7 @@ def record_sale(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         existing_items, _ = query_items(pk, sk_prefix="TXN#", limit=200)
         for item in existing_items:
             if item.get("idempotency_key") == idem_key:
-                return success(Transaction.from_dynamo(item).model_dump(mode="json"))
+                return success(Transaction.from_dynamo(item).to_dict())
 
     transaction_id = generate_id()
     created_at = now_iso()
@@ -197,7 +197,7 @@ def record_sale(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     except Exception as e:
         return server_error(str(e))
 
-    return created(transaction.model_dump(mode="json"))
+    return created(transaction.to_dict())
 
 
 def get_transaction(tenant_id: str, transaction_id: str) -> dict[str, Any]:
@@ -212,7 +212,7 @@ def get_transaction(tenant_id: str, transaction_id: str) -> dict[str, Any]:
         for item in items:
             txn = Transaction.from_dynamo(item)
             if txn.id == transaction_id:
-                return success(txn.model_dump(mode="json"))
+                return success(txn.to_dict())
         if not last_key:
             break
 
@@ -260,7 +260,7 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
     except DynamoDBError as e:
         return server_error(str(e))
 
-    return success(body=Transaction.from_dynamo(updated_item).model_dump(mode="json"))
+    return success(body=Transaction.from_dynamo(updated_item).to_dict())
 
 
 def get_daily_summary(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
@@ -300,6 +300,139 @@ def get_daily_summary(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     return success(summary)
 
 
+# -----------------------------------------------------------------------------
+# Cart (WhatsApp order flow: add to cart → view cart → checkout)
+# -----------------------------------------------------------------------------
+
+def _cart_sk(customer_id: str) -> str:
+    """Sort key for cart: CART#<customer_id>. Normalize phone for consistency."""
+    cid = (customer_id or "").strip().lstrip("+")
+    return f"CART#{cid}"
+
+
+def _get_customer_id(event: dict[str, Any]) -> str | None:
+    """Get customer_id from query (GET) or body (POST). Used for cart endpoints."""
+    q = _get_query_params(event)
+    if q.get("customer_id"):
+        return q["customer_id"]
+    try:
+        body = parse_body(event)
+        return (body or {}).get("customer_id")
+    except Exception:
+        return None
+
+
+def get_cart(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """GET /cart?customer_id=<wa_id> — return cart for customer."""
+    customer_id = _get_customer_id(event)
+    if not customer_id:
+        return error("customer_id required (query or body)", 400)
+    pk = build_pk(tenant_id)
+    sk = _cart_sk(customer_id)
+    try:
+        item = get_item(pk, sk)
+    except DynamoDBError as e:
+        return server_error(str(e))
+    if not item:
+        return success(body={"items": [], "updated_at": None})
+    items = item.get("items") or []
+    out = [{"product_id": i["product_id"], "product_name": i.get("product_name", ""), "quantity": int(i.get("quantity", 1)), "unit_price": str(i.get("unit_price", "0"))} for i in items]
+    return success(body={"items": out, "updated_at": item.get("updated_at")})
+
+
+def add_cart_item(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /cart/items — body: customer_id, product_id, quantity (optional). Fetches product name/price from inventory."""
+    try:
+        body = parse_body(event)
+    except Exception:
+        return error("Invalid JSON body", 400)
+    customer_id = (body or {}).get("customer_id")
+    product_id = (body or {}).get("product_id")
+    if not customer_id or not product_id:
+        return error("customer_id and product_id required", 400)
+    quantity = max(1, int((body or {}).get("quantity", 1)))
+    pk = build_pk(tenant_id)
+    product_sk = build_sk("PRODUCT", product_id)
+    try:
+        product_item = get_item(pk, product_sk)
+    except DynamoDBError as e:
+        return server_error(str(e))
+    if not product_item:
+        return not_found("Product not found")
+    product_name = product_item.get("name") or product_item.get("product_name") or "Item"
+    unit_price = product_item.get("unit_cost") or Decimal("0")
+    cart_sk = _cart_sk(customer_id)
+    cart_item = get_item(pk, cart_sk)
+    items = list(cart_item.get("items", [])) if cart_item else []
+    found = False
+    for i in items:
+        if i.get("product_id") == product_id:
+            i["quantity"] = int(i.get("quantity", 0)) + quantity
+            found = True
+            break
+    if not found:
+        items.append({
+            "product_id": product_id,
+            "product_name": product_name,
+            "quantity": quantity,
+            "unit_price": str(unit_price),
+        })
+    now = now_iso()
+    put_item({
+        "pk": pk,
+        "sk": cart_sk,
+        "items": items,
+        "updated_at": now,
+    })
+    return success(body={"items": items, "updated_at": now})
+
+
+def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /cart/checkout — body: customer_id, customer_name, customer_phone. Creates transaction from cart, clears cart, returns transaction."""
+    try:
+        body = parse_body(event)
+    except Exception:
+        return error("Invalid JSON body", 400)
+    customer_id = (body or {}).get("customer_id")
+    customer_name = (body or {}).get("customer_name") or "Customer"
+    customer_phone = (body or {}).get("customer_phone") or customer_id or ""
+    if not customer_id:
+        return error("customer_id required", 400)
+    pk = build_pk(tenant_id)
+    cart_sk = _cart_sk(customer_id)
+    cart_item = get_item(pk, cart_sk)
+    if not cart_item or not cart_item.get("items"):
+        return error("Cart is empty", 400)
+    items_raw = cart_item["items"]
+    total = Decimal("0")
+    txn_items: list[TransactionItem] = []
+    for i in items_raw:
+        qty = int(i.get("quantity", 1))
+        price = Decimal(str(i.get("unit_price", "0")))
+        txn_items.append(TransactionItem(
+            product_id=i["product_id"],
+            product_name=i.get("product_name", ""),
+            quantity=qty,
+            unit_price=price,
+        ))
+        total += price * qty
+    transaction = Transaction(
+        items=txn_items,
+        total=total,
+        payment_method="whatsapp",
+        contact_id=None,
+        status="pending",
+    )
+    transaction.id = generate_id()
+    transaction.created_at = now_iso()
+    sk_txn = _transaction_sk(transaction.created_at, transaction.id)
+    txn_record = {"pk": pk, "sk": sk_txn, **transaction.to_dynamo()}
+    table = get_table()
+    table.put_item(Item=txn_record)
+    put_item({"pk": pk, "sk": cart_sk, "items": [], "updated_at": now_iso()})
+    return created(transaction.to_dict())
+
+
 @require_auth
 def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
     """Main Lambda handler - routes based on HTTP method and path."""
@@ -333,5 +466,13 @@ def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]
     if method == "PATCH" and path.startswith("/transactions/"):
         txn_id = path_params.get("id") or path.split("/")[-1]
         return patch_transaction(tenant_id, txn_id, event)
+
+    # Cart (WhatsApp order flow)
+    if method == "GET" and (path == "/cart" or path.endswith("/cart")):
+        return get_cart(tenant_id, event)
+    if method == "POST" and (path == "/cart/items" or path.endswith("/cart/items")):
+        return add_cart_item(tenant_id, event)
+    if method == "POST" and (path == "/cart/checkout" or path.endswith("/cart/checkout")):
+        return cart_checkout(tenant_id, event)
 
     return error("Not found", 404)

@@ -1,33 +1,53 @@
-"""Pydantic models for CRM entities with DynamoDB serialization."""
+"""Data models for CRM entities with DynamoDB serialization (stdlib dataclasses)."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field, fields, asdict
 from decimal import Decimal
-from typing import Any, Literal
-
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any
 
 
-def _to_dynamo_value(value: Any) -> Any:
-    """Convert a value to DynamoDB-compatible format. Decimals stay as Decimal."""
+def _serialize_value(value: Any, *, for_json: bool = False) -> Any:
+    """Convert a value for DynamoDB or JSON output."""
     if value is None:
         return None
+    if isinstance(value, Decimal):
+        return str(value) if for_json else value
     if isinstance(value, (list, tuple)):
-        return [_to_dynamo_value(v) for v in value]
+        return [_serialize_value(v, for_json=for_json) for v in value]
     if isinstance(value, dict):
-        return {k: _to_dynamo_value(v) for k, v in value.items()}
+        return {k: _serialize_value(v, for_json=for_json) for k, v in value.items()}
     return value
 
 
-class Product(BaseModel):
-    """Product/inventory item model."""
+def _dict_no_none(obj: Any, *, for_json: bool = False) -> dict[str, Any]:
+    """Convert a dataclass to dict, dropping None values and serializing Decimals."""
+    raw = asdict(obj)
+    return {k: _serialize_value(v, for_json=for_json) for k, v in raw.items() if v is not None}
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    id: str | None = None
+class _BaseModel:
+    """Mixin with to_dynamo / to_dict / from_dynamo helpers."""
+
+    def to_dynamo(self) -> dict[str, Any]:
+        return _dict_no_none(self, for_json=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        return _dict_no_none(self, for_json=True)
+
+    @classmethod
+    def from_dynamo(cls, item: dict[str, Any]) -> Any:
+        valid_fields = {f.name for f in fields(cls)}
+        filtered = {k: v for k, v in item.items() if k in valid_fields}
+        return cls(**filtered)
+
+
+@dataclass
+class Product(_BaseModel):
     name: str
+    id: str | None = None
     category: str | None = None
-    quantity: int = Field(ge=0)
+    quantity: int = 0
     unit_cost: Decimal | None = None
     reorder_threshold: int = 10
     supplier_id: str | None = None
@@ -38,186 +58,99 @@ class Product(BaseModel):
     created_at: str | None = None
     updated_at: str | None = None
 
-    def to_dynamo(self) -> dict[str, Any]:
-        """Return a dict suitable for DynamoDB (Decimal preserved)."""
-        return _to_dynamo_value(self.model_dump(exclude_none=True))
 
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "Product":
-        """Create model from a DynamoDB item."""
-        return cls.model_validate(item)
-
-
-class TransactionItem(BaseModel):
-    """Line item within a transaction."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
+@dataclass
+class TransactionItem(_BaseModel):
     product_id: str
     product_name: str
-    quantity: int = Field(gt=0)
+    quantity: int
     unit_price: Decimal
 
-    def to_dynamo(self) -> dict[str, Any]:
-        """Return a dict suitable for DynamoDB."""
-        return _to_dynamo_value(self.model_dump())
 
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "TransactionItem":
-        """Create model from a DynamoDB item."""
-        return cls.model_validate(item)
-
-
-class Transaction(BaseModel):
-    """Sales transaction with idempotency and delivery info."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
+@dataclass
+class Transaction(_BaseModel):
+    items: list
+    total: Decimal
+    payment_method: str
     id: str | None = None
     contact_id: str | None = None
-    items: list[TransactionItem]
-    total: Decimal
-    payment_method: Literal["cash", "transfer", "card", "card_online", "other"]
-    delivery_method: Literal["pickup", "delivery"] | None = None
+    delivery_method: str | None = None
     delivery_location: str | None = None
-    status: Literal["pending", "confirmed"] = "pending"
+    status: str = "pending"
     idempotency_key: str | None = None
     square_payment_id: str | None = None
     notes: str | None = None
     created_at: str | None = None
 
-    def to_dynamo(self) -> dict[str, Any]:
-        data = self.model_dump(exclude_none=True)
-        if "items" in data:
-            data["items"] = [item.model_dump() if hasattr(item, "model_dump") else item for item in data["items"]]
-            data["items"] = [_to_dynamo_value(i) for i in data["items"]]
-        return _to_dynamo_value(data)
 
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "Transaction":
-        return cls.model_validate(item)
-
-
-class Supplier(BaseModel):
-    """Supplier/vendor model."""
-
-    id: str | None = None
+@dataclass
+class Supplier(_BaseModel):
     name: str
+    id: str | None = None
     contact_email: str | None = None
     contact_phone: str | None = None
     address: str | None = None
     lead_time_days: int | None = None
     notes: str | None = None
 
-    def to_dynamo(self) -> dict[str, Any]:
-        """Return a dict suitable for DynamoDB."""
-        return _to_dynamo_value(self.model_dump(exclude_none=True))
 
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "Supplier":
-        """Create model from a DynamoDB item."""
-        return cls.model_validate(item)
-
-
-class Tenant(BaseModel):
-    """Tenant/organization model."""
-
-    id: str | None = None
+@dataclass
+class Tenant(_BaseModel):
     business_name: str
-    business_type: Literal["restaurant", "retail", "bar", "other"]
+    business_type: str
     owner_email: str
+    id: str | None = None
     plan: str = "free"
     settings: dict[str, Any] | None = None
+    phone_number: str | None = None
+    meta_phone_number_id: str | None = None
+    ai_system_prompt: str | None = None
+    capabilities: list[str] | None = None
+    delivery_enabled: bool = False
+    payment_methods: list[str] | None = None
+    currency: str | None = None
+    timezone: str | None = None
+    business_hours: dict[str, Any] | None = None
     created_at: str | None = None
-
-    def to_dynamo(self) -> dict[str, Any]:
-        """Return a dict suitable for DynamoDB."""
-        return _to_dynamo_value(self.model_dump(exclude_none=True))
-
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "Tenant":
-        """Create model from a DynamoDB item."""
-        return cls.model_validate(item)
+    updated_at: str | None = None
 
 
-class PurchaseOrderItem(BaseModel):
-    """Line item within a purchase order."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
+@dataclass
+class PurchaseOrderItem(_BaseModel):
     product_id: str
     product_name: str
-    quantity: int = Field(gt=0)
+    quantity: int
     unit_cost: Decimal
 
-    def to_dynamo(self) -> dict[str, Any]:
-        """Return a dict suitable for DynamoDB."""
-        return _to_dynamo_value(self.model_dump())
 
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "PurchaseOrderItem":
-        """Create model from a DynamoDB item."""
-        return cls.model_validate(item)
-
-
-class PurchaseOrder(BaseModel):
-    """Purchase order model."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
+@dataclass
+class PurchaseOrder(_BaseModel):
+    supplier_name: str
+    items: list
     id: str | None = None
     supplier_id: str | None = None
-    supplier_name: str
-    items: list[PurchaseOrderItem]
     total_cost: Decimal | None = None
-    status: Literal["draft", "sent", "received", "cancelled"] = "draft"
+    status: str = "draft"
     notes: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
-    def to_dynamo(self) -> dict[str, Any]:
-        """Return a dict suitable for DynamoDB."""
-        data = self.model_dump(exclude_none=True)
-        if "items" in data:
-            data["items"] = [
-                item.model_dump() if hasattr(item, "model_dump") else item
-                for item in data["items"]
-            ]
-            data["items"] = [_to_dynamo_value(i) for i in data["items"]]
-        return _to_dynamo_value(data)
 
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "PurchaseOrder":
-        """Create model from a DynamoDB item."""
-        return cls.model_validate(item)
-
-
-class User(BaseModel):
-    """User within a tenant."""
-
-    id: str | None = None
+@dataclass
+class User(_BaseModel):
     email: str
     tenant_id: str
-    role: Literal["owner", "manager", "staff"] = "staff"
+    id: str | None = None
+    role: str = "staff"
     display_name: str | None = None
-    status: Literal["active", "inactive"] = "active"
+    status: str = "active"
     invited_by: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
-    def to_dynamo(self) -> dict[str, Any]:
-        """Return a dict suitable for DynamoDB."""
-        return _to_dynamo_value(self.model_dump(exclude_none=True))
 
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "User":
-        """Create model from a DynamoDB item."""
-        return cls.model_validate(item)
-
-
-class SquareConnection(BaseModel):
-    """Tracks a tenant's Square OAuth connection."""
-
+@dataclass
+class SquareConnection(_BaseModel):
     tenant_id: str
     square_merchant_id: str
     square_access_token: str
@@ -226,89 +159,53 @@ class SquareConnection(BaseModel):
     connected_at: str | None = None
     updated_at: str | None = None
 
-    def to_dynamo(self) -> dict[str, Any]:
-        return _to_dynamo_value(self.model_dump(exclude_none=True))
 
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "SquareConnection":
-        return cls.model_validate(item)
-
-
-class Payment(BaseModel):
-    """Square payment record linked to a CRM transaction."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
+@dataclass
+class Payment(_BaseModel):
+    square_payment_id: str
+    amount: Decimal
     id: str | None = None
     transaction_id: str | None = None
-    square_payment_id: str
     square_order_id: str | None = None
-    amount: Decimal
     currency: str = "USD"
-    status: Literal["pending", "completed", "failed", "cancelled", "refunded"] = "pending"
-    source_type: Literal["card_present", "card_online", "cash"] = "card_present"
+    status: str = "pending"
+    source_type: str = "card_present"
     card_brand: str | None = None
     card_last4: str | None = None
     receipt_url: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
-    def to_dynamo(self) -> dict[str, Any]:
-        return _to_dynamo_value(self.model_dump(exclude_none=True))
 
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "Payment":
-        return cls.model_validate(item)
-
-
-class AIInsight(BaseModel):
-    """AI-generated insight/report model."""
-
+@dataclass
+class AIInsight(_BaseModel):
     tenant_id: str
     date: str
     summary: str
-    forecasts: list[Any] | None = None
-    reorder_suggestions: list[Any] | None = None
-    spending_trends: list[Any] | None = None
-    revenue_insights: list[Any] | None = None
     generated_at: str
-
-    def to_dynamo(self) -> dict[str, Any]:
-        """Return a dict suitable for DynamoDB."""
-        return _to_dynamo_value(self.model_dump(exclude_none=True))
-
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "AIInsight":
-        """Create model from a DynamoDB item."""
-        return cls.model_validate(item)
+    forecasts: list | None = None
+    reorder_suggestions: list | None = None
+    spending_trends: list | None = None
+    revenue_insights: list | None = None
 
 
-class Contact(BaseModel):
-    """Contact/lead model with fixed lead statuses and tiers."""
-
+@dataclass
+class Contact(_BaseModel):
+    name: str
     tenant_id: str | None = None
     contact_id: str | None = None
-    name: str
     phone: str | None = None
     email: str | None = None
     source_channel: str | None = None
-    lead_status: Literal["prospect", "interested", "closed_won", "abandoned"] = "prospect"
-    tier: Literal["bronze", "silver", "gold"] = "bronze"
+    lead_status: str = "prospect"
+    tier: str = "bronze"
     last_activity_ts: str | None = None
     tags: list[str] | None = None
     created_ts: str | None = None
 
-    def to_dynamo(self) -> dict[str, Any]:
-        return _to_dynamo_value(self.model_dump(exclude_none=True))
 
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "Contact":
-        return cls.model_validate(item)
-
-
-class Message(BaseModel):
-    """Inbound/outbound message (e.g. WhatsApp) with conversation category."""
-
+@dataclass
+class Message(_BaseModel):
     tenant_id: str | None = None
     message_id: str | None = None
     channel: str = "whatsapp"
@@ -318,13 +215,6 @@ class Message(BaseModel):
     text: str | None = None
     metadata: dict[str, Any] | None = None
     contact_id: str | None = None
-    category: Literal["active", "incomplete", "closed"] = "active"
+    category: str = "active"
     processed_flags: list[str] | None = None
     created_ts: str | None = None
-
-    def to_dynamo(self) -> dict[str, Any]:
-        return _to_dynamo_value(self.model_dump(exclude_none=True))
-
-    @classmethod
-    def from_dynamo(cls, item: dict[str, Any]) -> "Message":
-        return cls.model_validate(item)

@@ -18,13 +18,18 @@ frontend/build/
 .eslintcache
 
 # Terraform
-infrastructure/.terraform/
-infrastructure/lambda_placeholder.zip
-infrastructure/packages/
-infrastructure/*.tfstate
-infrastructure/*.tfstate.backup
-infrastructure/*.tfplan
-infrastructure/.terraform.lock.hcl
+terraform/.terraform/
+terraform/lambda_placeholder.zip
+terraform/packages/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfplan
+terraform/tfplan
+terraform/.terraform.lock.hcl
+terraform/config/bootstrap/.terraform/
+terraform/config/bootstrap/*.tfstate
+terraform/config/bootstrap/*.tfstate.backup
+terraform/config/bootstrap/.terraform.lock.hcl
 
 # IDE
 .vscode/
@@ -43,6 +48,9 @@ Thumbs.db
 
 # AWS
 .aws-sam/
+
+# Generated diagrams (kept in docs/generated-diagrams/ only)
+generated-diagrams/
 
 # Coverage
 htmlcov/

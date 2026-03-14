@@ -30,25 +30,25 @@ Before deploying, make sure you have:
 
 ## Step-by-Step Deployment
 
-### Step 1: Request Bedrock Model Access
+### Step 1: Get a Gemini API Key (for AI insights)
 
-The AI insights feature uses Amazon Bedrock with Claude 3 Haiku. You need to request access first:
+The AI insights feature uses **Google Gemini 2.5 Flash** (free tier in Google AI Studio):
 
-1. Go to the [AWS Console](https://console.aws.amazon.com/bedrock/)
-2. Navigate to **Bedrock > Model access** (left sidebar)
-3. Click **Manage model access**
-4. Find **Anthropic > Claude 3 Haiku** and request access
-5. Wait for approval (usually instant for Haiku)
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Create or sign in with your Google account
+3. Click **Create API key** and copy the key
+4. Pass it to Terraform when applying (see [terraform/config/README.md](terraform/config/README.md)):  
+   `TF_VAR_gemini_api_key=your-key` or set in Lambda environment after deploy
 
-Without this, everything else works -- only the `POST /insights/generate` endpoint will fail.
+Without this, everything else works — only `POST /insights/generate` will return 503 until the key is set.
 
 ### Step 2: Deploy Infrastructure with Terraform
 
 ```bash
-cd infrastructure
-terraform init
-terraform plan    # Review what will be created
-terraform apply   # Type "yes" to confirm
+cd terraform
+terraform init -reconfigure -backend-config=config/prod/backend.tfvars
+terraform plan -var-file=config/prod/variables.tfvars    # Review what will be created
+terraform apply -var-file=config/prod/variables.tfvars   # Type "yes" to confirm
 ```
 
 This creates:
@@ -75,13 +75,13 @@ cd ..
 ./scripts/package-lambdas.sh
 ```
 
-This zips each Lambda function with the `shared/` module and Python dependencies into `infrastructure/packages/`.
+This zips each Lambda function with the `shared/` module and Python dependencies into `terraform/packages/`.
 
 Then deploy the actual code to each Lambda:
 
 ```bash
 # Get the name prefix from Terraform
-cd infrastructure
+cd terraform
 NAME_PREFIX=$(terraform output -raw dynamodb_table_name | sed 's/-table$//')
 cd ..
 
@@ -89,7 +89,7 @@ cd ..
 for func in inventory transactions purchases ai_insights onboarding users payments; do
     aws lambda update-function-code \
         --function-name "${NAME_PREFIX}-${func}" \
-        --zip-file "fileb://infrastructure/packages/${func}.zip"
+        --zip-file "fileb://terraform/packages/${func}.zip"
 done
 ```
 
@@ -99,12 +99,20 @@ Or use the full deploy script which does this automatically:
 ./scripts/deploy.sh apply
 ```
 
+**Building the Lambda layer on Windows:** The layer includes `cryptography` (for JWT verification). That package has platform-specific binaries, so building with `make layer` on Windows produces a layer that fails on Lambda with `cannot import name 'exceptions' from 'cryptography.hazmat.bindings._rust'`. Build the layer inside Docker so it uses Linux binaries:
+
+```bash
+make layer-docker
+```
+
+Then run `terraform apply` (or your deploy script) as usual. Requires Docker to be installed and running.
+
 ### Step 4: Configure and Deploy Frontend
 
 Create the frontend `.env` file with values from Terraform outputs:
 
 ```bash
-cd infrastructure
+cd terraform
 cat > ../frontend/.env <<EOF
 VITE_API_URL=$(terraform output -raw api_endpoint)
 VITE_COGNITO_USER_POOL_ID=$(terraform output -raw cognito_user_pool_id)
@@ -119,7 +127,7 @@ Build and deploy:
 cd frontend
 npm ci
 npm run build
-aws s3 sync dist/ s3://$(cd ../infrastructure && terraform output -raw frontend_bucket) --delete
+aws s3 sync dist/ s3://$(cd ../terraform && terraform output -raw frontend_bucket) --delete
 ```
 
 Or use the script:
@@ -133,7 +141,7 @@ Or use the script:
 **Create your first tenant:**
 
 ```bash
-API_URL=$(cd infrastructure && terraform output -raw api_endpoint)
+API_URL=$(cd terraform && terraform output -raw api_endpoint)
 
 curl -X POST "$API_URL/onboarding/tenant" \
   -H "Content-Type: application/json" \
@@ -154,8 +162,8 @@ Open the CloudFront URL from `terraform output -raw cloudfront_url` in your brow
 To get a JWT token for API testing, you can use the AWS CLI:
 
 ```bash
-POOL_ID=$(cd infrastructure && terraform output -raw cognito_user_pool_id)
-CLIENT_ID=$(cd infrastructure && terraform output -raw cognito_client_id)
+POOL_ID=$(cd terraform && terraform output -raw cognito_user_pool_id)
+CLIENT_ID=$(cd terraform && terraform output -raw cognito_client_id)
 
 TOKEN=$(aws cognito-idp initiate-auth \
   --auth-flow USER_PASSWORD_AUTH \
@@ -168,6 +176,24 @@ curl "$API_URL/inventory" -H "Authorization: Bearer $TOKEN"
 ```
 
 Note: USER_PASSWORD_AUTH flow needs to be enabled in the Cognito client. The default config uses SRP auth which requires the frontend SDK. The easiest path is to just use the frontend.
+
+### Fix: Signup fails — "custom:tenant_id / custom:role do not exist in the schema"
+
+If signup returns **Attributes did not conform to the schema: custom:tenant_id / custom:role**, the Cognito user pool was created **before** those custom attributes were in Terraform. You can fix it **without replacing the pool** by adding the attributes via the AWS API:
+
+```bash
+# Get your user pool ID (from Terraform)
+POOL_ID=$(cd terraform && terraform output -raw cognito_user_pool_id)
+
+# Add the two custom attributes (run once; use your Terraform region if not us-east-1)
+aws cognito-idp add-custom-attributes --user-pool-id "$POOL_ID" --region us-east-1 \
+  --custom-attributes Name=tenant_id,AttributeDataType=String,Mutable=true,Required=false,StringAttributeConstraints="{MinLength=1,MaxLength=128}"
+
+aws cognito-idp add-custom-attributes --user-pool-id "$POOL_ID" --region us-east-1 \
+  --custom-attributes Name=role,AttributeDataType=String,Mutable=true,Required=false,StringAttributeConstraints="{MinLength=1,MaxLength=32}"
+```
+
+If you see "One or more attributes already exist", the pool already has them (e.g. after a replace). Otherwise, retry signup; no Terraform apply or frontend redeploy needed.
 
 ### Step 6: Set Up Square Payment Processing
 
@@ -184,8 +210,8 @@ Square integration is **optional** -- the system works without it (transactions 
 Add your Square Application ID to Terraform:
 
 ```bash
-cd infrastructure
-terraform apply -var="square_application_id=YOUR_APP_ID" -var="square_environment=sandbox"
+cd terraform
+terraform apply -var-file=config/prod/variables.tfvars -var="square_application_id=YOUR_APP_ID" -var="square_environment=sandbox"
 ```
 
 Use `sandbox` for testing, switch to `production` when ready for real charges.
@@ -270,14 +296,14 @@ The AI insights Lambda (`backend/functions/ai_insights/handler.py`) uses a simpl
 
 1. Gather business data from DynamoDB (products, transactions)
 2. Build a structured prompt with the data
-3. Call `bedrock.invoke_model()` with Claude Haiku
+3. Call the **Gemini API** (Google AI Studio) with Gemini 2.5 Flash
 4. Parse the JSON response
 5. Cache in DynamoDB with a 7-day TTL
 
 This is the right choice for the MVP because:
 
 - **Simple**: One API call, no orchestration framework needed
-- **Cheap**: Claude Haiku is ~$0.25/M input tokens. Caching means one Bedrock call per tenant per day
+- **Cost-friendly**: Gemini 2.5 Flash has a free tier in AI Studio. Caching means one API call per tenant per day
 - **Fast**: Single request/response, no multi-step agent reasoning
 - **Predictable**: You control the exact prompt and output format
 
@@ -298,21 +324,23 @@ AgentCore is a newer platform for building **agentic AI** -- where the AI autono
 
 ## Estimated AWS Costs
 
-| Customer Count | Monthly Cost | Notes |
-| -------------- | ------------ | ----- |
-| 0-50           | $5-25        | Mostly within free tier |
-| 50-500         | $50-150      | DynamoDB + Lambda + Bedrock |
-| 500+           | $200-500     | Still very manageable vs revenue |
+See [architecture.md — Cost Architecture](architecture.md#cost-architecture) for detailed breakdown and free tier diagram.
 
-**Free tier coverage (first 12 months):**
-- Lambda: 1M requests/month
-- API Gateway: 1M calls/month
-- DynamoDB: 25GB storage + 25 RCU/WCU
-- S3: 5GB storage
-- Cognito: 50,000 MAU
-- CloudFront: 1TB data transfer
+At 0–50 tenants with light use, expect ~$5–25/month (free tier covers most services). The biggest cost driver is AI calls, mitigated by caching insights per tenant per day.
 
-**Biggest cost driver:** Bedrock calls. Mitigated by caching insights (one call per tenant per day).
+### Avoid Extra Cost from Logs
+
+Lambda creates log groups automatically and keeps logs indefinitely. Set a short retention to avoid CloudWatch Logs storage creep:
+
+```hcl
+resource "aws_cloudwatch_log_group" "lambda" {
+  for_each          = merge(local.lambda_functions, { payments = {} })
+  name              = "/aws/lambda/${local.name_prefix}-${each.key}"
+  retention_in_days  = 14
+}
+```
+
+Alternatively, set retention in the AWS Console after first deploy.
 
 ---
 

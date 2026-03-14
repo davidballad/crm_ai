@@ -135,7 +135,7 @@ def invite_user(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             pass
         return server_error("Failed to create user record")
 
-    return created(user.model_dump(mode="json"))
+    return created(user.to_dict())
 
 
 def list_users(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
@@ -144,7 +144,7 @@ def list_users(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
     try:
         items, _ = query_items(pk=pk, sk_prefix="USER#", limit=200)
-        users = [User.from_dynamo(i).model_dump(mode="json") for i in items]
+        users = [User.from_dynamo(i).to_dict() for i in items]
         return success({"users": users})
     except DynamoDBError as e:
         return server_error(str(e))
@@ -163,7 +163,7 @@ def get_user(tenant_id: str, user_id: str) -> dict[str, Any]:
     if not item:
         return not_found("User not found")
 
-    return success(User.from_dynamo(item).model_dump(mode="json"))
+    return success(User.from_dynamo(item).to_dict())
 
 
 def update_user(tenant_id: str, user_id: str, event: dict[str, Any]) -> dict[str, Any]:
@@ -225,7 +225,7 @@ def update_user(tenant_id: str, user_id: str, event: dict[str, Any]) -> dict[str
     except DynamoDBError as e:
         return server_error(str(e))
 
-    return success(User.from_dynamo(updated).model_dump(mode="json"))
+    return success(User.from_dynamo(updated).to_dict())
 
 
 def deactivate_user(tenant_id: str, user_id: str, event: dict[str, Any]) -> dict[str, Any]:

@@ -8,7 +8,7 @@ Multi-tenant SaaS CRM with AI-powered business insights, built for small busines
 - **Auth**: AWS Cognito (User Pools + JWT)
 - **API**: API Gateway (HTTP API) + Lambda (Python 3.12)
 - **Database**: DynamoDB (single-table design, on-demand capacity)
-- **AI**: Amazon Bedrock (Claude Haiku)
+- **AI**: Google Gemini 2.5 Flash (AI Studio, free tier)
 - **Payments**: Square (in-store card readers + online Web Payments SDK)
 - **IaC**: Terraform
 - **Storage**: S3 (receipts, exports, static assets)
@@ -20,7 +20,7 @@ See [docs/architecture.md](docs/architecture.md) for detailed diagrams (system o
 
 ```
 clienta-ai/
-  infrastructure/          # Terraform modules
+  terraform/               # Terraform (config in terraform/config/prod/)
   backend/
     functions/             # Lambda functions (Python)
       inventory/           # Inventory CRUD
@@ -43,38 +43,17 @@ clienta-ai/
 
 ## Getting Started
 
-### Prerequisites
-
-- Python 3.12+
-- Node.js 20+
-- Terraform 1.5+
-- AWS CLI configured with credentials
-
-### Backend (Local Development)
+See [docs/deployment-guide.md](docs/deployment-guide.md) for prerequisites and full deployment walkthrough. Quick local dev:
 
 ```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-pytest
-```
+# Backend
+cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && pytest
 
-### Frontend
+# Frontend
+cd frontend && npm install && npm run dev
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-### Infrastructure
-
-```bash
-cd infrastructure
-terraform init
-terraform plan
-terraform apply
+# Infrastructure — see terraform/config/README.md for detailed commands
+cd terraform && terraform init -reconfigure -backend-config=config/prod/backend.tfvars
 ```
 
 ## Data Model (DynamoDB Single-Table)

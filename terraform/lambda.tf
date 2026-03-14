@@ -59,27 +59,6 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
 }
 
 # -----------------------------------------------------------------------------
-# Bedrock InvokeModel
-# -----------------------------------------------------------------------------
-
-data "aws_iam_policy_document" "lambda_bedrock" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "bedrock:InvokeModel",
-      "bedrock:InvokeModelWithResponseStream"
-    ]
-    resources = ["*"]
-  }
-}
-
-resource "aws_iam_role_policy" "lambda_bedrock" {
-  name   = "bedrock-invoke"
-  role   = aws_iam_role.lambda.id
-  policy = data.aws_iam_policy_document.lambda_bedrock.json
-}
-
-# -----------------------------------------------------------------------------
 # S3 Data Bucket
 # -----------------------------------------------------------------------------
 
@@ -129,55 +108,62 @@ resource "aws_iam_role_policy" "lambda_cognito" {
 }
 
 # =============================================================================
-# Lambda Functions
+# Lambda Layer (shared dependencies — built by `make layer`)
 # =============================================================================
 
-# -----------------------------------------------------------------------------
-# Placeholder Lambda Package (replace with actual deployment packages)
-# -----------------------------------------------------------------------------
-
-data "archive_file" "lambda_placeholder" {
-  type        = "zip"
-  source_dir  = "${path.module}/lambda_placeholder"
-  output_path = "${path.module}/lambda_placeholder.zip"
+resource "aws_lambda_layer_version" "deps" {
+  layer_name          = "${local.name_prefix}-deps"
+  filename            = "${local.packages_dir}/layer.zip"
+  source_code_hash    = filebase64sha256("${local.packages_dir}/layer.zip")
+  compatible_runtimes = ["python3.12"]
+  description         = "Shared Python deps (pydantic, google-genai, ulid-py, etc.)"
 }
 
-locals {
-  lambda_functions = {
-    inventory = {
-      memory_size = 256
-      timeout    = 30
-    }
-    transactions = {
-      memory_size = 256
-      timeout     = 30
-    }
-    purchases = {
-      memory_size = 256
-      timeout     = 30
-    }
-    ai_insights = {
-      memory_size = 256
-      timeout     = 60
-    }
-    onboarding = {
-      memory_size = 256
-      timeout     = 30
-    }
-    users = {
-      memory_size = 256
-      timeout     = 30
-    }
-    contacts = {
-      memory_size = 256
-      timeout     = 30
-    }
-    messages = {
-      memory_size = 256
-      timeout     = 30
+# =============================================================================
+# Lambda Packages (auto-zipped by Terraform — no `make package` needed)
+# =============================================================================
+
+data "archive_file" "lambda_packages" {
+  for_each = local.lambda_functions
+
+  type        = "zip"
+  output_path = "${local.packages_dir}/${each.key}.zip"
+
+  source {
+    content  = file("${path.module}/../backend/functions/${each.key}/handler.py")
+    filename = "handler.py"
+  }
+
+  dynamic "source" {
+    for_each = fileset("${path.module}/../backend/shared", "*.py")
+    content {
+      content  = file("${path.module}/../backend/shared/${source.value}")
+      filename = "shared/${source.value}"
     }
   }
 }
+
+data "archive_file" "payments_package" {
+  type        = "zip"
+  output_path = "${local.packages_dir}/payments.zip"
+
+  source {
+    content  = file("${path.module}/../backend/functions/payments/handler.py")
+    filename = "handler.py"
+  }
+
+  dynamic "source" {
+    for_each = fileset("${path.module}/../backend/shared", "*.py")
+    content {
+      content  = file("${path.module}/../backend/shared/${source.value}")
+      filename = "shared/${source.value}"
+    }
+  }
+}
+
+# =============================================================================
+# Lambda Functions
+# =============================================================================
 
 # Payments Lambda needs Square-specific env vars, defined separately
 resource "aws_lambda_function" "payments" {
@@ -186,21 +172,22 @@ resource "aws_lambda_function" "payments" {
   handler       = "handler.lambda_handler"
   runtime       = "python3.12"
 
-  filename         = data.archive_file.lambda_placeholder.output_path
-  source_code_hash = data.archive_file.lambda_placeholder.output_base64sha256
+  filename         = data.archive_file.payments_package.output_path
+  source_code_hash = data.archive_file.payments_package.output_base64sha256
+  layers           = [aws_lambda_layer_version.deps.arn]
 
   memory_size = 256
   timeout     = 30
 
   environment {
     variables = {
-      TABLE_NAME             = aws_dynamodb_table.main.name
-      COGNITO_USER_POOL_ID   = aws_cognito_user_pool.main.id
-      DATA_BUCKET            = aws_s3_bucket.data.id
-      SQUARE_APPLICATION_ID  = var.square_application_id
-      SQUARE_ENVIRONMENT     = var.square_environment
-      SQUARE_SECRET_ARN      = aws_secretsmanager_secret.square.arn
-      SQUARE_WEBHOOK_URL     = "${aws_apigatewayv2_api.main.api_endpoint}/payments/webhook"
+      TABLE_NAME            = aws_dynamodb_table.main.name
+      COGNITO_USER_POOL_ID  = aws_cognito_user_pool.main.id
+      DATA_BUCKET           = aws_s3_bucket.data.id
+      SQUARE_APPLICATION_ID = var.square_application_id
+      SQUARE_ENVIRONMENT    = var.square_environment
+      # SQUARE_SECRET_ARN   = aws_secretsmanager_secret.square.arn  # enable if you uncomment secrets.tf
+      SQUARE_WEBHOOK_URL = "${aws_apigatewayv2_api.main.api_endpoint}/payments/webhook"
     }
   }
 
@@ -217,8 +204,9 @@ resource "aws_lambda_function" "services" {
   handler       = "handler.lambda_handler"
   runtime       = "python3.12"
 
-  filename         = data.archive_file.lambda_placeholder.output_path
-  source_code_hash = data.archive_file.lambda_placeholder.output_base64sha256
+  filename         = data.archive_file.lambda_packages[each.key].output_path
+  source_code_hash = data.archive_file.lambda_packages[each.key].output_base64sha256
+  layers           = [aws_lambda_layer_version.deps.arn]
 
   memory_size = each.value.memory_size
   timeout     = each.value.timeout
@@ -228,9 +216,9 @@ resource "aws_lambda_function" "services" {
       TABLE_NAME           = aws_dynamodb_table.main.name
       COGNITO_USER_POOL_ID = aws_cognito_user_pool.main.id
       DATA_BUCKET          = aws_s3_bucket.data.id
-      BEDROCK_MODEL_ID     = var.bedrock_model_id
-      WEBHOOK_SECRET       = var.webhook_secret
-      WEBHOOK_TENANT_ID    = var.webhook_tenant_id
+      GEMINI_API_KEY       = var.gemini_api_key
+      GEMINI_MODEL_ID      = var.gemini_model_id
+      SERVICE_API_KEY      = var.service_api_key
     }
   }
 

@@ -1,0 +1,155 @@
+---
+description: Full Clienta AI project context — loaded on every chat so the agent knows the entire codebase without exploring first
+alwaysApply: true
+---
+
+# Clienta AI — Project Context
+
+**Agent instruction:** This rule is the **primary source** for project layout, architecture, APIs, and conventions. Answer questions about the project from this rule. **Do not run codebase_search or exploratory reads** for general "how does X work?" or "where is Y?" — the answers are below. Only open or read specific files when the user explicitly asks to **edit** a file or when you need a line-level detail not listed here (e.g. exact implementation of a function).
+
+---
+
+## What This Is
+
+Multi-tenant SaaS CRM with AI features for small businesses (restaurants, retail, bars). Named **Clienta AI**.
+
+- **Core CRM:** Inventory, transactions, purchase orders, contacts, messages
+- **AI:** Business insights (inventory, revenue, reorder suggestions) via Google Gemini
+- **Messaging:** WhatsApp via Meta Cloud API + n8n AI agent
+- **Payments:** Square (in-store and online)
+- **Multi-tenant:** Tenant-scoped data and roles (owner, manager, staff)
+
+## Project Structure
+
+```
+crm_ai/
+├── backend/
+│   ├── functions/           # 9 Lambda handlers
+│   │   ├── ai_insights/     # Gemini-powered insights, cached daily
+│   │   ├── contacts/        # Contact CRUD, lead status, tier
+│   │   ├── inventory/       # Product CRUD, CSV import/template
+│   │   ├── messages/        # Message CRUD, conversation history
+│   │   ├── onboarding/      # Tenant creation, setup, phone resolution
+│   │   ├── payments/        # Square OAuth, payments, webhooks
+│   │   ├── purchases/       # Purchase order CRUD
+│   │   ├── transactions/    # Sales CRUD, summaries, idempotency
+│   │   └── users/           # Invite, list, update, deactivate users
+│   ├── shared/              # Shared Python modules
+│   │   ├── auth.py          # extract_tenant_id, require_auth, require_role
+│   │   ├── db.py            # DynamoDB helpers (put, get, query, update, delete, transact, batch)
+│   │   ├── models.py        # Pydantic models for all entities
+│   │   ├── response.py      # success(), error(), created(), not_found(), server_error() + CORS
+│   │   └── utils.py         # generate_id, now_iso, today_str, parse_body, build_pk, build_sk
+│   ├── requirements.txt     # Dev deps (boto3, pydantic, pytest, moto, black, ruff)
+│   ├── requirements-lambda.txt  # Runtime deps (pydantic, ulid-py, python-dateutil, squareup, google-genai)
+│   └── tests/
+├── frontend/                # React 18 + Vite 6, Tailwind, TanStack Query, Recharts, Lucide
+│   ├── src/
+│   │   ├── api/             # client.js (base HTTP + JWT), inventory, transactions, contacts, messages, insights, onboarding
+│   │   ├── components/      # Layout, ProtectedRoute, StatsCard, InsightCard, LowStockBadge
+│   │   ├── context/         # Auth context (Cognito)
+│   │   ├── hooks/           # useProducts, useTransactions, useInsights, useContacts, useMessages, etc.
+│   │   └── pages/           # Dashboard, Login, Signup, InventoryList/Form, TransactionList, Insights, LeadsList/Profile, MessagesInbox
+│   └── package.json
+├── terraform/
+│   ├── main.tf              # Provider, data sources
+│   ├── variables.tf         # Input variables
+│   ├── locals.tf            # name_prefix, lambda_functions map, packages_dir
+│   ├── lambda.tf            # IAM role, 9 Lambdas (8 via for_each + payments), layer
+│   ├── api_gateway.tf       # HTTP API, JWT authorizer, routes, integrations
+│   ├── dynamodb.tf          # Single table, GSI1, GSI2, TTL
+│   ├── cognito.tf           # User pool (email username, custom:tenant_id, custom:role), SPA client
+│   ├── s3.tf                # Frontend bucket (public), data bucket (private)
+│   ├── cloudfront.tf        # CloudFront for frontend SPA
+│   ├── secrets.tf           # Square secret (optional)
+│   ├── outputs.tf           # API, Cognito, S3, CF, DynamoDB outputs
+│   └── config/
+│       ├── bootstrap/       # State bucket bootstrap
+│       └── prod/            # backend.tfvars + variables.tfvars
+├── scripts/
+│   ├── deploy.sh            # Full deploy: package → terraform apply → update Lambdas → deploy frontend
+│   ├── package-lambdas.sh   # Zip each Lambda with shared/ and deps
+│   └── deploy-frontend.sh   # Build React → S3 sync → CloudFront invalidation
+├── docs/                    # Architecture, API ref, auth, deployment, domain/n8n setup, n8n flows
+├── Makefile                 # build, layer, package, clean
+└── README.md
+```
+
+## Handler Pattern (All Lambdas)
+
+Entry: `lambda_handler(event, context)` → routes by HTTP method + path from API Gateway.
+Auth: `extract_tenant_id(event)` parses JWT claims or `X-Service-Key`/`X-Tenant-Id` headers.
+Responses: `success(body)`, `error(msg, code)`, `created(body)`, `not_found()`, `server_error()`.
+
+## Database — DynamoDB Single-Table Design
+
+Single table, on-demand capacity, GSI1 (gsi1pk/gsi1sk), GSI2 (sk→pk inverted), TTL on `ttl` attribute.
+
+| Entity | PK | SK |
+|--------|----|----|
+| Tenant | `TENANT#<id>` | `TENANT#<id>` |
+| Product | `TENANT#<id>` | `PRODUCT#<id>` |
+| Supplier | `TENANT#<id>` | `SUPPLIER#<id>` |
+| Purchase Order | `TENANT#<id>` | `PO#<id>` |
+| Transaction | `TENANT#<id>` | `TXN#<timestamp>#<id>` |
+| AI Insight | `TENANT#<id>` | `INSIGHT#<date>` |
+| User | `TENANT#<id>` | `USER#<id>` |
+| Payment | `TENANT#<id>` | `PAYMENT#<id>` |
+| Square Connection | `TENANT#<id>` | `SQUARE#<id>` |
+| Contact | `TENANT#<id>` | `CONTACT#<id>` |
+| Message | `TENANT#<id>` | `MESSAGE#<id>` |
+| Phone Mapping | `PHONE_NUMBER_ID` | `<phone_number_id>` |
+
+## Authentication
+
+- **Cognito** user pool, email as username, custom attributes: `custom:tenant_id`, `custom:role`
+- **JWT (frontend):** `Authorization: Bearer <id_token>` → claims: sub, email, custom:tenant_id, custom:role
+- **Service key (n8n):** `X-Service-Key` + `X-Tenant-Id` headers
+- **Roles:** owner (level 3) → can invite managers/staff; manager (level 2) → can invite staff; staff (level 1) → no invite
+
+## API — HTTP API Gateway
+
+CORS: `*`, headers: Content-Type, Authorization, X-Service-Key, X-Tenant-Id.
+
+| Resource | Key Paths |
+|----------|-----------|
+| Inventory | `/inventory`, `/inventory/{id}`, `/inventory/import`, `/inventory/import/template` |
+| Contacts | `/contacts`, `/contacts/{id}`, `/contacts/{id}/messages` |
+| Transactions | `/transactions`, `/transactions/{id}` |
+| Purchases | `/purchases`, `/purchases/{id}` |
+| AI Insights | `/insights`, `/insights/generate` |
+| Users | `/users`, `/users/{id}` |
+| Payments | `/payments`, `/payments/square/*`, `/payments/webhook` |
+| Messages | `/messages`, `/messages/{id}/flags` |
+| Onboarding | `/onboarding/tenant`, `/onboarding/setup`, `/onboarding/config`, `/onboarding/resolve-phone` |
+
+Public (no JWT): `POST /onboarding/tenant`, `GET /onboarding/config`, `GET /onboarding/resolve-phone`, Square callback, payment webhook.
+
+## Environment Variables
+
+**Lambda (shared):** `TABLE_NAME`, `COGNITO_USER_POOL_ID`, `DATA_BUCKET`, `GEMINI_API_KEY`, `GEMINI_MODEL_ID` (default: gemini-2.5-flash), `SERVICE_API_KEY`
+**Lambda (payments):** `SQUARE_APPLICATION_ID`, `SQUARE_ENVIRONMENT`, `SQUARE_SECRET_ARN`, `SQUARE_WEBHOOK_URL`
+**Frontend (Vite):** `VITE_API_URL`, `VITE_COGNITO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID`
+
+## Integrations
+
+- **WhatsApp / Meta Cloud API** — Inbound messages via n8n webhook
+- **n8n** — AI agent resolves tenant via `/onboarding/resolve-phone`, calls CRM API with service key; tools: search_products, create_order, find_contact, create_contact, save_message, update_message, update_contact
+- **Square** — OAuth connect, payments, webhooks
+- **Google Gemini** — AI insights in ai_insights Lambda (google-genai SDK)
+- **AWS Bedrock** — Used by n8n AI agent externally
+- **AWS Cognito** — Auth
+- **DynamoDB** — Data store
+- **S3** — Frontend hosting + data (receipts, exports)
+- **CloudFront** — CDN for frontend SPA
+
+## Pydantic Models (backend/shared/models.py)
+
+Product, Transaction, Supplier, Tenant, User, Contact, Message, AIInsight, Payment, SquareConnection, PurchaseOrder
+
+## CI/CD
+
+- `make build` → layer + package all Lambdas
+- `scripts/deploy.sh` → package → terraform apply → update Lambda code → deploy frontend
+- `scripts/package-lambdas.sh` → zip each Lambda with shared/ and requirements
+- `scripts/deploy-frontend.sh` → vite build → S3 sync → CloudFront invalidation

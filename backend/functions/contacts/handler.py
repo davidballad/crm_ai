@@ -60,7 +60,7 @@ def list_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             limit=limit,
             last_key=last_key,
         )
-        contacts = [Contact.from_dynamo(item).model_dump(mode="json") for item in items]
+        contacts = [Contact.from_dynamo(item).to_dict() for item in items]
         if phone_filter:
             contacts = [c for c in contacts if c.get("phone") == phone_filter]
         next_token_out = _encode_next_token(last_eval)
@@ -76,7 +76,7 @@ def create_contact(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """Create a new contact (defaults: lead_status=prospect, tier=bronze)."""
     try:
         body = parse_body(event)
-        contact_data = Contact.model_validate(body)
+        contact_data = Contact.from_dynamo(body)
     except Exception as e:
         return error(str(e), 400)
 
@@ -115,7 +115,7 @@ def create_contact(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     except DynamoDBError as e:
         return server_error(str(e))
 
-    return created(Contact.from_dynamo(item).model_dump(mode="json"))
+    return created(Contact.from_dynamo(item).to_dict())
 
 
 def get_contact(tenant_id: str, contact_id: str) -> dict[str, Any]:
@@ -128,7 +128,7 @@ def get_contact(tenant_id: str, contact_id: str) -> dict[str, Any]:
         return server_error(str(e))
     if not item:
         return not_found("Contact not found")
-    return success(body=Contact.from_dynamo(item).model_dump(mode="json"))
+    return success(body=Contact.from_dynamo(item).to_dict())
 
 
 def patch_contact(
@@ -172,7 +172,7 @@ def patch_contact(
     except DynamoDBError as e:
         return server_error(str(e))
 
-    return success(body=Contact.from_dynamo(updated_item).model_dump(mode="json"))
+    return success(body=Contact.from_dynamo(updated_item).to_dict())
 
 
 def update_contact(

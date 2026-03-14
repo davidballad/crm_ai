@@ -1,52 +1,82 @@
 ---
 description: Lambda handler structure and patterns
-globs: lambdas/*/.py
+globs: backend/functions/**/handler.py
 alwaysApply: false
 ---
 
-# Lambda Handler PatternHandler SignatureAlways handler(event, context) — no other names or signatures.Handler Structure
+# Lambda Handler Pattern
 
-1. Log entry point
-2. Load and validate config
-3. Execute business logic (delegate to helper functions)
-4. Return structured response
-5. Catch-all exception returns 500
-def handler(event, context):
-    """Brief description of what this Lambda does."""
-    logger.info("Starting <lambda-name>")
+## Handler Signature
 
+Always `lambda_handler(event, context)` — this is the standard entry point.
+
+## Handler Structure
+
+1. Extract HTTP method and path from the API Gateway event
+2. Route to the correct handler function based on method + path
+3. Each route handler is a separate function that receives tenant_id and event
+4. Catch-all exception returns 500 via `server_error()`
+
+```python
+def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Route requests for this service."""
     try:
-        config = getConfig()
-        if not all([config['required_key_1'], config['required_key_2']]):
-            raise ValueError("Missing required environment variables: ...")
+        method = (event.get("requestContext") or {}).get("http", {}).get("method", "")
+        path = event.get("path", "") or event.get("rawPath", "")
+        path_params = event.get("pathParameters") or {}
 
-        # Delegate to helper functions
-        results = processData(config)
+        # Auth
+        tenant_id = extract_tenant_id(event)
+        if not tenant_id:
+            return error("Unauthorized", 401)
 
-        logger.info(f"Complete: {results['summary_field']}")
-        return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'message': 'Success',
-                **results
-            })
-        }
+        # Route to handlers
+        if method == "GET" and path.strip("/") == "resources":
+            return list_resources(tenant_id, event)
 
+        if method == "POST" and path.strip("/") == "resources":
+            return create_resource(tenant_id, event)
+
+        return error("Method not allowed", 405)
     except Exception as e:
-        logger.error(f"Error in handler: {str(e)}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'error': str(e)})
-        }
-Response FormatAlways return {'statusCode': int, 'body': json.dumps({...})}.
-- 200 for success with summary data in body
-- 500 for unhandled errors with error message in body
-Time-Aware ProcessingFor long-running Lambdas, check remaining execution time and stop early:if context and hasattr(context, 'get_remaining_time_in_millis'):
-    remaining_ms = context.get_remaining_time_in_millis()
-    if remaining_ms < 30_000:
-        logger.info(f"Only {remaining_ms}ms remaining - stopping early")
-        break
-Keep Handlers Thin
-- Handler validates config and orchestrates — never contains business logic directly
-- Helper functions do the real work
-- Each helper is independently testable
+        return server_error(str(e))
+```
+
+## Route Handler Pattern
+
+Each route handler is a standalone function:
+
+```python
+def list_resources(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """GET /resources — list all resources for the tenant."""
+    params = event.get("queryStringParameters") or {}
+    pk = build_pk(tenant_id)
+    try:
+        items, last_eval = query_items(pk=pk, sk_prefix=RESOURCE_SK_PREFIX)
+        return success(body={"resources": items})
+    except DynamoDBError as e:
+        return server_error(str(e))
+```
+
+## Response Format
+
+Always use shared response helpers from `shared.response`:
+
+- `success(body={...})` — 200
+- `created({...})` — 201
+- `error("message", status_code)` — 400/401/403/404
+- `not_found("message")` — 404
+- `server_error("message")` — 500
+
+## Auth Pattern
+
+- Use `extract_tenant_id(event)` from `shared.auth` for JWT-based auth
+- Use `extract_service_tenant_id(event)` for service key auth (n8n)
+- Unauthenticated routes (webhooks, onboarding) are handled before the auth check
+
+## Keep Handlers Thin
+
+- Handler routes requests — never contains business logic directly
+- Each route function is independently testable
+- Private helper functions prefixed with `_`
+- Parse request body with `parse_body(event)` from `shared.utils`

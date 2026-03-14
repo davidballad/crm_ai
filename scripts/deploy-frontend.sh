@@ -11,7 +11,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
-INFRA_DIR="$PROJECT_ROOT/infrastructure"
+INFRA_DIR="$PROJECT_ROOT/terraform"
 
 # Get bucket and distribution from Terraform outputs (or env vars)
 if [ -z "${FRONTEND_BUCKET:-}" ]; then

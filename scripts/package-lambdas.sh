@@ -7,9 +7,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="$PROJECT_ROOT/backend"
-OUTPUT_DIR="${1:-$PROJECT_ROOT/infrastructure/packages}"
+OUTPUT_DIR="${1:-$PROJECT_ROOT/terraform/packages}"
 
-FUNCTIONS=("inventory" "transactions" "purchases" "ai_insights" "onboarding")
+FUNCTIONS=("inventory" "transactions" "purchases" "ai_insights" "onboarding" "users" "contacts" "messages" "payments")
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -63,4 +63,4 @@ done
 
 echo ""
 echo "All Lambda packages created in $OUTPUT_DIR"
-echo "Update infrastructure/lambda.tf to reference these packages."
+echo "Update terraform/lambda.tf to reference these packages."

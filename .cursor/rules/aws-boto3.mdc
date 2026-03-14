@@ -11,37 +11,60 @@ alwaysApply: false
 Initialize long-lived clients at **module level** so they are reused across Lambda invocations:
 
 ```python
-s3 = boto3.client('s3')
-s3vectors = boto3.client('s3vectors')
-bedrock = boto3.client('bedrock-runtime')
-ssm = boto3.client('ssm')
-Only create clients inside functions when they need per-call config or are rarely used.Client Naming
-- Use the short service name: s3, ssm, bedrock, s3vectors
-- For less obvious services use a descriptive suffix: secrets_client, bedrockClient
-Exception HandlingCatch service-specific exceptions first, then fall back to broad Exception:try:
-    response = ssm.get_parameter(Name=param_name)
-    return response['Parameter']['Value']
-except ssm.exceptions.ParameterNotFound:
-    logger.info(f"Parameter {param_name} not found - first run")
-    return None
-except Exception as e:
-    logger.error(f"Could not get parameter: {e}")
-    return None
-S3 Key Patterns
-- Chat data: feed/{roomId}_{date}_chat.json
-- Use get_paginator('list_objects_v2') for listing large buckets
-Secrets Manager
+import boto3
+
+cognito = boto3.client("cognito-idp")
+bedrock = boto3.client("bedrock-runtime")
+```
+
+Only create clients inside functions when they need per-call config or are rarely used.
+
+## Client Naming
+
+- Use the short service name: `s3`, `ssm`, `bedrock`, `cognito`
+- For less obvious services use a descriptive name: `secrets_client`
+
+## DynamoDB (Single-Table Design)
+
+This project uses a single-table design with shared helpers from `shared.db`:
+
+- `put_item(item)` — write an item
+- `get_item(pk, sk)` — get by primary key
+- `query_items(pk, sk_prefix, limit, last_key)` — query with sort key prefix
+- `update_item(pk, sk, updates)` — partial update
+- `delete_item(pk, sk)` — delete
+- `query_gsi(index_name, pk_attr, pk_value, ...)` — query GSI
+- `batch_put_items(items)` — batch write
+
+Key patterns:
+- Partition key: `TENANT#<tenant_id>` (via `build_pk()`)
+- Sort key: `<ENTITY>#<id>` (via `build_sk("ENTITY", id)`)
+- GSI1: `gsi1pk` / `gsi1sk` for alternate access patterns
+- GSI2: inverted index (`sk` as partition, `pk` as sort)
+
+Always catch `DynamoDBError` from `shared.db`.
+
+## Exception Handling
+
+Catch service-specific exceptions first, then fall back to broad Exception:
+
+```python
+try:
+    cognito.admin_create_user(...)
+except ClientError as e:
+    error_code = e.response.get("Error", {}).get("Code", "")
+    if error_code == "UsernameExistsException":
+        return error("A user with this email already exists", 409)
+    return error(f"Failed to create user: {e}", 400)
+```
+
+## Secrets Manager
+
 - Store secret ARN/name in environment variable, never hardcode
-- Parse with json.loads(client.get_secret_value(SecretId=...)["SecretString"])
-SSM Parameter Store
-- Use for runtime state tracking (e.g. last processed date)
-- Naming pattern: /{prefix}/{project_id}/{parameter-name}
-- Always Overwrite=True when updating
-Bedrock
-- Embedding model: amazon.titan-embed-text-v2:0
-- Use ThreadPoolExecutor for parallel embedding calls
-- Parse response: json.loads(response['body'].read())
-S3 Vectors
-- Use put_vectors with batching (default batch size 50)
-- Vector data format: {'key': str, 'data': {'float32': list}, 'metadata': dict}
-- Sanitize metadata — only strings, numbers, booleans, arrays (no None values)
+- Parse with `json.loads(client.get_secret_value(SecretId=...)["SecretString"])`
+
+## Bedrock
+
+- Model ID from environment: `os.environ.get("BEDROCK_MODEL_ID")`
+- Use `bedrock.invoke_model(modelId=..., body=json.dumps(...))`
+- Parse response: `json.loads(response["body"].read())`

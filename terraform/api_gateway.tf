@@ -10,7 +10,7 @@ resource "aws_apigatewayv2_api" "main" {
   cors_configuration {
     allow_origins = ["*"]
     allow_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-    allow_headers = ["Content-Type", "Authorization"]
+    allow_headers = ["Content-Type", "Authorization", "X-Service-Key", "X-Tenant-Id"]
   }
 
   tags = local.common_tags
@@ -112,152 +112,135 @@ resource "aws_apigatewayv2_integration" "messages" {
 # Routes (with JWT authorizer except onboarding/tenant)
 # -----------------------------------------------------------------------------
 
-# Inventory routes
+# Inventory routes (no API Gateway JWT — Lambda validates JWT or service key)
 resource "aws_apigatewayv2_route" "inventory_list" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "GET /inventory"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /inventory"
+  target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
 }
 
 resource "aws_apigatewayv2_route" "inventory_create" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "POST /inventory"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /inventory"
+  target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
 }
 
 resource "aws_apigatewayv2_route" "inventory_get" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "GET /inventory/{id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /inventory/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
 }
 
 resource "aws_apigatewayv2_route" "inventory_update" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "PUT /inventory/{id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "PUT /inventory/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
 }
 
 resource "aws_apigatewayv2_route" "inventory_delete" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "DELETE /inventory/{id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "DELETE /inventory/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
 }
 
 resource "aws_apigatewayv2_route" "inventory_import" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "POST /inventory/import"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /inventory/import"
+  target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
 }
 
 resource "aws_apigatewayv2_route" "inventory_import_template" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "GET /inventory/import/template"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /inventory/import/template"
+  target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
 }
 
-# Contacts routes
+# Contacts routes (no API Gateway JWT — Lambda validates JWT or service key)
 resource "aws_apigatewayv2_route" "contacts_list" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "GET /contacts"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /contacts"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
 }
 
 resource "aws_apigatewayv2_route" "contacts_create" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "POST /contacts"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /contacts"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
 }
 
 resource "aws_apigatewayv2_route" "contacts_get" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "GET /contacts/{id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /contacts/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
 }
 
 resource "aws_apigatewayv2_route" "contacts_update" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "PUT /contacts/{id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "PUT /contacts/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
 }
 
 resource "aws_apigatewayv2_route" "contacts_delete" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "DELETE /contacts/{id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "DELETE /contacts/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
 }
 
 resource "aws_apigatewayv2_route" "contacts_patch" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "PATCH /contacts/{id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "PATCH /contacts/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
 }
 
-# Messages routes (conversation history for a contact)
+# Conversation history for a contact
 resource "aws_apigatewayv2_route" "contacts_messages" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "GET /contacts/{id}/messages"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.messages.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /contacts/{id}/messages"
+  target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
 }
 
-# Transactions routes
+# Transactions routes (no API Gateway JWT — Lambda validates JWT or service key)
 resource "aws_apigatewayv2_route" "transactions_list" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "GET /transactions"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /transactions"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
 }
 
 resource "aws_apigatewayv2_route" "transactions_create" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "POST /transactions"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /transactions"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
 }
 
 resource "aws_apigatewayv2_route" "transactions_get" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "GET /transactions/{id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /transactions/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
 }
 
 resource "aws_apigatewayv2_route" "transactions_patch" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "PATCH /transactions/{id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "PATCH /transactions/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+}
+
+# Cart routes (WhatsApp order flow; same transactions Lambda)
+resource "aws_apigatewayv2_route" "cart_get" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /cart"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+}
+
+resource "aws_apigatewayv2_route" "cart_add_item" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /cart/items"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+}
+
+resource "aws_apigatewayv2_route" "cart_checkout" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /cart/checkout"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
 }
 
 # Purchases routes
@@ -397,58 +380,50 @@ resource "aws_apigatewayv2_route" "payments_webhook" {
   target    = "integrations/${aws_apigatewayv2_integration.payments.id}"
 }
 
-# Messages routes (authenticated)
+# Messages routes (no API Gateway JWT — Lambda validates JWT or service key)
 resource "aws_apigatewayv2_route" "messages_list" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "GET /messages"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.messages.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /messages"
+  target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
 }
 
 resource "aws_apigatewayv2_route" "messages_create" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "POST /messages"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.messages.id}"
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /messages"
+  target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
 }
 
 resource "aws_apigatewayv2_route" "messages_patch_flags" {
-  api_id             = aws_apigatewayv2_api.main.id
-  route_key          = "PATCH /messages/{id}/flags"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
-  target             = "integrations/${aws_apigatewayv2_integration.messages.id}"
-}
-
-# Webhook: inbound message (no auth; Meta WhatsApp Cloud API; GET for verification)
-resource "aws_apigatewayv2_route" "webhooks_inbound_message_get" {
   api_id    = aws_apigatewayv2_api.main.id
-  route_key = "GET /webhooks/inbound-message"
+  route_key = "PATCH /messages/{id}/flags"
   target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
 }
 
-resource "aws_apigatewayv2_route" "webhooks_inbound_message_post" {
-  api_id    = aws_apigatewayv2_api.main.id
-  route_key = "POST /webhooks/inbound-message"
-  target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
-}
-
-# Onboarding routes (POST /onboarding/tenant - no auth)
+# Onboarding routes
 resource "aws_apigatewayv2_route" "onboarding_tenant" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "POST /onboarding/tenant"
   target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
 }
 
-# Onboarding routes (POST /onboarding/setup - with auth)
 resource "aws_apigatewayv2_route" "onboarding_setup" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "POST /onboarding/setup"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   target             = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
+}
+
+resource "aws_apigatewayv2_route" "onboarding_config" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /onboarding/config"
+  target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
+}
+
+resource "aws_apigatewayv2_route" "onboarding_resolve_phone" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /onboarding/resolve-phone"
+  target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
 }
 
 # -----------------------------------------------------------------------------

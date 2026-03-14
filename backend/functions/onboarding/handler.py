@@ -14,11 +14,13 @@ from botocore.exceptions import ClientError
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from shared.auth import require_auth
-from shared.db import DynamoDBError, get_item, put_item, update_item
+from shared.auth import extract_service_tenant_id, extract_tenant_id, require_auth
+from shared.db import DynamoDBError, get_item, put_item, query_gsi, update_item
 from shared.models import Tenant
 from shared.response import created, error, server_error, success
 from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
+
+PHONE_NUMBER_ID_PK = "PHONE_NUMBER_ID"
 
 # Seed products by business type
 SEED_PRODUCTS: dict[str, list[dict[str, Any]]] = {
@@ -87,6 +89,10 @@ def _validate_create_tenant_body(body: dict[str, Any]) -> tuple[str | None, str 
     business_type_raw = (body.get("business_type") or "other").strip().lower()
     if business_type_raw not in VALID_BUSINESS_TYPES:
         return f"business_type must be one of: {', '.join(sorted(VALID_BUSINESS_TYPES))}", None
+
+    meta_phone_number_id = (body.get("meta_phone_number_id") or "").strip()
+    if not meta_phone_number_id:
+        return "meta_phone_number_id is required (from Meta Developer Console > WhatsApp > Phone numbers)", None
 
     return None, business_type_raw
 
@@ -184,6 +190,23 @@ def create_tenant(event: dict[str, Any]) -> dict[str, Any]:
             pass  # Log and continue; we already return 500
         return server_error("Failed to create tenant record")
 
+    # Optional: link Meta WhatsApp phone number and seed products during signup
+    meta_phone_number_id = (body.get("meta_phone_number_id") or "").strip()
+    if meta_phone_number_id:
+        try:
+            _upsert_phone_number_id_mapping(meta_phone_number_id, tenant_id)
+            update_item(build_pk(tenant_id), build_sk("TENANT", tenant_id), {
+                "meta_phone_number_id": meta_phone_number_id,
+                "updated_at": now_iso(),
+            })
+        except DynamoDBError:
+            pass  # Non-fatal; can be set later via /onboarding/setup
+
+        try:
+            _seed_products(tenant_id, business_type)
+        except (DynamoDBError, ClientError):
+            pass  # Non-fatal
+
     return created({
         "tenant_id": tenant_id,
         "message": "Tenant created successfully. Please log in to complete setup.",
@@ -224,6 +247,22 @@ def _handle_complete_setup(event: dict[str, Any]) -> dict[str, Any]:
     return complete_setup(tenant_id, event)
 
 
+TENANT_CONFIG_FIELDS = (
+    "currency", "timezone", "business_hours", "settings",
+    "phone_number", "meta_phone_number_id", "ai_system_prompt",
+    "capabilities", "delivery_enabled", "payment_methods",
+)
+
+
+def _upsert_phone_number_id_mapping(meta_phone_number_id: str, tenant_id: str) -> None:
+    """Create or update the PHONE_NUMBER_ID -> tenant_id mapping in DynamoDB."""
+    put_item({
+        "pk": PHONE_NUMBER_ID_PK,
+        "sk": meta_phone_number_id,
+        "tenant_id": tenant_id,
+    })
+
+
 def complete_setup(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """
     Complete tenant setup after first login.
@@ -242,14 +281,12 @@ def complete_setup(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         return error("Tenant not found", 404)
 
     updates: dict[str, Any] = {}
-    if "currency" in body and body["currency"] is not None:
-        updates["currency"] = str(body["currency"]).strip()
-    if "timezone" in body and body["timezone"] is not None:
-        updates["timezone"] = str(body["timezone"]).strip()
-    if "business_hours" in body and body["business_hours"] is not None:
-        updates["business_hours"] = body["business_hours"]
-    if "settings" in body and body["settings"] is not None:
-        updates["settings"] = body["settings"]
+    for field in TENANT_CONFIG_FIELDS:
+        if field in body and body[field] is not None:
+            value = body[field]
+            if isinstance(value, str):
+                value = value.strip()
+            updates[field] = value
 
     if updates:
         updates["updated_at"] = now_iso()
@@ -257,6 +294,12 @@ def complete_setup(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             update_item(pk, sk, updates)
         except DynamoDBError:
             return server_error("Failed to update tenant settings")
+
+    if updates.get("meta_phone_number_id"):
+        try:
+            _upsert_phone_number_id_mapping(updates["meta_phone_number_id"], tenant_id)
+        except DynamoDBError:
+            pass  # Non-fatal; mapping can be retried
 
     # Seed sample products based on business_type
     business_type = tenant.get("business_type") or "other"
@@ -270,15 +313,97 @@ def complete_setup(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     })
 
 
+# ---------------------------------------------------------------------------
+# Tenant config & phone resolution
+# ---------------------------------------------------------------------------
+
+def _load_tenant_config(tenant_id: str) -> dict[str, Any] | None:
+    """Load tenant item from DynamoDB and return it as a config dict."""
+    pk = build_pk(tenant_id)
+    sk = build_sk("TENANT", tenant_id)
+    item = get_item(pk, sk)
+    if not item:
+        return None
+    return Tenant.from_dynamo(item).to_dict()
+
+
+def get_tenant_config(tenant_id: str, _event: dict[str, Any]) -> dict[str, Any]:
+    """GET /onboarding/config — return full tenant config."""
+    try:
+        config = _load_tenant_config(tenant_id)
+    except DynamoDBError as e:
+        return server_error(str(e))
+    if not config:
+        return error("Tenant not found", 404)
+    return success(body=config)
+
+
+def resolve_phone(event: dict[str, Any]) -> dict[str, Any]:
+    """GET /onboarding/resolve-phone — resolve meta phone_number_id to tenant config.
+
+    Requires service key auth (X-Service-Key header). No JWT needed.
+    """
+    service_tenant = extract_service_tenant_id(event)
+    if service_tenant is None:
+        headers = event.get("headers") or {}
+        provided_key = headers.get("x-service-key") or headers.get("X-Service-Key") or ""
+        if not provided_key:
+            return error("X-Service-Key header required", 401)
+        return error("Invalid service key", 401)
+
+    params = event.get("queryStringParameters") or {}
+    phone_number_id = (params.get("phone_number_id") or "").strip()
+    if not phone_number_id:
+        return error("phone_number_id query parameter is required", 400)
+
+    try:
+        mapping = get_item(pk=PHONE_NUMBER_ID_PK, sk=phone_number_id)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+    if not mapping:
+        return error("No tenant found for this phone_number_id", 404)
+
+    resolved_tenant_id = mapping.get("tenant_id")
+    if not resolved_tenant_id:
+        return error("Mapping is missing tenant_id", 500)
+
+    try:
+        config = _load_tenant_config(resolved_tenant_id)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+    if not config:
+        return error("Tenant not found", 404)
+
+    return success(body=config)
+
+
+# ---------------------------------------------------------------------------
+# Router
+# ---------------------------------------------------------------------------
+
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """Route onboarding requests by path. /onboarding/tenant has no auth; /onboarding/setup requires auth."""
+    """Route onboarding requests."""
     path = _get_path(event)
     method = _get_method(event)
 
-    if method == "POST":
-        if path.endswith("/onboarding/tenant") or "/onboarding/tenant" in path:
-            return create_tenant(event)
-        if path.endswith("/onboarding/setup") or "/onboarding/setup" in path:
-            return _handle_complete_setup(event)
+    # No auth: tenant creation
+    if method == "POST" and ("/onboarding/tenant" in path):
+        return create_tenant(event)
+
+    # No JWT auth: phone resolution (service key checked inside handler)
+    if method == "GET" and ("/onboarding/resolve-phone" in path):
+        return resolve_phone(event)
+
+    # Auth required: setup and config
+    if method == "POST" and ("/onboarding/setup" in path):
+        return _handle_complete_setup(event)
+
+    if method == "GET" and ("/onboarding/config" in path):
+        tenant_id = extract_tenant_id(event)
+        if not tenant_id:
+            return error("Unauthorized", 401)
+        return get_tenant_config(tenant_id, event)
 
     return error("Not found", 404)

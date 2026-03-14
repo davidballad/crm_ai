@@ -1,4 +1,8 @@
-"""AI insights Lambda handler for multi-tenant SaaS CRM."""
+"""AI insights Lambda handler for multi-tenant SaaS CRM.
+
+Uses Google Gemini (AI Studio) via the official SDK. The client reads GEMINI_API_KEY
+from the environment (set in Terraform or Lambda Console).
+"""
 
 from __future__ import annotations
 
@@ -6,7 +10,6 @@ import sys
 import os
 import json
 import re
-import boto3
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -18,8 +21,8 @@ from shared.response import success, error, server_error, not_found, created
 from shared.models import AIInsight, Product, Transaction
 from shared.utils import now_iso, today_str, build_pk, build_sk
 
+from google import genai
 from boto3.dynamodb.conditions import Key
-from botocore.exceptions import ClientError
 
 
 def _get_method(event: dict[str, Any]) -> str:
@@ -174,14 +177,14 @@ def _build_transaction_summary(transaction_items: list[dict[str, Any]]) -> dict[
     }
 
 
-def _build_bedrock_prompt(
+def _build_insights_prompt(
     product_count: int,
     total_inventory_value: Decimal,
     low_stock_count: int,
     low_stock_items: list[dict[str, Any]],
     transaction_summary: dict[str, Any],
 ) -> str:
-    """Build a structured prompt for Bedrock to generate insights."""
+    """Build a structured prompt for the AI model to generate insights."""
     low_stock_list = "\n".join(
         f"- {p.get('name', 'Unknown')} (ID: {p.get('id', '')}): quantity={p.get('quantity', 0)}, threshold={p.get('reorder_threshold', 10)}"
         for p in low_stock_items[:20]
@@ -231,29 +234,29 @@ def _extract_json_from_response(response_text: str) -> dict[str, Any]:
     return json.loads(text)
 
 
-def _invoke_bedrock(prompt: str) -> dict[str, Any]:
-    """Call Bedrock and return parsed JSON from the response."""
-    bedrock = boto3.client("bedrock-runtime")
-    model_id = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
+def _invoke_gemini(prompt: str) -> dict[str, Any]:
+    """Call Google Gemini (AI Studio) via the official SDK and return parsed JSON.
 
-    response = bedrock.invoke_model(
-        modelId=model_id,
-        contentType="application/json",
-        accept="application/json",
-        body=json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 2048,
-            "messages": [{"role": "user", "content": prompt}],
-        }),
-    )
+    The client reads GEMINI_API_KEY from the environment (see google.genai docs).
+    """
+    if not (os.environ.get("GEMINI_API_KEY") or "").strip():
+        raise ValueError("GEMINI_API_KEY is not set")
 
-    response_body = json.loads(response["body"].read().decode())
-    content_blocks = response_body.get("content", [])
-    text = ""
-    for block in content_blocks:
-        if block.get("type") == "text":
-            text += block.get("text", "")
-            break
+    model_id = os.environ.get("GEMINI_MODEL_ID", "gemini-2.5-flash")
+    client = genai.Client()
+
+    try:
+        response = client.models.generate_content(
+            model=model_id,
+            contents=prompt,
+            config={"max_output_tokens": 2048, "temperature": 0.2},
+        )
+    except Exception as e:
+        raise RuntimeError(f"Gemini API error: {e}") from e
+
+    text = response.text if getattr(response, "text", None) else ""
+    if not text:
+        raise ValueError("Gemini response had no text")
 
     return _extract_json_from_response(text)
 
@@ -277,16 +280,14 @@ def get_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         return server_error(str(e))
 
     if not item:
-        return not_found(
-            "No insights for this date. Use POST /insights/generate to create them."
-        )
+        return success({"insight": None, "date": date_str})
 
     body = _to_json_serializable(item)
     return success(body)
 
 
 def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """POST /insights/generate - gather data, call Bedrock, store and return insight."""
+    """POST /insights/generate - gather data, call Gemini, store and return insight."""
     date_str = today_str()
     pk = build_pk(tenant_id)
     sk = build_sk("INSIGHT", date_str)
@@ -298,13 +299,13 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         transaction_summary = _build_transaction_summary(transaction_items)
 
         low_stock_items = [
-            Product.from_dynamo(p).model_dump()
+            Product.from_dynamo(p).to_dict()
             for p in products
             if p.get("quantity", 0) <= p.get("reorder_threshold", 10)
         ]
 
-        # Step 2 & 3: Build prompt and call Bedrock
-        prompt = _build_bedrock_prompt(
+        # Step 2 & 3: Build prompt and call Gemini
+        prompt = _build_insights_prompt(
             product_count=len(products),
             total_inventory_value=total_inventory_value,
             low_stock_count=low_stock_count,
@@ -313,13 +314,11 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         )
 
         try:
-            ai_result = _invoke_bedrock(prompt)
-        except ClientError as e:
-            error_code = e.response.get("Error", {}).get("Code", "Unknown")
-            return error(
-                f"AI service unavailable ({error_code}). Please try again later.",
-                503,
-            )
+            ai_result = _invoke_gemini(prompt)
+        except ValueError as e:
+            return error(str(e), 503)
+        except RuntimeError as e:
+            return error(f"AI service error: {e}", 503)
         except json.JSONDecodeError as e:
             return server_error(f"Failed to parse AI response: {e}")
         except Exception as e:

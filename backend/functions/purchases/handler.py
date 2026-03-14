@@ -71,7 +71,7 @@ def list_purchase_orders(tenant_id: str, event: dict[str, Any]) -> dict[str, Any
             pk=pk, sk_prefix=PO_SK_PREFIX, limit=limit, last_key=last_key
         )
 
-        orders = [PurchaseOrder.from_dynamo(i).model_dump(mode="json") for i in items]
+        orders = [PurchaseOrder.from_dynamo(i).to_dict() for i in items]
         if status_filter:
             orders = [o for o in orders if o.get("status") == status_filter]
 
@@ -89,7 +89,7 @@ def create_purchase_order(tenant_id: str, event: dict[str, Any]) -> dict[str, An
     """Create a new purchase order in draft status."""
     try:
         body = parse_body(event)
-        po = PurchaseOrder.model_validate(body)
+        po = PurchaseOrder.from_dynamo(body)
     except Exception as e:
         return error(f"Invalid request body: {e}", 400)
 
@@ -120,7 +120,7 @@ def create_purchase_order(tenant_id: str, event: dict[str, Any]) -> dict[str, An
     except DynamoDBError as e:
         return server_error(str(e))
 
-    return created(po.model_dump(mode="json"))
+    return created(po.to_dict())
 
 
 def get_purchase_order(tenant_id: str, po_id: str) -> dict[str, Any]:
@@ -136,7 +136,7 @@ def get_purchase_order(tenant_id: str, po_id: str) -> dict[str, Any]:
     if not item:
         return not_found("Purchase order not found")
 
-    po = PurchaseOrder.from_dynamo(item).model_dump(mode="json")
+    po = PurchaseOrder.from_dynamo(item).to_dict()
     return success(po)
 
 
@@ -208,7 +208,7 @@ def update_purchase_order(
             except Exception:
                 pass  # Best-effort; PO is already marked received
 
-    po = PurchaseOrder.from_dynamo(updated).model_dump(mode="json")
+    po = PurchaseOrder.from_dynamo(updated).to_dict()
     return success(po)
 
 

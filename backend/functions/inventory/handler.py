@@ -103,7 +103,7 @@ def list_products(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                 last_key=last_key,
             )
 
-        products = [Product.from_dynamo(item).model_dump(mode="json") for item in items]
+        products = [Product.from_dynamo(item).to_dict() for item in items]
         next_token_out = _encode_next_token(last_eval)
 
         body: dict[str, Any] = {"products": products}
@@ -119,7 +119,7 @@ def create_product(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """Create a new product."""
     try:
         body = parse_body(event)
-        product_data = Product.model_validate(body)
+        product_data = Product.from_dynamo(body)
     except Exception as e:
         return error(str(e), 400)
 
@@ -163,7 +163,7 @@ def create_product(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     except DynamoDBError as e:
         return server_error(str(e))
 
-    product_response = Product.from_dynamo(item).model_dump(mode="json")
+    product_response = Product.from_dynamo(item).to_dict()
     return created(product_response)
 
 
@@ -180,7 +180,7 @@ def get_product(tenant_id: str, product_id: str) -> dict[str, Any]:
     if not item:
         return not_found("Product not found")
 
-    product = Product.from_dynamo(item).model_dump(mode="json")
+    product = Product.from_dynamo(item).to_dict()
     return success(body=product)
 
 
@@ -230,7 +230,7 @@ def update_product(
     except DynamoDBError as e:
         return server_error(str(e))
 
-    product = Product.from_dynamo(updated_item).model_dump(mode="json")
+    product = Product.from_dynamo(updated_item).to_dict()
     return success(body=product)
 
 

@@ -21,6 +21,11 @@ graph TB
     JWTAuth["JWT Authorizer"]
   end
 
+  subgraph whatsapp [WhatsApp Channel]
+    Meta["Meta WhatsApp\nCloud API"]
+    n8n["n8n AI Agent\n(self-hosted)"]
+  end
+
   subgraph compute [Compute -- Lambda Functions]
     Inventory["Inventory Service"]
     Transactions["Transaction Service"]
@@ -29,6 +34,8 @@ graph TB
     Onboarding["Onboarding Service"]
     Users["User Management Service"]
     Payments["Payments Service"]
+    Messages["Messages Service"]
+    Contacts["Contacts Service"]
   end
 
   subgraph data [Data Layer]
@@ -61,6 +68,12 @@ graph TB
   APIGW --> Onboarding
   APIGW --> Users
   APIGW --> Payments
+  APIGW --> Messages
+  APIGW --> Contacts
+  Meta -->|Webhook| n8n
+  n8n -->|"Service Key + Tenant ID"| APIGW
+  n8n -->|Reply| Meta
+  n8n -->|"Bedrock API"| Bedrock
   Inventory --> DynamoDB
   Transactions --> DynamoDB
   Purchases --> DynamoDB
@@ -73,11 +86,15 @@ graph TB
   Payments --> DynamoDB
   Payments --> Square
   Payments --> Secrets
+  Messages --> DynamoDB
+  Contacts --> DynamoDB
   Square -->|Webhooks| Payments
   Transactions --> S3Data
 ```
 
 All services run as Lambda functions (Python 3.12) behind a single API Gateway HTTP API. Data is stored in a single DynamoDB table using a multi-tenant single-table design. The React SPA is served from S3 via CloudFront. Square handles payment processing for both in-store (card readers) and online (Web Payments SDK) transactions. Square credentials are stored in AWS Secrets Manager.
+
+WhatsApp messages are handled by n8n (self-hosted): Meta sends webhooks directly to n8n, which runs an AI Agent (Bedrock) to process conversations. n8n calls the Clienta API using a service key (`X-Service-Key` + `X-Tenant-Id` headers) to manage contacts, messages, inventory, and transactions. Tenant resolution uses Meta's `phone_number_id` mapped in DynamoDB.
 
 ---
 
@@ -112,9 +129,61 @@ sequenceDiagram
 ```
 
 Key points:
-- API Gateway validates the JWT before the Lambda is even invoked
-- The `@require_auth` decorator extracts `custom:tenant_id` from the JWT claims and injects it into the event
+- For browser requests, API Gateway validates the JWT before Lambda is invoked
+- For n8n/service requests, Lambda validates the `X-Service-Key` header and reads `X-Tenant-Id`
+- The `extract_tenant_id()` function tries JWT first, then falls back to service key auth
 - All DynamoDB queries are scoped to the tenant's partition key, ensuring data isolation
+
+---
+
+## WhatsApp AI Agent (n8n)
+
+```mermaid
+sequenceDiagram
+  participant C as Customer (WhatsApp)
+  participant M as Meta Cloud API
+  participant N as n8n AI Agent
+  participant API as Clienta API
+  participant DB as DynamoDB
+  participant BR as Bedrock
+
+  C->>M: "Quiero ordenar 2 tortas"
+  M->>N: Webhook (phone_number_id, from, text)
+
+  Note over N: Step 1 — Resolve tenant
+  N->>API: GET /onboarding/resolve-phone?phone_number_id=102938
+  API->>DB: GetItem(PHONE_NUMBER_ID, 102938)
+  DB-->>API: tenant_id, config
+  API-->>N: Tenant config (ai_system_prompt, capabilities, ...)
+
+  Note over N: Step 2 — Find/create contact
+  N->>API: GET /contacts?phone=34612345678 (X-Service-Key)
+  API-->>N: Contact (or create new)
+
+  Note over N: Step 3 — Store inbound message
+  N->>API: POST /messages (X-Service-Key + X-Tenant-Id)
+  API-->>N: message_id
+
+  Note over N: Step 4 — AI Agent processes
+  N->>BR: Invoke model (system prompt + history + tools)
+  BR-->>N: Tool call: search_products("torta")
+  N->>API: GET /inventory?search=torta
+  API-->>N: Products list
+  N->>BR: Tool result + continue
+  BR-->>N: "Tenemos tortas a $45. ¿Cuántas quieres?"
+
+  Note over N: Step 5 — Reply
+  N->>M: Send message via WhatsApp Cloud API
+  M->>C: "Tenemos tortas a $45..."
+  N->>API: POST /messages (store outbound)
+```
+
+Key design decisions:
+- Meta sends webhooks directly to n8n (no Lambda in between) for simplicity
+- One n8n workflow handles all tenants — tenant config is loaded dynamically per message
+- The AI Agent uses Bedrock (Claude 3.5 Haiku) with tool calling for inventory, orders, and contacts
+- Service key auth (`X-Service-Key` + `X-Tenant-Id`) enables n8n to act on behalf of any tenant
+- Tenant resolution uses Meta's `phone_number_id` (stable, unique per business phone)
 
 ---
 
@@ -152,6 +221,7 @@ erDiagram
 | Get Square connection                | `TENANT#<tid>`              | `SQUARE#<tid>`                        | Table    |
 | Find payment by Square payment ID    | `SQUARE_PAYMENT#<sq_id>`    | --                                    | GSI1     |
 | Find tenant by Square merchant ID    | `SQUARE_MERCHANT#<mid>`     | --                                    | GSI1     |
+| Resolve tenant from phone_number_id  | `PHONE_NUMBER_ID`           | `<phone_number_id>`                   | Table    |
 | Cross-entity query by SK             | --                          | SK as partition key                   | GSI2     |
 
 ### Entity Key Patterns
@@ -167,6 +237,7 @@ erDiagram
 | User              | `TENANT#<tid>` | `USER#<uid>`                | --                              | --                  |
 | Payment           | `TENANT#<tid>` | `PAYMENT#<payid>`           | `SQUARE_PAYMENT#<sq_id>`        | `TENANT#<tid>`      |
 | Square Connection | `TENANT#<tid>` | `SQUARE#<tid>`              | `SQUARE_MERCHANT#<merchant_id>` | `TENANT#<tid>`      |
+| Phone Mapping     | `PHONE_NUMBER_ID` | `<phone_number_id>`      | --                              | --                  |
 
 Transactions use a composite SK with the ISO timestamp first, enabling efficient date-range queries and natural newest-first ordering with `ScanIndexForward=False`.
 

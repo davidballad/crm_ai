@@ -19,6 +19,7 @@ export default function Signup() {
     business_type: 'restaurant',
     owner_email: '',
     owner_password: '',
+    meta_phone_number_id: '',
   });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -80,6 +81,14 @@ export default function Signup() {
           <div>
             <label htmlFor="owner_password" className="mb-1 block text-sm font-medium text-gray-700">Password</label>
             <input id="owner_password" type="password" required minLength={8} value={form.owner_password} onChange={update('owner_password')} className="input-field" placeholder="Min. 8 characters" />
+          </div>
+
+          <div>
+            <label htmlFor="meta_phone_number_id" className="mb-1 block text-sm font-medium text-gray-700">
+              WhatsApp Phone Number ID
+            </label>
+            <input id="meta_phone_number_id" required value={form.meta_phone_number_id} onChange={update('meta_phone_number_id')} className="input-field" placeholder="e.g. 106540352242922" />
+            <p className="mt-1 text-xs text-gray-400">From your Meta Developer Console &rarr; WhatsApp &rarr; Phone numbers</p>
           </div>
 
           <button type="submit" disabled={submitting} className="btn-primary w-full">
