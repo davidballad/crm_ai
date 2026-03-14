@@ -5,7 +5,8 @@ Single deployment: **prod** only.
 | File | Purpose |
 |------|--------|
 | `config/prod/backend.tfvars` | Backend: S3 state bucket + S3-native lock (`use_lockfile = true`), no DynamoDB |
-| `config/prod/variables.tfvars` | Variable values (environment, app DynamoDB table name, etc.) |
+| `config/prod/variables.tfvars` | Variable values (environment, app DynamoDB table name, etc.) — not committed |
+| `config/prod/secrets.tfvars` | Secrets: `gemini_api_key`, `service_api_key` — **not committed**. Copy from `secrets.tfvars.example`. |
 
 Locking uses a `.tflock` file in the same S3 bucket (Terraform 1.8+). The `dynamodb_table_name` in `variables.tfvars` is the **application** DynamoDB table used by Lambdas (not for state).
 
@@ -30,31 +31,27 @@ terraform init -reconfigure "-backend-config=config/prod/backend.tfvars"
 
 ## Plan / Apply
 
+**One-time:** copy the secrets example and fill in (file is gitignored):
+
 ```bash
-terraform plan  -var-file=config/prod/variables.tfvars
-terraform apply -var-file=config/prod/variables.tfvars
+cd terraform
+cp config/prod/secrets.tfvars.example config/prod/secrets.tfvars
+# Edit config/prod/secrets.tfvars: set gemini_api_key and service_api_key
 ```
 
-Secrets: pass via env or CLI, not in committed files:
+Then from `terraform/`:
 
-| Variable | Purpose |
-|----------|---------|
+```bash
+terraform plan  -var-file=config/prod/variables.tfvars -var-file=config/prod/secrets.tfvars
+terraform apply -var-file=config/prod/variables.tfvars -var-file=config/prod/secrets.tfvars
+```
+
+**Using the deploy script** (from repo root): `./scripts/deploy.sh` loads both var-files automatically. Ensure `config/prod/variables.tfvars` and `config/prod/secrets.tfvars` exist.
+
+| In secrets.tfvars | Purpose |
+|-------------------|---------|
 | `service_api_key` | n8n → API auth (X-Service-Key) |
-| `gemini_api_key` | Google AI Studio API key for AI insights (get at [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)) |
-
-**PowerShell:**
-```powershell
-$env:TF_VAR_service_api_key = "your-n8n-secret"
-$env:TF_VAR_gemini_api_key   = "your-gemini-api-key"
-terraform apply -var-file=config/prod/variables.tfvars
-```
-
-**Bash:**
-```bash
-export TF_VAR_service_api_key="your-n8n-secret"
-export TF_VAR_gemini_api_key="your-gemini-api-key"
-terraform apply -var-file=config/prod/variables.tfvars
-```
+| `gemini_api_key` | Google AI Studio API key for AI insights ([aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)) |
 
 ---
 

@@ -27,16 +27,26 @@ echo ""
 echo "[2/3] Running Terraform $ACTION..."
 cd "$INFRA_DIR"
 
+VAR_FILES="-var-file=config/prod/variables.tfvars -var-file=config/prod/secrets.tfvars"
+if [ ! -f config/prod/secrets.tfvars ]; then
+    echo "  ERROR: config/prod/secrets.tfvars not found. Copy from secrets.tfvars.example and set gemini_api_key, service_api_key."
+    exit 1
+fi
+if [ ! -f config/prod/variables.tfvars ]; then
+    echo "  ERROR: config/prod/variables.tfvars not found. Create it (see terraform/config/README.md)."
+    exit 1
+fi
+
 terraform init -input=false
 
 if [ "$ACTION" = "plan" ]; then
-    terraform plan -input=false
+    terraform plan -input=false $VAR_FILES
     echo ""
     echo "Dry run complete. Run './scripts/deploy.sh apply' to deploy."
     exit 0
 fi
 
-terraform apply -input=false -auto-approve
+terraform apply -input=false -auto-approve $VAR_FILES
 echo ""
 
 # Print key outputs

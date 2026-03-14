@@ -59,9 +59,9 @@ variable "dynamodb_table_name" {
 # Passed as Lambda env var only (no Secrets Manager) to avoid cost.
 
 variable "gemini_api_key" {
-  description = "Google AI Studio API key for Gemini (AI insights). Get one at https://aistudio.google.com/app/apikey"
+  description = "Google AI Studio API key for Gemini (AI insights). Get one at https://aistudio.google.com/app/apikey. Pass via TF_VAR_gemini_api_key (never commit)."
   type        = string
-  default     = "AIzaSyCbeBMC0VOcYo71eku2hptvJGn93LaHiYg"
+  default     = ""
   sensitive   = true
 }
 
