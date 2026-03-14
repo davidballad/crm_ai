@@ -30,6 +30,8 @@ terraform/config/bootstrap/.terraform/
 terraform/config/bootstrap/*.tfstate
 terraform/config/bootstrap/*.tfstate.backup
 terraform/config/bootstrap/.terraform.lock.hcl
+# Prod tfvars (may contain bucket/keys; pass secrets via TF_VAR_)
+terraform/config/prod/*.tfvars
 
 # IDE
 .vscode/
@@ -45,6 +47,12 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+# Keep .env.example if you want it tracked
+
+# Secrets (never commit)
+credentials.json
+token.json
+*.pem
 
 # AWS
 .aws-sam/
