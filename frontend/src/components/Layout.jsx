@@ -11,6 +11,7 @@ import {
   X,
   Users,
   MessageSquare,
+  Settings,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/transactions', icon: ShoppingCart, label: 'Transactions' },
   { to: '/insights', icon: BrainCircuit, label: 'AI Insights' },
+  { to: '/settings/whatsapp', icon: Settings, label: 'Connect WhatsApp' },
 ];
 
 function SidebarLink({ to, icon: Icon, label, onClick }) {

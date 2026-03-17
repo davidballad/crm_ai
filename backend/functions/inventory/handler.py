@@ -5,9 +5,11 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import sys
 from typing import Any
 
+import boto3
 from boto3.dynamodb.conditions import Key
 
 # Add project root for local development; Lambda uses layer for shared
@@ -44,6 +46,9 @@ PRODUCT_SK_PREFIX = "PRODUCT#"
 GSI1_NAME = "GSI1"
 LIMIT_DEFAULT = 50
 LIMIT_MAX = 100
+INVENTORY_IMAGES_PREFIX = "inventory-images"
+PRESIGNED_EXPIRY = 300  # 5 minutes
+MAX_UPLOAD_IMAGE_URLS = 50
 
 
 def _decode_next_token(token: str | None) -> dict[str, Any] | None:
@@ -62,6 +67,116 @@ def _encode_next_token(last_key: dict[str, Any] | None) -> str | None:
     if not last_key:
         return None
     return base64.b64encode(json.dumps(last_key, default=str).encode()).decode()
+
+
+def _safe_extension(filename: str) -> str:
+    """Return file extension (e.g. jpg) or 'jpg' if invalid."""
+    if not filename or "." not in filename:
+        return "jpg"
+    ext = filename.rsplit(".", 1)[-1].lower().strip()
+    if not re.match(r"^[a-z0-9]{2,5}$", ext):
+        return "jpg"
+    return ext
+
+
+def get_upload_image_url(
+    tenant_id: str,
+    event: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Return a presigned PUT URL and the final public image_url.
+    Body: { "product_id": optional, "filename": str, "content_type": optional }.
+    If product_id is omitted (e.g. before product exists), uses a temp key.
+    """
+    bucket = os.environ.get("DATA_BUCKET")
+    region = os.environ.get("AWS_REGION", "us-east-1")
+    if not bucket:
+        return server_error("DATA_BUCKET not configured")
+
+    try:
+        body = parse_body(event)
+    except json.JSONDecodeError:
+        return error("Invalid JSON body", 400)
+    if not body or not body.get("filename"):
+        return error("filename is required", 400)
+
+    filename = (body.get("filename") or "").strip()
+    content_type = (body.get("content_type") or "").strip() or "image/jpeg"
+    product_id = body.get("product_id")
+    ext = _safe_extension(filename)
+
+    if product_id:
+        key = f"{INVENTORY_IMAGES_PREFIX}/{tenant_id}/{product_id}.{ext}"
+    else:
+        key = f"{INVENTORY_IMAGES_PREFIX}/{tenant_id}/temp/{generate_id()}.{ext}"
+
+    try:
+        s3 = boto3.client("s3", region_name=region)
+        upload_url = s3.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": bucket,
+                "Key": key,
+                "ContentType": content_type,
+            },
+            ExpiresIn=PRESIGNED_EXPIRY,
+        )
+    except Exception as e:
+        return server_error(f"Failed to generate upload URL: {e}")
+
+    image_url = f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
+    return success(body={"upload_url": upload_url, "image_url": image_url})
+
+
+def get_upload_image_urls_bulk(
+    tenant_id: str,
+    event: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Return presigned PUT URLs for multiple products (e.g. after CSV import).
+    Body: { "product_ids": [ "id1", "id2", ... ] }. Optional: "default_extension": "jpg".
+    """
+    bucket = os.environ.get("DATA_BUCKET")
+    region = os.environ.get("AWS_REGION", "us-east-1")
+    if not bucket:
+        return server_error("DATA_BUCKET not configured")
+
+    try:
+        body = parse_body(event)
+    except json.JSONDecodeError:
+        return error("Invalid JSON body", 400)
+    product_ids = body.get("product_ids")
+    if not product_ids or not isinstance(product_ids, list):
+        return error("product_ids array is required", 400)
+    if len(product_ids) > MAX_UPLOAD_IMAGE_URLS:
+        return error(f"At most {MAX_UPLOAD_IMAGE_URLS} product_ids allowed", 400)
+
+    ext = (body.get("default_extension") or "jpg").strip().lower() or "jpg"
+    if not re.match(r"^[a-z0-9]{2,5}$", ext):
+        ext = "jpg"
+
+    results: list[dict[str, Any]] = []
+    try:
+        s3 = boto3.client("s3", region_name=region)
+        for pid in product_ids:
+            if not pid:
+                continue
+            key = f"{INVENTORY_IMAGES_PREFIX}/{tenant_id}/{pid}.{ext}"
+            upload_url = s3.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": bucket,
+                    "Key": key,
+                    "ContentType": "image/jpeg",
+                },
+                ExpiresIn=PRESIGNED_EXPIRY,
+            )
+            image_url = f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
+            results.append({"product_id": pid, "upload_url": upload_url, "image_url": image_url})
+    except Exception as e:
+        return server_error(f"Failed to generate upload URLs: {e}")
+
+    return success(body={"uploads": results})
 
 
 def list_products(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
@@ -425,6 +540,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         # POST /inventory/import - bulk CSV import
         if method == "POST" and path.endswith("/inventory/import"):
             return import_csv(tenant_id, event)
+
+        # POST /inventory/upload-image-url - presigned URL for one image (edit or create)
+        if method == "POST" and path.endswith("/inventory/upload-image-url"):
+            return get_upload_image_url(tenant_id, event)
+
+        # POST /inventory/upload-image-urls - presigned URLs for many (e.g. after import)
+        if method == "POST" and path.endswith("/inventory/upload-image-urls"):
+            return get_upload_image_urls_bulk(tenant_id, event)
 
         # GET /inventory - list
         if method == "GET" and not product_id:

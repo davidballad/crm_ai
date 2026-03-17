@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { setTokenGetter } from './api/client';
@@ -14,13 +13,13 @@ import Insights from './pages/Insights';
 import LeadsList from './pages/LeadsList';
 import LeadProfile from './pages/LeadProfile';
 import MessagesInbox from './pages/MessagesInbox';
+import WhatsAppSetup from './pages/WhatsAppSetup';
 
 export default function App() {
   const { token } = useAuth();
-
-  useEffect(() => {
-    setTokenGetter(() => token);
-  }, [token]);
+  // Set token getter during render so the first API requests (e.g. on Dashboard) always see the token.
+  // Using useEffect caused a race where requests could run before the getter was set → 401.
+  setTokenGetter(() => token);
 
   return (
     <Routes>
@@ -42,6 +41,7 @@ export default function App() {
         <Route path="leads" element={<LeadsList />} />
         <Route path="leads/:id" element={<LeadProfile />} />
         <Route path="messages" element={<MessagesInbox />} />
+        <Route path="settings/whatsapp" element={<WhatsAppSetup />} />
       </Route>
     </Routes>
   );

@@ -24,3 +24,13 @@ export function createMessage(data) {
 export function patchMessageFlags(id, data) {
   return api.patch(`/messages/${id}/flags`, data);
 }
+
+/** Send WhatsApp message from UI. Body: { to_number, text }. */
+export function sendMessage({ to_number, text }) {
+  return api.post('/messages/send', { to_number, text });
+}
+
+/** Mark a conversation closed by customer phone number. Called after checkout. */
+export function markConversationClosed(from_number) {
+  return api.post('/messages/mark-conversation-closed', { from_number });
+}

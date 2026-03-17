@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useProduct, useCreateProduct, useUpdateProduct } from '../hooks/useProducts';
-import { ArrowLeft } from 'lucide-react';
+import { getUploadImageUrl } from '../api/inventory';
+import { ArrowLeft, Upload } from 'lucide-react';
 
 const EMPTY = {
   name: '',
@@ -25,6 +26,9 @@ export default function InventoryForm() {
 
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (existing) {
@@ -44,6 +48,32 @@ export default function InventoryForm() {
   }, [existing]);
 
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
+
+  const handleUploadImage = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setUploading(true);
+    try {
+      const { upload_url, image_url } = await getUploadImageUrl({
+        productId: isEdit ? id : null,
+        filename: file.name,
+        contentType: file.type || 'image/jpeg',
+      });
+      await fetch(upload_url, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'image/jpeg' },
+      });
+      if (!image_url) throw new Error('No image_url returned');
+      setForm((prev) => ({ ...prev, image_url }));
+    } catch (err) {
+      setError(err.message || 'Image upload failed');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -135,11 +165,56 @@ export default function InventoryForm() {
           </div>
 
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Image URL</label>
-            <input type="url" value={form.image_url} onChange={update('image_url')} className="input-field" placeholder="https://..." />
+            <label className="mb-1 block text-sm font-medium text-gray-700">Product image</label>
+            <div className="flex flex-wrap items-start gap-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="btn-secondary inline-flex items-center gap-2"
+              >
+                {uploading ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                {uploading ? 'Uploading...' : 'Upload image'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleUploadImage}
+              />
+              <button
+                type="button"
+                onClick={() => setShowUrlInput((v) => !v)}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                {showUrlInput ? 'Hide URL' : 'Or paste image URL'}
+              </button>
+            </div>
+            {showUrlInput && (
+              <input
+                type="url"
+                value={form.image_url}
+                onChange={update('image_url')}
+                className="input-field mt-2"
+                placeholder="https://..."
+              />
+            )}
             {form.image_url && (
-              <div className="mt-2">
-                <img src={form.image_url} alt="" className="h-20 w-20 rounded border border-gray-200 object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
+              <div className="mt-2 flex items-center gap-2">
+                <img
+                  src={form.image_url}
+                  alt=""
+                  className="h-20 w-20 rounded border border-gray-200 object-cover"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+                <span className="text-xs text-gray-500">Image will be stored in S3 and used in WhatsApp.</span>
               </div>
             )}
           </div>

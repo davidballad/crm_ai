@@ -104,6 +104,8 @@ class Tenant(_BaseModel):
     settings: dict[str, Any] | None = None
     phone_number: str | None = None
     meta_phone_number_id: str | None = None
+    meta_business_account_id: str | None = None
+    meta_access_token: str | None = None
     ai_system_prompt: str | None = None
     capabilities: list[str] | None = None
     delivery_enabled: bool = False
@@ -199,6 +201,7 @@ class Contact(_BaseModel):
     source_channel: str | None = None
     lead_status: str = "prospect"
     tier: str = "bronze"
+    total_spent: Decimal | None = None
     last_activity_ts: str | None = None
     tags: list[str] | None = None
     created_ts: str | None = None

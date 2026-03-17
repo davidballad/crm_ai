@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchContacts, fetchContact, createContact, updateContact, deleteContact } from '../api/contacts';
+import { fetchContacts, fetchContact, createContact, updateContact, patchContact, deleteContact } from '../api/contacts';
 
 export function useContacts(opts) {
   return useQuery({
@@ -28,6 +28,17 @@ export function useUpdateContact() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }) => updateContact(id, data),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+      qc.invalidateQueries({ queryKey: ['contacts', id] });
+    },
+  });
+}
+
+export function usePatchContact() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }) => patchContact(id, data),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: ['contacts'] });
       qc.invalidateQueries({ queryKey: ['contacts', id] });

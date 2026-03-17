@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useContacts } from '../hooks/useContacts';
+import { useContacts, usePatchContact } from '../hooks/useContacts';
 import { Users } from 'lucide-react';
 
 const STATUSES = [
@@ -25,8 +25,17 @@ function TierBadge({ tier }) {
 
 export default function LeadsList() {
   const { data, isLoading, error } = useContacts();
+  const patchContact = usePatchContact();
 
   const contacts = data?.contacts || [];
+
+  const handleStatusChange = (contactId, e) => {
+    const lead_status = e.target.value;
+    if (!contactId || !lead_status) return;
+    e.preventDefault();
+    e.stopPropagation();
+    patchContact.mutate({ id: contactId, data: { lead_status } });
+  };
   const byStatus = STATUSES.reduce((acc, s) => {
     acc[s.id] = contacts.filter((c) => (c.lead_status || 'prospect') === s.id);
     return acc;
@@ -72,20 +81,34 @@ export default function LeadsList() {
               </div>
               <div className="flex-1 space-y-2 p-3 min-h-[120px] max-h-[70vh] overflow-y-auto">
                 {(byStatus[status.id] || []).map((c) => (
-                  <Link
+                  <div
                     key={c.contact_id}
-                    to={`/leads/${c.contact_id}`}
-                    className="block rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow"
+                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-gray-900">{c.name}</span>
-                      <TierBadge tier={c.tier} />
+                    <Link to={`/leads/${c.contact_id}`} className="block">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-900">{c.name}</span>
+                        <TierBadge tier={c.tier} />
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">{c.phone || c.email || '\u2014'}</p>
+                      {c.source_channel && (
+                        <p className="mt-1 text-[10px] uppercase text-gray-400">{c.source_channel}</p>
+                      )}
+                    </Link>
+                    <div className="mt-2 pt-2 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
+                      <label className="sr-only">Change status</label>
+                      <select
+                        value={c.lead_status || 'prospect'}
+                        onChange={(e) => handleStatusChange(c.contact_id, e)}
+                        disabled={patchContact.isPending}
+                        className="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
+                      >
+                        {STATUSES.map((s) => (
+                          <option key={s.id} value={s.id}>{s.label}</option>
+                        ))}
+                      </select>
                     </div>
-                    <p className="mt-1 text-xs text-gray-500">{c.phone || c.email || '\u2014'}</p>
-                    {c.source_channel && (
-                      <p className="mt-1 text-[10px] uppercase text-gray-400">{c.source_channel}</p>
-                    )}
-                  </Link>
+                  </div>
                 ))}
               </div>
             </div>

@@ -4,17 +4,19 @@ from __future__ import annotations
 
 import base64
 import json
-import sys
 import os
+import sys
+import urllib.request
 from typing import Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from shared.auth import extract_tenant_id
-from shared.db import get_item, put_item, query_items, update_item
-from shared.db import DynamoDBError
+from shared.db import DynamoDBError, get_item, put_item, query_items, update_item
 from shared.models import Message
 from shared.response import created, error, not_found, server_error, success
 from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
+
+GRAPH_API_VERSION = "v21.0"
 
 MESSAGE_SK_PREFIX = "MESSAGE#"
 LIMIT_DEFAULT = 50
@@ -136,6 +138,133 @@ def create_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     return created(Message.from_dynamo(item).to_dict())
 
 
+def send_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /messages/send — send WhatsApp text via Graph API and store outbound message. JWT auth."""
+    try:
+        body = parse_body(event)
+    except (ValueError, json.JSONDecodeError):
+        return error("Invalid JSON body", 400)
+
+    to_number = (body.get("to_number") or "").strip()
+    text = (body.get("text") or "").strip()
+    if not to_number or not text:
+        return error("to_number and text are required", 400)
+
+    pk_tenant = build_pk(tenant_id)
+    sk_tenant = build_sk("TENANT", tenant_id)
+    try:
+        tenant = get_item(pk=pk_tenant, sk=sk_tenant)
+    except DynamoDBError as e:
+        return server_error(str(e))
+    if not tenant:
+        return error("Tenant not found", 404)
+
+    access_token = (tenant.get("meta_access_token") or "").strip()
+    phone_number_id = (tenant.get("meta_phone_number_id") or "").strip()
+    if not access_token or not phone_number_id:
+        return error(
+            "WhatsApp not configured. Set Meta Access Token and Phone Number ID in Connect WhatsApp.",
+            400,
+        )
+
+    to_wa = to_number.lstrip("+").replace(" ", "")
+    url = f"https://graph.facebook.com/{GRAPH_API_VERSION}/{phone_number_id}/messages"
+    payload = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": to_wa,
+        "type": "text",
+        "text": {"body": text},
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            graph_body = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode() if e.fp else "{}"
+        try:
+            err_json = json.loads(err_body)
+            msg = err_json.get("error", {}).get("message", err_body)
+        except (ValueError, TypeError):
+            msg = err_body
+        return error(f"WhatsApp API error: {msg}", e.code if 400 <= e.code < 600 else 502)
+    except (OSError, TimeoutError) as e:
+        return server_error(f"Request to WhatsApp failed: {e}")
+
+    message_id = generate_id()
+    created_ts = now_iso()
+    business_phone = (tenant.get("phone_number") or "").strip() or None
+    pk = build_pk(tenant_id)
+    sk = build_sk("MESSAGE", message_id)
+    item: dict[str, Any] = {
+        "pk": pk,
+        "sk": sk,
+        "tenant_id": tenant_id,
+        "message_id": message_id,
+        "channel": "whatsapp",
+        "channel_message_id": graph_body.get("messages", [{}])[0].get("id") if isinstance(graph_body.get("messages"), list) else None,
+        "from_number": business_phone,
+        "to_number": to_number,
+        "text": text,
+        "category": "active",
+        "created_ts": created_ts,
+    }
+    try:
+        put_item(item)
+    except DynamoDBError:
+        return server_error("Failed to store message")
+
+    return created(Message.from_dynamo(item).to_dict())
+
+
+def mark_conversation_closed(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /messages/mark-conversation-closed — set latest message for a phone to closed."""
+    try:
+        body = parse_body(event)
+    except (ValueError, json.JSONDecodeError):
+        return error("Invalid JSON body", 400)
+
+    from_number = (body.get("from_number") or "").strip()
+    if not from_number:
+        return error("from_number is required", 400)
+
+    normalized = from_number.replace(" ", "")
+    pk = build_pk(tenant_id)
+
+    try:
+        latest_msg: dict[str, Any] | None = None
+        last_key: dict[str, Any] | None = None
+        while True:
+            items, last_key = query_items(
+                pk=pk, sk_prefix=MESSAGE_SK_PREFIX, limit=LIMIT_MAX, last_key=last_key,
+            )
+            for item in items:
+                item_from = (item.get("from_number") or "").replace(" ", "")
+                item_to = (item.get("to_number") or "").replace(" ", "")
+                if item_from == normalized or item_to == normalized:
+                    if latest_msg is None or (item.get("created_ts") or "") > (latest_msg.get("created_ts") or ""):
+                        latest_msg = item
+            if not last_key:
+                break
+
+        if not latest_msg:
+            return success(body={"message": "No conversation found", "closed": False})
+
+        updated = update_item(pk=pk, sk=latest_msg["sk"], updates={"category": "closed"})
+        msg = Message.from_dynamo(updated)
+        return success(body={"message_id": msg.message_id, "category": "closed", "closed": True})
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+
 def patch_message_flags(tenant_id: str, message_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """PATCH /messages/{id}/flags — update category and/or processed_flags."""
     pk = build_pk(tenant_id)
@@ -191,6 +320,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             contact_id = path_params.get("id")
             if contact_id:
                 return list_contact_messages(tenant_id, contact_id, event)
+
+        # POST /messages/mark-conversation-closed
+        if method == "POST" and "/messages/mark-conversation-closed" in path:
+            return mark_conversation_closed(tenant_id, event)
+
+        # POST /messages/send — send WhatsApp message from UI (JWT only)
+        if method == "POST" and "/messages/send" in path:
+            return send_message(tenant_id, event)
 
         # POST /messages
         if method == "POST" and path.strip("/") == "messages":

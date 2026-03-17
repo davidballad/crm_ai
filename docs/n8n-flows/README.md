@@ -14,7 +14,7 @@ Meta WhatsApp Cloud API
   Resolve tenant (GET /onboarding/resolve-phone?phone_number_id=X)
         │
         ▼
-  Load tenant config (response includes ai_system_prompt, capabilities, etc.)
+  Load tenant config (response includes meta_access_token, meta_business_account_id, ai_system_prompt, etc.)
         │
         ▼
   n8n AI Agent Node (Bedrock via credentials)
@@ -39,7 +39,7 @@ Meta sends messages directly to n8n — no Lambda webhook in between. n8n resolv
 - n8n instance (self-hosted Docker or n8n Cloud)
 - Clienta AI API base URL (e.g. `https://<api-id>.execute-api.<region>.amazonaws.com`)
 - Service API key for n8n → Clienta API calls (set as `SERVICE_API_KEY` in AWS, stored in n8n credentials)
-- Meta WhatsApp Cloud API access token for sending replies
+- **Per-tenant WhatsApp credentials:** Each business configures **Meta Access Token** and **WhatsApp Business Account ID** in **Connect WhatsApp** (Settings in the app). n8n receives them dynamically via `resolve-phone`; no shared hardcoded credential.
 - AWS Bedrock credentials (for n8n AI Agent node)
 
 ## Authentication
@@ -130,12 +130,16 @@ Meta may send a GET with `hub.mode=subscribe`, `hub.verify_token`, and `hub.chal
 
 ## Tenant Configuration
 
-Each tenant's AI behavior is controlled by their config (set during onboarding setup):
+Each tenant's AI behavior and WhatsApp sending are controlled by their config. Each business must set **Meta Access Token** and **WhatsApp Business Account ID** in **Connect WhatsApp** (Settings). These are stored in the tenant record and returned by `resolve-phone` so n8n can use them for Graph API calls (dynamic auth: `Authorization: Bearer {{ $('Resolve Tenant').item.json.meta_access_token }}`). No shared hardcoded WhatsApp credential.
+
+Config (set during onboarding setup) includes:
 
 ```json
 {
   "business_name": "Maria's Kitchen",
   "business_type": "restaurant",
+  "meta_phone_number_id": "106540352242922",
+  "meta_business_account_id": "102290129340398",
   "ai_system_prompt": "You are the virtual assistant for Maria's Kitchen...",
   "capabilities": ["ordering", "menu_info", "hours_info", "delivery_tracking"],
   "delivery_enabled": true,
@@ -145,6 +149,8 @@ Each tenant's AI behavior is controlled by their config (set during onboarding s
   "timezone": "America/Mexico_City"
 }
 ```
+
+(`meta_access_token` is included in resolve-phone response for n8n only; it is never returned to the frontend.)
 
 The AI Agent node receives `ai_system_prompt` as its system prompt and the rest as context. One workflow handles all business types — the prompt controls behavior.
 

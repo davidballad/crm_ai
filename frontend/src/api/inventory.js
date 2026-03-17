@@ -31,6 +31,23 @@ export function importFromCsv(csvText) {
   return api.postRaw('/inventory/import', csvText, 'text/csv');
 }
 
+/** Get presigned upload URL and final image_url. productId optional (for create use null). */
+export function getUploadImageUrl({ productId, filename, contentType }) {
+  return api.post('/inventory/upload-image-url', {
+    product_id: productId || undefined,
+    filename: filename || 'image.jpg',
+    content_type: contentType || 'image/jpeg',
+  });
+}
+
+/** Get presigned upload URLs for multiple products (e.g. after import). Returns { uploads: [{ product_id, upload_url, image_url }] }. */
+export function getUploadImageUrls(productIds) {
+  return api.post('/inventory/upload-image-urls', {
+    product_ids: productIds,
+    default_extension: 'jpg',
+  });
+}
+
 const CSV_TEMPLATE = 'name,category,quantity,unit_cost,reorder_threshold,unit,sku,image_url,notes\nChicken Breast,Food,100,4.50,20,lb,,,Fresh boneless\nRice,Food,200,1.20,30,lb,,,Long grain\n';
 
 /** Download CSV template. */

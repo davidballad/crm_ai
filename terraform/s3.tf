@@ -89,7 +89,40 @@ resource "aws_s3_bucket_public_access_block" "data" {
   bucket = aws_s3_bucket.data.id
 
   block_public_acls       = true
-  block_public_policy     = true
+  block_public_policy     = false # allow policy for inventory-images public read
   ignore_public_acls      = true
-  restrict_public_buckets = true
+  restrict_public_buckets  = false
+}
+
+# Public read only for product images (WhatsApp, UI). Rest of bucket stays private.
+resource "aws_s3_bucket_policy" "data" {
+  bucket = aws_s3_bucket.data.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "PublicReadInventoryImages"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.data.arn}/inventory-images/*"
+      }
+    ]
+  })
+
+  depends_on = [aws_s3_bucket_public_access_block.data]
+}
+
+# CORS so browser can PUT to presigned URL when uploading images
+resource "aws_s3_bucket_cors_configuration" "data" {
+  bucket = aws_s3_bucket.data.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "PUT", "HEAD"]
+    allowed_origins = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds  = 3600
+  }
 }

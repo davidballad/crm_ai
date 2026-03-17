@@ -101,15 +101,32 @@ def _extract_jwt_tenant_id(event: dict[str, Any]) -> str | None:
     return claims.get("custom:tenant_id") if claims else None
 
 
-def extract_service_tenant_id(event: dict[str, Any]) -> str | None:
-    """Extract tenant_id from service key auth (X-Service-Key + X-Tenant-Id headers)."""
+def validate_service_key(event: dict[str, Any]) -> bool:
+    """Return True if X-Service-Key header matches SERVICE_API_KEY. Use for routes that only need key validation (e.g. resolve-phone)."""
     service_api_key = os.environ.get("SERVICE_API_KEY", "").strip()
     if not service_api_key:
+        return False
+    headers = event.get("headers") or {}
+    raw = headers.get("x-service-key") or headers.get("X-Service-Key") or ""
+    if isinstance(raw, list) and raw:
+        raw = raw[0]
+    if isinstance(raw, bytes):
+        provided_key = raw.decode("utf-8", errors="replace").strip()
+    elif isinstance(raw, str):
+        provided_key = raw.strip()
+    else:
+        provided_key = ""
+    if not provided_key:
+        return False
+    a, b = str(provided_key).strip(), str(service_api_key).strip()
+    return a == b
+
+
+def extract_service_tenant_id(event: dict[str, Any]) -> str | None:
+    """Extract tenant_id from service key auth (X-Service-Key + X-Tenant-Id headers)."""
+    if not validate_service_key(event):
         return None
     headers = event.get("headers") or {}
-    provided_key = headers.get("x-service-key") or headers.get("X-Service-Key") or ""
-    if not provided_key or not hmac.compare_digest(provided_key, service_api_key):
-        return None
     return headers.get("x-tenant-id") or headers.get("X-Tenant-Id") or None
 
 

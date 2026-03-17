@@ -1,7 +1,27 @@
 import { Link, useParams } from 'react-router-dom';
-import { useContact } from '../hooks/useContacts';
+import { useContact, usePatchContact } from '../hooks/useContacts';
 import { useContactMessages } from '../hooks/useContactMessages';
 import { ArrowLeft, MessageSquare } from 'lucide-react';
+
+const LEAD_STATUS_OPTIONS = [
+  { value: 'prospect', label: 'Prospect' },
+  { value: 'interested', label: 'Interested' },
+  { value: 'closed_won', label: 'Closed Won' },
+  { value: 'abandoned', label: 'Abandoned' },
+];
+
+const TIER_OPTIONS = [
+  { value: 'bronze', label: 'Bronze' },
+  { value: 'silver', label: 'Silver' },
+  { value: 'gold', label: 'Gold' },
+];
+
+function formatCurrency(value) {
+  if (value == null || value === '') return '\u2014';
+  const n = Number(value);
+  if (Number.isNaN(n)) return '\u2014';
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n);
+}
 
 const STATUS_COLORS = {
   prospect: 'bg-gray-100 text-gray-700',
@@ -37,8 +57,21 @@ export default function LeadProfile() {
   const { id } = useParams();
   const { data: contact, isLoading, error } = useContact(id);
   const { data: messagesData } = useContactMessages(id);
+  const patchContact = usePatchContact();
 
   const messages = messagesData?.messages || [];
+
+  const handleStatusChange = (e) => {
+    const lead_status = e.target.value;
+    if (!id || !lead_status) return;
+    patchContact.mutate({ id, data: { lead_status } });
+  };
+
+  const handleTierChange = (e) => {
+    const tier = e.target.value;
+    if (!id || !tier) return;
+    patchContact.mutate({ id, data: { tier } });
+  };
 
   if (isLoading) {
     return (
@@ -63,12 +96,36 @@ export default function LeadProfile() {
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-gray-900">{contact.name}</h1>
-            <TierBadge tier={contact.tier} />
-            <StatusBadge status={contact.lead_status} />
-          </div>
+          <h1 className="text-xl font-bold text-gray-900">{contact.name}</h1>
           <p className="text-sm text-gray-500">{contact.phone || contact.email || 'No contact info'}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500">Status</span>
+              <select
+                value={contact.lead_status || 'prospect'}
+                onChange={handleStatusChange}
+                disabled={patchContact.isPending}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
+              >
+                {LEAD_STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500">Tier</span>
+              <select
+                value={contact.tier || 'bronze'}
+                onChange={handleTierChange}
+                disabled={patchContact.isPending}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
+              >
+                {TIER_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -76,6 +133,10 @@ export default function LeadProfile() {
         <div className="card">
           <h2 className="mb-4 text-sm font-semibold text-gray-700">Details</h2>
           <dl className="space-y-3 text-sm">
+            <div>
+              <dt className="text-gray-500">Total spent</dt>
+              <dd className="font-medium text-gray-900">{formatCurrency(contact.total_spent)}</dd>
+            </div>
             <div>
               <dt className="text-gray-500">Phone</dt>
               <dd className="font-medium text-gray-900">{contact.phone || '\u2014'}</dd>

@@ -155,6 +155,18 @@ resource "aws_apigatewayv2_route" "inventory_import_template" {
   target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
 }
 
+resource "aws_apigatewayv2_route" "inventory_upload_image_url" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /inventory/upload-image-url"
+  target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+}
+
+resource "aws_apigatewayv2_route" "inventory_upload_image_urls" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /inventory/upload-image-urls"
+  target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+}
+
 # Contacts routes (no API Gateway JWT — Lambda validates JWT or service key)
 resource "aws_apigatewayv2_route" "contacts_list" {
   api_id    = aws_apigatewayv2_api.main.id
@@ -240,6 +252,12 @@ resource "aws_apigatewayv2_route" "cart_add_item" {
 resource "aws_apigatewayv2_route" "cart_checkout" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "POST /cart/checkout"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+}
+
+resource "aws_apigatewayv2_route" "cart_clear" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "DELETE /cart"
   target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
 }
 
@@ -390,6 +408,18 @@ resource "aws_apigatewayv2_route" "messages_list" {
 resource "aws_apigatewayv2_route" "messages_create" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "POST /messages"
+  target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
+}
+
+resource "aws_apigatewayv2_route" "messages_send" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /messages/send"
+  target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
+}
+
+resource "aws_apigatewayv2_route" "messages_mark_conversation_closed" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /messages/mark-conversation-closed"
   target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
 }
 

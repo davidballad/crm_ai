@@ -14,8 +14,8 @@ from botocore.exceptions import ClientError
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from shared.auth import extract_service_tenant_id, extract_tenant_id, require_auth
-from shared.db import DynamoDBError, get_item, put_item, query_gsi, update_item
+from shared.auth import extract_service_tenant_id, extract_tenant_id, require_auth, validate_service_key
+from shared.db import DynamoDBError, get_item, put_item, query_gsi, query_items, update_item
 from shared.models import Tenant
 from shared.response import created, error, server_error, success
 from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
@@ -213,8 +213,17 @@ def create_tenant(event: dict[str, Any]) -> dict[str, Any]:
     })
 
 
+def _tenant_has_products(tenant_id: str) -> bool:
+    """Return True if the tenant already has at least one product (avoids re-seeding)."""
+    pk = build_pk(tenant_id)
+    items, _ = query_items(pk=pk, sk_prefix="PRODUCT#", limit=1)
+    return len(items) > 0
+
+
 def _seed_products(tenant_id: str, business_type: str) -> None:
-    """Seed sample products for the tenant based on business_type."""
+    """Seed sample products for the tenant based on business_type. Skips if tenant already has products."""
+    if _tenant_has_products(tenant_id):
+        return
     products = SEED_PRODUCTS.get(business_type, SEED_PRODUCTS["other"])
     pk = build_pk(tenant_id)
     created_at = now_iso()
@@ -249,8 +258,8 @@ def _handle_complete_setup(event: dict[str, Any]) -> dict[str, Any]:
 
 TENANT_CONFIG_FIELDS = (
     "currency", "timezone", "business_hours", "settings",
-    "phone_number", "meta_phone_number_id", "ai_system_prompt",
-    "capabilities", "delivery_enabled", "payment_methods",
+    "phone_number", "meta_phone_number_id", "meta_business_account_id", "meta_access_token",
+    "ai_system_prompt", "capabilities", "delivery_enabled", "payment_methods",
 )
 
 
@@ -318,23 +327,28 @@ def complete_setup(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def _load_tenant_config(tenant_id: str) -> dict[str, Any] | None:
-    """Load tenant item from DynamoDB and return it as a config dict."""
+    """Load tenant item from DynamoDB and return it as a config dict.
+    Includes tenant_id for n8n and other API consumers that expect it."""
     pk = build_pk(tenant_id)
     sk = build_sk("TENANT", tenant_id)
     item = get_item(pk, sk)
     if not item:
         return None
-    return Tenant.from_dynamo(item).to_dict()
+    config = Tenant.from_dynamo(item).to_dict()
+    config["tenant_id"] = tenant_id
+    return config
 
 
 def get_tenant_config(tenant_id: str, _event: dict[str, Any]) -> dict[str, Any]:
-    """GET /onboarding/config — return full tenant config."""
+    """GET /onboarding/config — return full tenant config (token redacted for frontend)."""
     try:
         config = _load_tenant_config(tenant_id)
     except DynamoDBError as e:
         return server_error(str(e))
     if not config:
         return error("Tenant not found", 404)
+    # Redact token — frontend must never receive it
+    config.pop("meta_access_token", None)
     return success(body=config)
 
 
@@ -343,8 +357,8 @@ def resolve_phone(event: dict[str, Any]) -> dict[str, Any]:
 
     Requires service key auth (X-Service-Key header). No JWT needed.
     """
-    service_tenant = extract_service_tenant_id(event)
-    if service_tenant is None:
+    print("[resolve_phone] ENTRY", flush=True)
+    if not validate_service_key(event):
         headers = event.get("headers") or {}
         provided_key = headers.get("x-service-key") or headers.get("X-Service-Key") or ""
         if not provided_key:
@@ -387,6 +401,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Route onboarding requests."""
     path = _get_path(event)
     method = _get_method(event)
+    print("[onboarding] method=%s path=%s" % (method, path), flush=True)
 
     # No auth: tenant creation
     if method == "POST" and ("/onboarding/tenant" in path):

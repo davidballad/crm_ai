@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from shared.db import query_items, transact_write, get_table, update_item, get_item, put_item
 from shared.db import DynamoDBError
 from shared.auth import require_auth
-from shared.response import success, created, not_found, error, server_error
+from shared.response import success, created, not_found, error, server_error, no_content
 from shared.models import Transaction, TransactionItem
 from shared.utils import generate_id, now_iso, today_str, build_pk, build_sk, parse_body
 
@@ -387,8 +387,36 @@ def add_cart_item(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     return success(body={"items": items, "updated_at": now})
 
 
+def _normalize_phone(s: str | None) -> str:
+    """Normalize phone for comparison (strip + and spaces)."""
+    return (s or "").strip().replace(" ", "").lstrip("+")
+
+
+def _find_contact_by_phone(tenant_id: str, phone: str) -> tuple[dict[str, Any] | None, str | None]:
+    """Query contacts by tenant and find one matching phone. Returns (item, contact_id) or (None, None)."""
+    if not phone:
+        return None, None
+    pk = build_pk(tenant_id)
+    normalized = _normalize_phone(phone)
+    last_key: dict[str, Any] | None = None
+    while True:
+        items, last_key = query_items(
+            pk=pk,
+            sk_prefix="CONTACT#",
+            limit=100,
+            last_key=last_key,
+        )
+        for item in items:
+            if _normalize_phone(item.get("phone")) == normalized:
+                cid = item.get("contact_id") or (item.get("sk", "").split("#")[-1] if "CONTACT#" in item.get("sk", "") else None)
+                return item, cid
+        if not last_key:
+            break
+    return None, None
+
+
 def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """POST /cart/checkout — body: customer_id, customer_name, customer_phone. Creates transaction from cart, clears cart, returns transaction."""
+    """POST /cart/checkout — body: customer_id, customer_name, customer_phone. Creates transaction from cart, clears cart, returns transaction. Updates or creates contact with total_spent."""
     try:
         body = parse_body(event)
     except Exception:
@@ -416,21 +444,82 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             unit_price=price,
         ))
         total += price * qty
+
+    # Resolve contact: find by phone or create, and update total_spent
+    contact_id: str | None = None
+    contact_item, contact_id = _find_contact_by_phone(tenant_id, customer_phone)
+    now = now_iso()
+    if contact_item:
+        existing_total = contact_item.get("total_spent")
+        if existing_total is None:
+            current = Decimal("0")
+        else:
+            current = Decimal(str(existing_total)) if not isinstance(existing_total, Decimal) else existing_total
+        new_total = current + total
+        try:
+            update_item(
+                pk=pk,
+                sk=contact_item["sk"],
+                updates={"total_spent": new_total, "last_activity_ts": now},
+            )
+        except DynamoDBError as e:
+            return server_error(str(e))
+        contact_id = contact_item.get("contact_id") or contact_item.get("sk", "").split("#")[-1]
+    else:
+        # Create contact for this customer so we can track total_spent over time
+        contact_id = generate_id()
+        contact_sk = build_sk("CONTACT", contact_id)
+        try:
+            put_item({
+                "pk": pk,
+                "sk": contact_sk,
+                "tenant_id": tenant_id,
+                "contact_id": contact_id,
+                "name": customer_name,
+                "phone": customer_phone,
+                "source_channel": "whatsapp",
+                "lead_status": "prospect",
+                "tier": "bronze",
+                "total_spent": total,
+                "created_ts": now,
+            })
+        except DynamoDBError as e:
+            return server_error(str(e))
+
     transaction = Transaction(
         items=txn_items,
         total=total,
         payment_method="whatsapp",
-        contact_id=None,
+        contact_id=contact_id,
         status="pending",
     )
     transaction.id = generate_id()
-    transaction.created_at = now_iso()
+    transaction.created_at = now
     sk_txn = _transaction_sk(transaction.created_at, transaction.id)
     txn_record = {"pk": pk, "sk": sk_txn, **transaction.to_dynamo()}
     table = get_table()
     table.put_item(Item=txn_record)
-    put_item({"pk": pk, "sk": cart_sk, "items": [], "updated_at": now_iso()})
+    put_item({"pk": pk, "sk": cart_sk, "items": [], "updated_at": now})
     return created(transaction.to_dict())
+
+
+def clear_cart(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """DELETE /cart — clear cart for customer (query or body: customer_id)."""
+    customer_id = _get_customer_id(event)
+    if not customer_id:
+        return error("customer_id required (query or body)", 400)
+    pk = build_pk(tenant_id)
+    cart_sk = _cart_sk(customer_id)
+    try:
+        put_item({
+            "pk": pk,
+            "sk": cart_sk,
+            "items": [],
+            "updated_at": now_iso(),
+        })
+    except DynamoDBError as e:
+        return server_error(str(e))
+    return no_content()
 
 
 @require_auth
@@ -474,5 +563,7 @@ def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]
         return add_cart_item(tenant_id, event)
     if method == "POST" and (path == "/cart/checkout" or path.endswith("/cart/checkout")):
         return cart_checkout(tenant_id, event)
+    if method == "DELETE" and (path == "/cart" or path.endswith("/cart")):
+        return clear_cart(tenant_id, event)
 
     return error("Not found", 404)

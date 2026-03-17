@@ -101,6 +101,8 @@ def create_contact(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     }
     if contact_data.phone is not None:
         item["phone"] = contact_data.phone
+    if contact_data.total_spent is not None:
+        item["total_spent"] = contact_data.total_spent
     if contact_data.email is not None:
         item["email"] = contact_data.email
     if contact_data.source_channel is not None:
@@ -153,7 +155,7 @@ def patch_contact(
 
     allowed = {
         "name", "phone", "email", "source_channel", "lead_status",
-        "tier", "last_activity_ts", "tags",
+        "tier", "total_spent", "last_activity_ts", "tags",
     }
     updates: dict[str, Any] = {}
     for key, value in body.items():

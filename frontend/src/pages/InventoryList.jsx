@@ -1,15 +1,17 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useProducts, useDeleteProduct, useImportProducts } from '../hooks/useProducts';
-import { downloadImportTemplate } from '../api/inventory';
+import { downloadImportTemplate, getUploadImageUrls, updateProduct } from '../api/inventory';
 import LowStockBadge from '../components/LowStockBadge';
-import { Plus, Search, Pencil, Trash2, Package, Upload, Download } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Package, Upload, Download, ImagePlus } from 'lucide-react';
 
 export default function InventoryList() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [importResult, setImportResult] = useState(null);
+  const [imageUploadResult, setImageUploadResult] = useState(null);
   const fileInputRef = useRef(null);
+  const imageFilesInputRef = useRef(null);
   const { data, isLoading, error } = useProducts(category ? { category } : undefined);
   const deleteMutation = useDeleteProduct();
   const importMutation = useImportProducts();
@@ -40,12 +42,40 @@ export default function InventoryList() {
     e.target.value = '';
     if (!file) return;
     setImportResult(null);
+    setImageUploadResult(null);
     try {
       const text = await file.text();
       const result = await importMutation.mutateAsync(text);
       setImportResult(result);
     } catch (err) {
       setImportResult({ error: err.message });
+    }
+  };
+
+  const handleImageFilesChange = async (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = '';
+    if (!files.length || !importResult?.imported?.length) return;
+    const productIds = importResult.imported.slice(0, files.length).map((p) => p.id);
+    if (!productIds.length) return;
+    setImageUploadResult({ status: 'uploading', done: 0, total: productIds.length });
+    try {
+      const { uploads } = await getUploadImageUrls(productIds);
+      let done = 0;
+      for (let i = 0; i < Math.min(files.length, uploads.length); i++) {
+        await fetch(uploads[i].upload_url, {
+          method: 'PUT',
+          body: files[i],
+          headers: { 'Content-Type': files[i].type || 'image/jpeg' },
+        });
+        await updateProduct(uploads[i].product_id, { image_url: uploads[i].image_url });
+        done++;
+        setImageUploadResult({ status: 'uploading', done, total: uploads.length });
+      }
+      setImageUploadResult({ status: 'done', done, total: uploads.length });
+      importMutation.mutate(); // refresh list
+    } catch (err) {
+      setImageUploadResult({ status: 'error', error: err.message });
     }
   };
 
@@ -87,16 +117,55 @@ export default function InventoryList() {
       </div>
 
       {importResult && (
-        <div className={`mb-4 rounded-lg p-3 text-sm ${importResult.error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
-          {importResult.error ? (
-            importResult.error
-          ) : (
-            <>
-              Imported <strong>{importResult.imported_count}</strong> products
-              {importResult.error_count > 0 && (
-                <span className="ml-2">({importResult.error_count} row(s) skipped)</span>
-              )}
-            </>
+        <div className="mb-4 space-y-2">
+          <div className={`rounded-lg p-3 text-sm ${importResult.error ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
+            {importResult.error ? (
+              importResult.error
+            ) : (
+              <>
+                Imported <strong>{importResult.imported_count}</strong> products
+                {importResult.error_count > 0 && (
+                  <span className="ml-2">({importResult.error_count} row(s) skipped)</span>
+                )}
+              </>
+            )}
+          </div>
+          {!importResult.error && importResult.imported?.length > 0 && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
+              <p className="mb-2 font-medium text-gray-700">Add images (optional)</p>
+              <p className="mb-2 text-gray-500">Select image files in the same order as your CSV rows. First file → first product, etc.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => imageFilesInputRef.current?.click()}
+                  className="btn-secondary inline-flex items-center gap-2"
+                >
+                  <ImagePlus className="h-4 w-4" />
+                  Upload images for imported products
+                </button>
+                <input
+                  ref={imageFilesInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleImageFilesChange}
+                />
+                {imageUploadResult?.status === 'uploading' && (
+                  <span className="text-gray-600">
+                    {imageUploadResult.done}/{imageUploadResult.total} uploaded…
+                  </span>
+                )}
+                {imageUploadResult?.status === 'done' && (
+                  <span className="text-green-700">
+                    {imageUploadResult.done} product(s) now have images.
+                  </span>
+                )}
+                {imageUploadResult?.status === 'error' && (
+                  <span className="text-red-600">{imageUploadResult.error}</span>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
