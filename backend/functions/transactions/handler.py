@@ -330,7 +330,7 @@ def get_cart(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     pk = build_pk(tenant_id)
     sk = _cart_sk(customer_id)
     try:
-        item = get_item(pk, sk)
+        item = get_item(pk, sk, consistent_read=True)
     except DynamoDBError as e:
         return server_error(str(e))
     if not item:
@@ -362,7 +362,7 @@ def add_cart_item(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     product_name = product_item.get("name") or product_item.get("product_name") or "Item"
     unit_price = product_item.get("unit_cost") or Decimal("0")
     cart_sk = _cart_sk(customer_id)
-    cart_item = get_item(pk, cart_sk)
+    cart_item = get_item(pk, cart_sk, consistent_read=True)
     items = list(cart_item.get("items", [])) if cart_item else []
     found = False
     for i in items:
@@ -415,6 +415,30 @@ def _find_contact_by_phone(tenant_id: str, phone: str) -> tuple[dict[str, Any] |
     return None, None
 
 
+def _mark_conversation_closed(pk: str, customer_phone: str) -> None:
+    """Find the latest message for a customer phone and set its category to closed."""
+    normalized = _normalize_phone(customer_phone)
+    if not normalized:
+        return
+    try:
+        latest_msg: dict[str, Any] | None = None
+        last_key: dict[str, Any] | None = None
+        while True:
+            items, last_key = query_items(pk=pk, sk_prefix="MESSAGE#", limit=100, last_key=last_key)
+            for item in items:
+                item_from = _normalize_phone(item.get("from_number"))
+                item_to = _normalize_phone(item.get("to_number"))
+                if item_from == normalized or item_to == normalized:
+                    if latest_msg is None or (item.get("created_ts") or "") > (latest_msg.get("created_ts") or ""):
+                        latest_msg = item
+            if not last_key:
+                break
+        if latest_msg:
+            update_item(pk=pk, sk=latest_msg["sk"], updates={"category": "closed"})
+    except DynamoDBError:
+        pass  # Non-fatal: message update failure shouldn't block checkout
+
+
 def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """POST /cart/checkout — body: customer_id, customer_name, customer_phone. Creates transaction from cart, clears cart, returns transaction. Updates or creates contact with total_spent."""
     try:
@@ -428,7 +452,7 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         return error("customer_id required", 400)
     pk = build_pk(tenant_id)
     cart_sk = _cart_sk(customer_id)
-    cart_item = get_item(pk, cart_sk)
+    cart_item = get_item(pk, cart_sk, consistent_read=True)
     if not cart_item or not cart_item.get("items"):
         return error("Cart is empty", 400)
     items_raw = cart_item["items"]
@@ -445,7 +469,7 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         ))
         total += price * qty
 
-    # Resolve contact: find by phone or create, and update total_spent
+    # Resolve contact: find by phone or create, and update total_spent + lead_status
     contact_id: str | None = None
     contact_item, contact_id = _find_contact_by_phone(tenant_id, customer_phone)
     now = now_iso()
@@ -460,13 +484,16 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             update_item(
                 pk=pk,
                 sk=contact_item["sk"],
-                updates={"total_spent": new_total, "last_activity_ts": now},
+                updates={
+                    "total_spent": new_total,
+                    "last_activity_ts": now,
+                    "lead_status": "closed_won",
+                },
             )
         except DynamoDBError as e:
             return server_error(str(e))
         contact_id = contact_item.get("contact_id") or contact_item.get("sk", "").split("#")[-1]
     else:
-        # Create contact for this customer so we can track total_spent over time
         contact_id = generate_id()
         contact_sk = build_sk("CONTACT", contact_id)
         try:
@@ -478,7 +505,7 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                 "name": customer_name,
                 "phone": customer_phone,
                 "source_channel": "whatsapp",
-                "lead_status": "prospect",
+                "lead_status": "closed_won",
                 "tier": "bronze",
                 "total_spent": total,
                 "created_ts": now,
@@ -500,6 +527,26 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     table = get_table()
     table.put_item(Item=txn_record)
     put_item({"pk": pk, "sk": cart_sk, "items": [], "updated_at": now})
+
+    # Decrement inventory quantities for each purchased item
+    for cart_i in items_raw:
+        pid = cart_i.get("product_id")
+        qty_sold = int(cart_i.get("quantity", 1))
+        if not pid:
+            continue
+        product_sk = build_sk("PRODUCT", pid)
+        try:
+            prod = get_item(pk, product_sk)
+            if prod:
+                current_qty = int(prod.get("quantity", 0))
+                new_qty = max(current_qty - qty_sold, 0)
+                update_item(pk=pk, sk=product_sk, updates={"quantity": new_qty, "updated_at": now})
+        except DynamoDBError:
+            pass  # Non-fatal: inventory update failure shouldn't block checkout
+
+    # Mark conversation closed: find the latest message for this customer and set category to closed
+    _mark_conversation_closed(pk, customer_phone)
+
     return created(transaction.to_dict())
 
 

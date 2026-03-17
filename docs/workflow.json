@@ -10,10 +10,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        9024,
-        2272
+        28544,
+        6784
       ],
-      "id": "8e83672b-f4a1-4e46-a03d-6484beb0c3cd",
+      "id": "cd08171b-ecfe-4dd2-b6bb-4e470cc7b862",
       "name": "Webhook Verify",
       "webhookId": "cf9570ce-491f-4818-8a75-b24b87e4913b"
     },
@@ -28,10 +28,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        9248,
-        2272
+        28768,
+        6784
       ],
-      "id": "8864880f-ebe5-44ae-93b3-a7fcd1d83b8a",
+      "id": "ed115ad9-1f19-4996-9a4b-46cd63d44ec6",
       "name": "Return Challenge"
     },
     {
@@ -43,10 +43,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        9024,
-        3408
+        28544,
+        7792
       ],
-      "id": "849d959c-ed31-4514-a406-582871cec55c",
+      "id": "e64d0cb1-db71-4387-9fbd-e9dd55ae3817",
       "name": "Inbound Webhook",
       "webhookId": "cf9570ce-491f-4818-8a75-b24b87e4913b"
     },
@@ -57,10 +57,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        9248,
-        3408
+        28768,
+        7792
       ],
-      "id": "d4ce41b4-016f-4417-bdd0-bdafe0c08450",
+      "id": "df145cb4-12b4-4906-9ec0-ef33ad26d803",
       "name": "Extract & Filter",
       "notesInFlow": true,
       "notes": "Parses Meta payload, skips status updates"
@@ -91,10 +91,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        9472,
-        3408
+        28992,
+        7792
       ],
-      "id": "605601c0-e9c2-450e-ab04-6db8caae8e86",
+      "id": "6894fd10-98b4-49ec-8a71-ee5612d015d4",
       "name": "Resolve Tenant",
       "notesInFlow": true,
       "notes": "GET /onboarding/resolve-phone"
@@ -124,10 +124,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        9696,
-        3408
+        29216,
+        7792
       ],
-      "id": "12d57b5a-82cc-4df8-8537-50b3373b98cd",
+      "id": "0b6218fb-bf6c-4673-b68f-4da42730b061",
       "name": "Store Inbound",
       "notesInFlow": true,
       "notes": "POST /messages (save inbound)"
@@ -139,10 +139,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        9920,
-        3408
+        29440,
+        7792
       ],
-      "id": "ad9b191d-4a66-42c0-9542-a8466459f1ff",
+      "id": "32ce2081-78b9-438a-855f-00a1ecf0e2e3",
       "name": "Route",
       "notesInFlow": true,
       "notes": "show_options | products | order | something_else | add_to_cart | view_cart | checkout"
@@ -400,10 +400,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        10144,
-        3296
+        29664,
+        7664
       ],
-      "id": "5876b118-9d47-4ee4-8afe-909fcbe0f091",
+      "id": "833f8e83-0863-41a1-8d63-c4ead443ede3",
       "name": "Switch",
       "notesInFlow": true,
       "notes": "First message → 3 options; tap → Products | Order | Something else (AI)"
@@ -433,10 +433,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10368,
-        2496
+        29888,
+        7232
       ],
-      "id": "ac52bc44-e782-41c9-afdc-07a1d0a04c7c",
+      "id": "03e1e421-f3b0-483a-9758-ead6c64e931a",
       "name": "Send 3 Buttons",
       "notesInFlow": true,
       "notes": "Dynamic auth: Bearer from Resolve Tenant (meta_access_token)."
@@ -462,10 +462,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10368,
-        2688
+        28544,
+        7008
       ],
-      "id": "c3059be5-1d8a-49a3-a59c-cb1a70c33166",
+      "id": "6812373a-b7e6-4577-8c1d-f28a8d8bd55a",
       "name": "Get Inventory"
     },
     {
@@ -475,10 +475,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        10912,
-        2688
+        28768,
+        7008
       ],
-      "id": "846b1b1c-84dd-4920-a377-0a04e2ced1b3",
+      "id": "aee75a60-e7ce-4126-a1fc-5c1ddbd21252",
       "name": "Format Products"
     },
     {
@@ -506,10 +506,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        11440,
-        2688
+        28992,
+        7008
       ],
-      "id": "38866bad-10f1-4703-9663-83fbc12fa687",
+      "id": "40dce765-f323-4a70-8c39-c26129809133",
       "name": "Send Products"
     },
     {
@@ -522,10 +522,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        9440,
-        2736
+        28960,
+        7248
       ],
-      "id": "3c7348cb-d559-4bfd-a9d6-8473a2c32ffe",
+      "id": "c597cc18-c291-43f1-afc7-e646a98373a2",
       "name": "Order Flow (expand)"
     },
     {
@@ -549,10 +549,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10368,
-        3312
+        30960,
+        7816
       ],
-      "id": "760fe3bb-75e0-4cf0-b813-23858f8662d1",
+      "id": "e570cac5-de35-47fd-9788-dfe9aa017ed4",
       "name": "Get Inventory for Order"
     },
     {
@@ -562,10 +562,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        10912,
-        3312
+        31184,
+        7816
       ],
-      "id": "2d67aafe-77c1-4582-8644-2ceda2b4749d",
+      "id": "198570fc-d9bf-444f-bb62-a383bff7676f",
       "name": "Build Order Products Message"
     },
     {
@@ -591,10 +591,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        11440,
-        3312
+        31408,
+        7816
       ],
-      "id": "20ead3d1-3da6-47ab-9ed3-d9a9d427a8e1",
+      "id": "4646ecd9-399b-4ec4-bd83-cec4600a4407",
       "name": "Has carousel?"
     },
     {
@@ -622,10 +622,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        11664,
-        3232
+        31632,
+        7816
       ],
-      "id": "56b9549f-1f5f-462e-8e5b-7a13682bc2b0",
+      "id": "7b5b978a-8152-4220-a1b5-2e5ab151a3bf",
       "name": "Send Product Carousel"
     },
     {
@@ -653,10 +653,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        12336,
-        3312
+        32304,
+        7816
       ],
-      "id": "8f4f4de5-4f34-43b5-938d-c991da90e84e",
+      "id": "8595dda7-1403-485d-922a-ec12ce39f7dd",
       "name": "Send Order Text (0-1 products)"
     },
     {
@@ -682,10 +682,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        11888,
-        3232
+        31856,
+        7816
       ],
-      "id": "37be403c-a55f-4854-9ff8-54db2db41054",
+      "id": "cc42fec3-dc75-45b4-86bb-c72ff428085c",
       "name": "Has more products?"
     },
     {
@@ -695,10 +695,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        12112,
-        3232
+        32080,
+        7816
       ],
-      "id": "4de7a77a-ed1e-4a1c-bd84-2d8c87423a67",
+      "id": "eda959f0-f756-4f55-b843-6df4834660f6",
       "name": "Format more products message"
     },
     {
@@ -722,10 +722,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10512,
-        3696
+        29888,
+        8272
       ],
-      "id": "ee7c4a70-be79-44ed-837a-067fd3c09c9d",
+      "id": "54197efe-2c26-4802-b8b1-9b4854142b2c",
       "name": "Get Inventory for Add to Cart"
     },
     {
@@ -735,10 +735,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        11216,
-        3680
+        30960,
+        8272
       ],
-      "id": "b5a1a9aa-24d4-4283-8289-0707d904e018",
+      "id": "fe7a1753-b990-4311-add6-d3583d3c92ab",
       "name": "Resolve product_id for Add to Cart"
     },
     {
@@ -771,10 +771,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10368,
-        3888
+        29888,
+        8464
       ],
-      "id": "617dbac6-43db-458f-a2b6-67dcc598849a",
+      "id": "b5ba0261-9484-447c-a72a-57f9673b0b23",
       "name": "Get Cart"
     },
     {
@@ -807,10 +807,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10512,
-        3488
+        29888,
+        7888
       ],
-      "id": "a1b2c3d4-order-get-cart-check",
+      "id": "023dfa79-a1dd-48ce-81ea-420378afacc1",
       "name": "Get Cart for Order"
     },
     {
@@ -836,10 +836,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        10736,
-        3488
+        30424,
+        7888
       ],
-      "id": "b2c3d4e5-cart-has-items-if",
+      "id": "ff5e089d-d66e-4a02-afca-54f12b66736d",
       "name": "Cart has items?"
     },
     {
@@ -867,10 +867,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10960,
-        3408
+        30960,
+        8080
       ],
-      "id": "c3d4e5f6-send-already-have-cart",
+      "id": "2acb980b-7268-4246-8736-09c651c3618a",
       "name": "Send Already Have Cart"
     },
     {
@@ -880,10 +880,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        10912,
-        3888
+        30424,
+        8464
       ],
-      "id": "eeeda5ae-7a62-4317-985a-7a39d35301a1",
+      "id": "c3b6c405-23dd-4a25-bd25-f8b90218e73b",
       "name": "Format Cart"
     },
     {
@@ -911,10 +911,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        11440,
-        3888
+        30960,
+        8464
       ],
-      "id": "b3063429-7bf4-40e2-990b-1155c9d1f44e",
+      "id": "d160bb92-a468-49fd-bb5d-b265a7b22273",
       "name": "Send Cart Message"
     },
     {
@@ -946,10 +946,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10368,
-        4080
+        29888,
+        8656
       ],
-      "id": "2637b878-17d1-4e79-a904-22a0f316265c",
+      "id": "4486544c-62c0-4638-a4c4-4953cf0093c5",
       "name": "Checkout API"
     },
     {
@@ -983,10 +983,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10368,
-        4240
+        30424,
+        8848
       ],
-      "id": "d5e6f7a8-clear-cart-api",
+      "id": "31f22a52-08cf-462a-bce4-61c89073e2e6",
       "name": "Clear Cart API"
     },
     {
@@ -1014,10 +1014,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10912,
-        4080
+        30424,
+        8656
       ],
-      "id": "e1a48267-7a75-48c1-aa81-ad993a0f7392",
+      "id": "890774a5-a29a-4fed-9ee9-a2099d7ae126",
       "name": "Send Order Placed"
     },
     {
@@ -1027,10 +1027,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        10368,
-        2992
+        29888,
+        7424
       ],
-      "id": "d4181b91-200d-4372-a0bb-cacfe9547f0e",
+      "id": "2e1775ed-6183-4d1d-934d-5f02d1d060bc",
       "name": "Add Session ID for AI"
     },
     {
@@ -1044,10 +1044,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2.2,
       "position": [
-        10848,
-        2880
+        30360,
+        7424
       ],
-      "id": "9e8256e7-38a0-4c29-8d21-ad29cb902e72",
+      "id": "66564e3b-e3ee-4aa7-a511-772c9eb01293",
       "name": "AI Agent",
       "notesInFlow": true,
       "notes": "Something else: store-info Q&A only. Session ID comes from previous node."
@@ -1059,10 +1059,10 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
       "typeVersion": 1,
       "position": [
-        10592,
-        3104
+        30112,
+        7648
       ],
-      "id": "bbbfa1bb-900f-414b-a4a2-1f2f111b4035",
+      "id": "9be2eb38-5b5e-4545-996e-7dc88e5afda5",
       "name": "Google Gemini Chat Model",
       "credentials": {
         "googlePalmApi": {
@@ -1097,10 +1097,10 @@
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
       "position": [
-        10848,
-        3104
+        30368,
+        7648
       ],
-      "id": "b6272fe2-31cd-4271-9367-0aa6c5fbc167",
+      "id": "dc47c37c-d9f3-4b5b-a228-85393c5fdfc1",
       "name": "Search Products"
     },
     {
@@ -1128,10 +1128,10 @@
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
       "position": [
-        10976,
-        3104
+        30496,
+        7648
       ],
-      "id": "eeffe747-8c78-4a13-9a19-8f0c842474f6",
+      "id": "87981b7f-bac7-4370-bd90-c71c4334965b",
       "name": "Create Order"
     },
     {
@@ -1160,10 +1160,10 @@
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
       "position": [
-        11104,
-        3104
+        30624,
+        7648
       ],
-      "id": "41bb0bd6-336f-44c7-a7db-7146d27cc36c",
+      "id": "381802bc-5771-4ba8-a489-d93887e661a8",
       "name": "Find Contact"
     },
     {
@@ -1191,10 +1191,10 @@
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
       "position": [
-        11232,
-        3104
+        30752,
+        7648
       ],
-      "id": "e5d9ea17-78c5-49d2-a21b-97188c420302",
+      "id": "4f8f895a-8d6d-4e78-9555-9f1cb7e0debe",
       "name": "Create Contact"
     },
     {
@@ -1222,10 +1222,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        11440,
-        2992
+        30960,
+        7424
       ],
-      "id": "4edc4807-4763-4606-bf3b-ff7482d7fe8c",
+      "id": "8ad49027-70ae-49fa-b88f-ec2ef13eb219",
       "name": "Send Reply"
     },
     {
@@ -1253,10 +1253,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        11664,
-        2992
+        31184,
+        7424
       ],
-      "id": "a98a0e9e-4189-41ec-b9c2-e311ca038ded",
+      "id": "8e6bccf5-b096-4219-99cd-d9894a55fede",
       "name": "Store Outbound",
       "notesInFlow": true,
       "notes": "POST /messages (save outbound)"
@@ -1271,10 +1271,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        8544,
-        2192
+        28064,
+        6704
       ],
-      "id": "d0616ec0-e799-4919-b3ef-d9dab99ac0bc",
+      "id": "3a2c0962-4678-405d-8cb6-d766f8542513",
       "name": "Setup Instructions"
     },
     {
@@ -1282,10 +1282,10 @@
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.3,
       "position": [
-        10720,
-        3104
+        30240,
+        7648
       ],
-      "id": "1b902236-6bd8-4c6a-8298-827e39352a6e",
+      "id": "35de333a-ee7a-4b55-8e95-9df4c16d5c99",
       "name": "Simple Memory"
     },
     {
@@ -1295,10 +1295,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        10912,
-        3696
+        30424,
+        8272
       ],
-      "id": "cd2f5a0b-f288-43ee-b0bc-927d525fca46",
+      "id": "e1283487-1c83-4b3b-b81d-e824b08d682f",
       "name": "State Manager"
     },
     {
@@ -1326,10 +1326,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        11888,
-        3680
+        31408,
+        8272
       ],
-      "id": "2e61557b-8d0c-4922-8c12-08e1bb9350f3",
+      "id": "807ce4f0-10dd-4acf-8c60-0452f645996f",
       "name": "WhatsApp: Cart Confirmation"
     },
     {
@@ -1339,10 +1339,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        10608,
-        3504
+        29888,
+        8080
       ],
-      "id": "85fc70dc-dc31-4261-83c3-3b01bfe7f7bc",
+      "id": "4d09d674-a83c-4f4c-b84f-d4533be5cb4c",
       "name": "Format Cart Summary"
     },
     {
@@ -1388,10 +1388,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        11632,
-        3680
+        31184,
+        8272
       ],
-      "id": "d6bcfcf9-6350-44d8-ae40-4ece925b9884",
+      "id": "9937f9a8-90f4-4235-80f8-83ca475a3ba9",
       "name": "Add to Cart Success"
     },
     {
@@ -1419,11 +1419,171 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        10960,
-        3504
+        30424,
+        8080
       ],
-      "id": "9a5b3b6d-537b-427e-8d64-a08c27476369",
+      "id": "3b77bf71-bf99-48a4-87e7-3999437583eb",
       "name": "WhatsApp: Send View Cart"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [30000, 2000],
+      "id": "p3-schedule-trigger",
+      "name": "Every hour (Phase 3)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "p3-api-url",
+              "name": "api_url",
+              "value": "https://mv21vj2kof.execute-api.us-east-1.amazonaws.com",
+              "type": "string"
+            },
+            {
+              "id": "p3-service-key",
+              "name": "service_api_key",
+              "value": "S92QLSeIQ0faFR2ql1V066YmGRpZdME6321XLPPqPbc",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [30240, 2000],
+      "id": "p3-set-config",
+      "name": "Set API config (Phase 3)"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.api_url }}/onboarding/tenant-ids",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Service-Key",
+              "value": "={{ $json.service_api_key }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [30480, 2000],
+      "id": "p3-get-tenant-ids",
+      "name": "GET Tenant IDs (Phase 3)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Expand to one item per tenant so the rest of the flow runs for each business\nconst res = $input.first().json;\nconst ids = res.tenant_ids || [];\nconst config = $('Set API config (Phase 3)').first().json;\nif (ids.length === 0) return [];\nreturn ids.map(tenant_id => ({ json: { tenant_id, api_url: config.api_url, service_api_key: config.service_api_key } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [30720, 2000],
+      "id": "p3-expand-tenants",
+      "name": "Expand to one per tenant"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.api_url }}/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": 100
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Service-Key",
+              "value": "={{ $json.service_api_key }}"
+            },
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $json.tenant_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [30480, 2000],
+      "id": "p3-get-messages",
+      "name": "GET Messages (Phase 3)"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "position",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [30960, 2000],
+      "id": "p3-merge-tenant-messages",
+      "name": "Merge tenant + messages (Phase 3)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Phase 3: Find conversations that need 20h (incomplete) or 24h (closed)\nconst HOURS_20 = 20;\nconst HOURS_24 = 24;\n\nconst prev = $input.first().json;\nconst messages = prev.messages || [];\nconst tenantId = prev.tenant_id;\nconst apiUrl = prev.api_url;\nconst serviceKey = prev.service_api_key;\n\nfunction norm(s) { return (s || '').replace(/\\s/g, '').replace(/^\\+/, '') || ''; }\n\n// Count how often each number appears (business appears in every message)\nconst count = {};\nfor (const m of messages) {\n  const from = norm(m.from_number);\n  const to = norm(m.to_number);\n  if (from) count[from] = (count[from] || 0) + 1;\n  if (to && to !== from) count[to] = (count[to] || 0) + 1;\n}\n// Customer = number with fewer appearances in this tenant's messages\nfunction customerFor(from, to) {\n  if (!from) return to;\n  if (!to) return from;\n  return (count[from] || 0) <= (count[to] || 0) ? from : to;\n}\n\n// Group by conversation (unordered pair); keep latest message; key by customer phone\nconst byCustomer = {};\nfor (const m of messages) {\n  const from = norm(m.from_number);\n  const to = norm(m.to_number);\n  const customer = customerFor(from, to);\n  if (!customer) continue;\n  const ts = m.created_ts || '';\n  if (!byCustomer[customer] || ts > (byCustomer[customer].created_ts || '')) {\n    byCustomer[customer] = { ...m, customer_phone: customer };\n  }\n}\n\nconst now = new Date();\nconst out = [];\nfor (const c of Object.values(byCustomer)) {\n  const created = c.created_ts ? new Date(c.created_ts) : null;\n  if (!created) continue;\n  const hours = (now - created) / (1000 * 60 * 60);\n  const cat = (c.category || 'active').toLowerCase();\n  if (cat === 'active' && hours >= HOURS_24) {\n    out.push({ api_url: apiUrl, service_api_key: serviceKey, tenant_id: tenantId, from_number: c.customer_phone, category: 'closed' });\n  } else if (cat === 'active' && hours >= HOURS_20) {\n    out.push({ api_url: apiUrl, service_api_key: serviceKey, tenant_id: tenantId, from_number: c.customer_phone, category: 'incomplete' });\n  } else if (cat === 'incomplete' && hours >= HOURS_24) {\n    out.push({ api_url: apiUrl, service_api_key: serviceKey, tenant_id: tenantId, from_number: c.customer_phone, category: 'closed' });\n  }\n}\nreturn out.map(o => ({ json: o }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [30720, 2000],
+      "id": "p3-code-20h-24h",
+      "name": "Find 20h/24h conversations"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.api_url }}/messages/mark-conversation",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Service-Key",
+              "value": "={{ $json.service_api_key }}"
+            },
+            {
+              "name": "X-Tenant-Id",
+              "value": "={{ $json.tenant_id }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from_number\": \"{{ $json.from_number }}\",\n  \"category\": \"{{ $json.category }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [30960, 2000],
+      "id": "p3-mark-conversation",
+      "name": "POST Mark Conversation (Phase 3)"
     }
   ],
   "pinData": {},
@@ -1882,6 +2042,88 @@
           }
         ]
       ]
+    },
+    "Every hour (Phase 3)": {
+      "main": [
+        [
+          {
+            "node": "Set API config (Phase 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set API config (Phase 3)": {
+      "main": [
+        [
+          {
+            "node": "GET Tenant IDs (Phase 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET Tenant IDs (Phase 3)": {
+      "main": [
+        [
+          {
+            "node": "Expand to one per tenant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand to one per tenant": {
+      "main": [
+        [
+          {
+            "node": "GET Messages (Phase 3)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge tenant + messages (Phase 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET Messages (Phase 3)": {
+      "main": [
+        [
+          {
+            "node": "Merge tenant + messages (Phase 3)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge tenant + messages (Phase 3)": {
+      "main": [
+        [
+          {
+            "node": "Find 20h/24h conversations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find 20h/24h conversations": {
+      "main": [
+        [
+          {
+            "node": "POST Mark Conversation (Phase 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -1890,7 +2132,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "1f1dfaea-69bf-4b42-a116-7573a82f1251",
+  "versionId": "ff3b41d3-f1aa-461e-9b86-2c5d42705bd7",
   "meta": {
     "instanceId": "c91f26522a04f267408f611dedee2ca46bdc2e467732f3c5c8642e81c8c5f9ad"
   },

@@ -1,6 +1,6 @@
 import { api } from './client';
 
-export function fetchMessages({ contactId, channel, category, nextToken } = {}) {
+export function fetchMessagesPage({ contactId, channel, category, nextToken } = {}) {
   const params = new URLSearchParams();
   if (contactId) params.set('contact_id', contactId);
   if (channel) params.set('channel', channel);
@@ -8,6 +8,21 @@ export function fetchMessages({ contactId, channel, category, nextToken } = {}) 
   if (nextToken) params.set('next_token', nextToken);
   const qs = params.toString();
   return api.get(`/messages${qs ? `?${qs}` : ''}`);
+}
+
+const MAX_PAGES = 20;
+
+export async function fetchMessages(opts = {}) {
+  let allMessages = [];
+  let nextToken = opts.nextToken;
+  let pages = 0;
+  do {
+    const data = await fetchMessagesPage({ ...opts, nextToken });
+    allMessages = allMessages.concat(data.messages || []);
+    nextToken = data.next_token;
+    pages++;
+  } while (nextToken && pages < MAX_PAGES);
+  return { messages: allMessages };
 }
 
 export function fetchContactMessages(contactId, { nextToken } = {}) {

@@ -225,8 +225,55 @@ def send_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     return created(Message.from_dynamo(item).to_dict())
 
 
+def _find_latest_message_for_phone(pk: str, customer_phone: str) -> dict[str, Any] | None:
+    """Find the latest message in the conversation thread for this customer phone."""
+    normalized = (customer_phone or "").strip().replace(" ", "")
+    if not normalized:
+        return None
+    latest_msg: dict[str, Any] | None = None
+    last_key: dict[str, Any] | None = None
+    while True:
+        items, last_key = query_items(
+            pk=pk, sk_prefix=MESSAGE_SK_PREFIX, limit=LIMIT_MAX, last_key=last_key,
+        )
+        for item in items:
+            item_from = (item.get("from_number") or "").replace(" ", "")
+            item_to = (item.get("to_number") or "").replace(" ", "")
+            if item_from == normalized or item_to == normalized:
+                if latest_msg is None or (item.get("created_ts") or "") > (latest_msg.get("created_ts") or ""):
+                    latest_msg = item
+        if not last_key:
+            break
+    return latest_msg
+
+
+def mark_conversation(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /messages/mark-conversation — set latest message category to incomplete or closed. For n8n 20h/24h flow."""
+    try:
+        body = parse_body(event)
+    except (ValueError, json.JSONDecodeError):
+        return error("Invalid JSON body", 400)
+
+    from_number = (body.get("from_number") or "").strip()
+    category = (body.get("category") or "").strip().lower()
+    if not from_number:
+        return error("from_number is required", 400)
+    if category not in VALID_CATEGORIES:
+        return error(f"category must be one of: {', '.join(sorted(VALID_CATEGORIES))}", 400)
+
+    pk = build_pk(tenant_id)
+    try:
+        latest_msg = _find_latest_message_for_phone(pk, from_number)
+        if not latest_msg:
+            return success(body={"message": "No conversation found", "updated": False})
+        update_item(pk=pk, sk=latest_msg["sk"], updates={"category": category})
+        return success(body={"message_id": latest_msg.get("message_id"), "category": category, "updated": True})
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+
 def mark_conversation_closed(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """POST /messages/mark-conversation-closed — set latest message for a phone to closed."""
+    """POST /messages/mark-conversation-closed — set latest message for a phone to closed (checkout flow)."""
     try:
         body = parse_body(event)
     except (ValueError, json.JSONDecodeError):
@@ -236,28 +283,11 @@ def mark_conversation_closed(tenant_id: str, event: dict[str, Any]) -> dict[str,
     if not from_number:
         return error("from_number is required", 400)
 
-    normalized = from_number.replace(" ", "")
     pk = build_pk(tenant_id)
-
     try:
-        latest_msg: dict[str, Any] | None = None
-        last_key: dict[str, Any] | None = None
-        while True:
-            items, last_key = query_items(
-                pk=pk, sk_prefix=MESSAGE_SK_PREFIX, limit=LIMIT_MAX, last_key=last_key,
-            )
-            for item in items:
-                item_from = (item.get("from_number") or "").replace(" ", "")
-                item_to = (item.get("to_number") or "").replace(" ", "")
-                if item_from == normalized or item_to == normalized:
-                    if latest_msg is None or (item.get("created_ts") or "") > (latest_msg.get("created_ts") or ""):
-                        latest_msg = item
-            if not last_key:
-                break
-
+        latest_msg = _find_latest_message_for_phone(pk, from_number)
         if not latest_msg:
             return success(body={"message": "No conversation found", "closed": False})
-
         updated = update_item(pk=pk, sk=latest_msg["sk"], updates={"category": "closed"})
         msg = Message.from_dynamo(updated)
         return success(body={"message_id": msg.message_id, "category": "closed", "closed": True})
@@ -320,6 +350,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             contact_id = path_params.get("id")
             if contact_id:
                 return list_contact_messages(tenant_id, contact_id, event)
+
+        # POST /messages/mark-conversation (20h/24h n8n flow: category = incomplete | closed)
+        if method == "POST" and path.strip("/") == "messages/mark-conversation":
+            return mark_conversation(tenant_id, event)
 
         # POST /messages/mark-conversation-closed
         if method == "POST" and "/messages/mark-conversation-closed" in path:

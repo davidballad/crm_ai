@@ -6,7 +6,7 @@ import os
 from typing import Any
 
 import boto3
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
 _dynamodb_resource = None
@@ -48,11 +48,14 @@ def put_item(item: dict[str, Any]) -> None:
         raise DynamoDBError(str(e), e) from e
 
 
-def get_item(pk: str, sk: str) -> dict[str, Any] | None:
-    """Get a single item by pk and sk."""
+def get_item(pk: str, sk: str, consistent_read: bool = False) -> dict[str, Any] | None:
+    """Get a single item by pk and sk. Use consistent_read=True to avoid stale reads after recent writes."""
     try:
         table = get_table()
-        response = table.get_item(Key={"pk": pk, "sk": sk})
+        params: dict[str, Any] = {"Key": {"pk": pk, "sk": sk}}
+        if consistent_read:
+            params["ConsistentRead"] = True
+        response = table.get_item(**params)
         return response.get("Item")
     except ClientError as e:
         raise DynamoDBError(str(e), e) from e
@@ -163,6 +166,25 @@ def batch_put_items(items: list[dict[str, Any]]) -> None:
         with table.batch_writer() as batch:
             for item in items:
                 batch.put_item(Item=item)
+    except ClientError as e:
+        raise DynamoDBError(str(e), e) from e
+
+
+def scan_items(
+    filter_expression: Any | None = None,
+    limit: int = 100,
+    last_key: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Scan table with optional filter. Returns (items, last_evaluated_key). Use for cross-tenant queries."""
+    try:
+        table = get_table()
+        params: dict[str, Any] = {"Limit": limit}
+        if filter_expression is not None:
+            params["FilterExpression"] = filter_expression
+        if last_key is not None:
+            params["ExclusiveStartKey"] = last_key
+        response = table.scan(**params)
+        return response.get("Items", []), response.get("LastEvaluatedKey")
     except ClientError as e:
         raise DynamoDBError(str(e), e) from e
 

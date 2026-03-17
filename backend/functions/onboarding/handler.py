@@ -21,6 +21,54 @@ from shared.response import created, error, server_error, success
 from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
 
 PHONE_NUMBER_ID_PK = "PHONE_NUMBER_ID"
+S3_TENANT_IDS_KEY = "tenant-registry/tenant-ids.json"
+
+_s3_client = None
+
+
+def _get_s3():
+    global _s3_client
+    if _s3_client is None:
+        _s3_client = boto3.client("s3")
+    return _s3_client
+
+
+def _get_tenant_ids_from_s3() -> list[str]:
+    """Read tenant IDs from S3. Returns [] if file missing or on error."""
+    bucket = os.environ.get("DATA_BUCKET")
+    if not bucket:
+        return []
+    try:
+        resp = _get_s3().get_object(Bucket=bucket, Key=S3_TENANT_IDS_KEY)
+        body = json.loads(resp["Body"].read().decode())
+        return list(body.get("tenant_ids") or [])
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") == "NoSuchKey":
+            return []
+        return []
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
+def _append_tenant_id_to_s3(tenant_id: str) -> None:
+    """Append tenant_id to S3 registry. Best-effort; does not raise (tenant create still succeeds)."""
+    bucket = os.environ.get("DATA_BUCKET")
+    if not bucket or not tenant_id:
+        return
+    try:
+        ids = _get_tenant_ids_from_s3()
+        if tenant_id in ids:
+            return
+        ids.append(tenant_id)
+        now = now_iso()
+        _get_s3().put_object(
+            Bucket=bucket,
+            Key=S3_TENANT_IDS_KEY,
+            Body=json.dumps({"tenant_ids": ids, "updated_at": now}),
+            ContentType="application/json",
+        )
+    except Exception:
+        pass  # Non-fatal
 
 # Seed products by business type
 SEED_PRODUCTS: dict[str, list[dict[str, Any]]] = {
@@ -189,6 +237,8 @@ def create_tenant(event: dict[str, Any]) -> dict[str, Any]:
         except ClientError:
             pass  # Log and continue; we already return 500
         return server_error("Failed to create tenant record")
+
+    _append_tenant_id_to_s3(tenant_id)
 
     # Optional: link Meta WhatsApp phone number and seed products during signup
     meta_phone_number_id = (body.get("meta_phone_number_id") or "").strip()
@@ -393,6 +443,18 @@ def resolve_phone(event: dict[str, Any]) -> dict[str, Any]:
     return success(body=config)
 
 
+def list_tenant_ids(event: dict[str, Any]) -> dict[str, Any]:
+    """GET /onboarding/tenant-ids — return all tenant IDs from S3 (for schedulers, e.g. Phase 3). Service key only."""
+    if not validate_service_key(event):
+        headers = event.get("headers") or {}
+        if not (headers.get("x-service-key") or headers.get("X-Service-Key")):
+            return error("X-Service-Key header required", 401)
+        return error("Invalid service key", 401)
+
+    tenant_ids = _get_tenant_ids_from_s3()
+    return success(body={"tenant_ids": tenant_ids, "count": len(tenant_ids)})
+
+
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
@@ -410,6 +472,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # No JWT auth: phone resolution (service key checked inside handler)
     if method == "GET" and ("/onboarding/resolve-phone" in path):
         return resolve_phone(event)
+
+    # Service key only: list tenant IDs (for Phase 3 scheduler / multi-tenant n8n)
+    if method == "GET" and ("/onboarding/tenant-ids" in path):
+        return list_tenant_ids(event)
 
     # Auth required: setup and config
     if method == "POST" and ("/onboarding/setup" in path):

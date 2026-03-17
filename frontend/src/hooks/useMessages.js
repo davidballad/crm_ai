@@ -5,5 +5,7 @@ export function useMessages(opts) {
   return useQuery({
     queryKey: ['messages', opts],
     queryFn: () => fetchMessages(opts),
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
   });
 }

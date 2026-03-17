@@ -417,6 +417,12 @@ resource "aws_apigatewayv2_route" "messages_send" {
   target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
 }
 
+resource "aws_apigatewayv2_route" "messages_mark_conversation" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /messages/mark-conversation"
+  target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
+}
+
 resource "aws_apigatewayv2_route" "messages_mark_conversation_closed" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "POST /messages/mark-conversation-closed"
@@ -453,6 +459,12 @@ resource "aws_apigatewayv2_route" "onboarding_config" {
 resource "aws_apigatewayv2_route" "onboarding_resolve_phone" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "GET /onboarding/resolve-phone"
+  target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
+}
+
+resource "aws_apigatewayv2_route" "onboarding_tenant_ids" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /onboarding/tenant-ids"
   target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
 }
 

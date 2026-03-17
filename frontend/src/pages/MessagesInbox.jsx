@@ -32,9 +32,25 @@ export default function MessagesInbox() {
     return acc;
   }, {});
 
-  // One chat per number: group by from_number, keep latest message per conversation
+  // Detect business phone: the to_number seen most often (destination of inbound messages)
+  const toNumberCounts = {};
+  messages.forEach((m) => {
+    const to = (m.to_number || '').replace(/\s/g, '');
+    if (to) toNumberCounts[to] = (toNumberCounts[to] || 0) + 1;
+  });
+  const businessPhone = Object.entries(toNumberCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+
+  const getCustomerPhone = (m) => {
+    const from = (m.from_number || '').replace(/\s/g, '');
+    const to = (m.to_number || '').replace(/\s/g, '');
+    if (from === businessPhone) return to || from;
+    return from || to;
+  };
+
+  // One chat per customer number: group by customer phone, keep latest message per conversation
   const byNumber = messages.reduce((acc, m) => {
-    const num = (m.from_number || '').replace(/\s/g, '') || '_unknown';
+    const num = getCustomerPhone(m) || '_unknown';
+    if (num === businessPhone) return acc;
     if (!acc[num]) acc[num] = [];
     acc[num].push(m);
     return acc;
@@ -44,7 +60,7 @@ export default function MessagesInbox() {
     const latest = sorted[0];
     const contact = contactByPhone[num] || (latest?.contact_id ? contactsMap[latest.contact_id] : null);
     return {
-      from_number: latest.from_number,
+      from_number: num,
       contact_id: contact?.contact_id || latest?.contact_id,
       contact_name: contact?.name,
       category: latest.category || 'active',
@@ -61,14 +77,10 @@ export default function MessagesInbox() {
     return acc;
   }, {});
 
-  const selectedNumber = selectedConv?.from_number?.replace(/\s/g, '') || '';
-  const threadMessages = selectedNumber
+  const selectedCustomerPhone = selectedConv?.from_number?.replace(/\s/g, '') || '';
+  const threadMessages = selectedCustomerPhone
     ? messages
-        .filter(
-          (m) =>
-            (m.from_number || '').replace(/\s/g, '') === selectedNumber ||
-            (m.to_number || '').replace(/\s/g, '') === selectedNumber
-        )
+        .filter((m) => getCustomerPhone(m) === selectedCustomerPhone)
         .sort((a, b) => new Date(a.created_ts || 0) - new Date(b.created_ts || 0))
     : [];
 
@@ -181,7 +193,7 @@ export default function MessagesInbox() {
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {threadMessages.map((m) => {
-                  const isThem = (m.from_number || '').replace(/\s/g, '') === selectedNumber;
+                  const isThem = (m.from_number || '').replace(/\s/g, '') !== businessPhone;
                   return (
                     <div
                       key={m.message_id}
