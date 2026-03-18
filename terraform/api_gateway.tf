@@ -108,6 +108,14 @@ resource "aws_apigatewayv2_integration" "messages" {
   payload_format_version = "2.0"
 }
 
+resource "aws_apigatewayv2_integration" "contact" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.services["contact"].invoke_arn
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
 # -----------------------------------------------------------------------------
 # Routes (with JWT authorizer except onboarding/tenant)
 # -----------------------------------------------------------------------------
@@ -468,6 +476,13 @@ resource "aws_apigatewayv2_route" "onboarding_tenant_ids" {
   target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
 }
 
+# Contact form (public, no auth)
+resource "aws_apigatewayv2_route" "contact" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /contact"
+  target    = "integrations/${aws_apigatewayv2_integration.contact.id}"
+}
+
 # -----------------------------------------------------------------------------
 # API Gateway Stage (default)
 # -----------------------------------------------------------------------------
@@ -488,7 +503,7 @@ resource "aws_apigatewayv2_stage" "default" {
 # -----------------------------------------------------------------------------
 
 resource "aws_lambda_permission" "api_gateway" {
-  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages"])
+  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact"])
 
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"

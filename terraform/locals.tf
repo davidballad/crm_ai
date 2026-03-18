@@ -46,6 +46,10 @@ locals {
       memory_size = 256
       timeout     = 30
     }
+    contact = {
+      memory_size = 128
+      timeout     = 10
+    }
   }
 
   packages_dir = "${path.module}/packages"

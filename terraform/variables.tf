@@ -107,3 +107,19 @@ variable "acm_certificate_arn" {
   type        = string
   default     = "arn:aws:acm:us-east-1:533590176318:certificate/b5920cfd-7efb-43df-8567-85d9119e2aa5"
 }
+
+# -----------------------------------------------------------------------------
+# Contact form (landing page → SES email)
+# -----------------------------------------------------------------------------
+
+variable "contact_from_email" {
+  description = "SES-verified sender address for contact form emails"
+  type        = string
+  default     = "info@clientaai.com"
+}
+
+variable "contact_recipient_email" {
+  description = "Email address that receives contact form submissions"
+  type        = string
+  default     = "info@clientaai.com"
+}
