@@ -48,7 +48,7 @@ Without this, everything else works — only `POST /insights/generate` will retu
 cd terraform
 terraform init -reconfigure -backend-config=config/prod/backend.tfvars
 terraform plan -var-file=config/prod/variables.tfvars    # Review what will be created
-terraform apply -var-file=config/prod/variables.tfvars   # Type "yes" to confirm
+terraform apply -var-file=config/prod/variables.tfvars -var-file=config/prod/secrets.tfvars   # Type "yes" to confirm
 ```
 
 This creates:

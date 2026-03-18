@@ -110,7 +110,7 @@ export default function InventoryList() {
             className="hidden"
             onChange={handleFileChange}
           />
-          <Link to="/inventory/new" className="btn-primary gap-2">
+          <Link to="/app/inventory/new" className="btn-primary gap-2">
             <Plus className="h-4 w-4" /> Add product
           </Link>
         </div>
@@ -208,7 +208,7 @@ export default function InventoryList() {
           <Package className="mb-3 h-10 w-10 text-gray-300" />
           <p className="font-medium text-gray-600">No products yet</p>
           <p className="mt-1 text-sm text-gray-400">Add your first product to get started</p>
-          <Link to="/inventory/new" className="btn-primary mt-4 gap-2">
+          <Link to="/app/inventory/new" className="btn-primary mt-4 gap-2">
             <Plus className="h-4 w-4" /> Add product
           </Link>
         </div>
@@ -247,7 +247,7 @@ export default function InventoryList() {
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Link
-                        to={`/inventory/${p.id}`}
+                        to={`/app/inventory/${p.id}`}
                         className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                       >
                         <Pencil className="h-4 w-4" />

@@ -77,6 +77,9 @@ export default function WhatsAppSetup() {
         <p className="text-sm text-gray-500">
           Link your Meta WhatsApp number to this business so the n8n workflow can route messages here.
         </p>
+        <div className="mt-4">
+          <img src="/meta-lockup.svg" alt="Meta" className="h-5 w-auto object-contain" loading="lazy" />
+        </div>
       </div>
 
       <div className="card max-w-xl">

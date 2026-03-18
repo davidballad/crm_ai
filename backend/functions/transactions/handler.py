@@ -263,41 +263,60 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
     return success(body=Transaction.from_dynamo(updated_item).to_dict())
 
 
+def _line_quantity(line: Any) -> int:
+    """Safely get quantity from a line item (dict from DynamoDB or TransactionItem)."""
+    if line is None:
+        return 0
+    if isinstance(line, dict):
+        q = line.get("quantity", 0)
+        return int(q) if q is not None else 0
+    return getattr(line, "quantity", 0) or 0
+
+
 def get_daily_summary(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """Get daily transaction summary for a given date."""
-    query_params = _get_query_params(event)
-    date_str = query_params.get("date", today_str())
+    try:
+        query_params = _get_query_params(event)
+        date_str = query_params.get("date", today_str())
 
-    pk = build_pk(tenant_id)
-    sk_prefix = f"TXN#{date_str}"
+        pk = build_pk(tenant_id)
+        sk_prefix = f"TXN#{date_str}"
 
-    items, _ = query_items(pk, sk_prefix=sk_prefix, limit=500)
+        items, _ = query_items(pk, sk_prefix=sk_prefix, limit=500)
 
-    total_revenue = Decimal("0")
-    transaction_count = len(items)
-    items_sold = 0
-    revenue_by_payment_method: dict[str, Decimal] = {}
+        total_revenue = Decimal("0")
+        transaction_count = 0
+        items_sold = 0
+        revenue_by_payment_method: dict[str, Decimal] = {}
 
-    for item in items:
-        txn = Transaction.from_dynamo(item)
-        total_revenue += txn.total
-        revenue_by_payment_method[txn.payment_method] = (
-            revenue_by_payment_method.get(txn.payment_method, Decimal("0")) + txn.total
-        )
-        for line in txn.items:
-            items_sold += line.quantity
+        for item in items:
+            try:
+                txn = Transaction.from_dynamo(item)
+                total_revenue += txn.total
+                transaction_count += 1
+                revenue_by_payment_method[txn.payment_method] = (
+                    revenue_by_payment_method.get(txn.payment_method, Decimal("0")) + txn.total
+                )
+                for line in txn.items or []:
+                    items_sold += _line_quantity(line)
+            except Exception:
+                continue
 
-    summary: dict[str, Any] = {
-        "date": date_str,
-        "total_revenue": float(total_revenue),
-        "transaction_count": transaction_count,
-        "items_sold": items_sold,
-        "revenue_by_payment_method": {
-            k: float(v) for k, v in revenue_by_payment_method.items()
-        },
-    }
+        summary: dict[str, Any] = {
+            "date": date_str,
+            "total_revenue": float(total_revenue),
+            "transaction_count": transaction_count,
+            "items_sold": items_sold,
+            "revenue_by_payment_method": {
+                k: float(v) for k, v in revenue_by_payment_method.items()
+            },
+        }
 
-    return success(summary)
+        return success(summary)
+    except DynamoDBError as e:
+        return server_error(str(e))
+    except Exception as e:
+        return server_error(f"Summary error: {type(e).__name__}: {str(e)}")
 
 
 # -----------------------------------------------------------------------------
@@ -388,8 +407,18 @@ def add_cart_item(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _normalize_phone(s: str | None) -> str:
-    """Normalize phone for comparison (strip + and spaces)."""
-    return (s or "").strip().replace(" ", "").lstrip("+")
+    """Normalize phone for comparison (digits only)."""
+    raw = (s or "").strip()
+    if not raw:
+        return ""
+    # Keep digits only so formats like "+1 (555) 123-4567" match "15551234567"
+    return "".join(ch for ch in raw if ch.isdigit())
+
+
+def _looks_like_phone(s: str | None) -> bool:
+    n = _normalize_phone(s)
+    # WhatsApp numbers are typically 8+ digits; avoid treating ULIDs/ids as phones
+    return len(n) >= 8
 
 
 def _find_contact_by_phone(tenant_id: str, phone: str) -> tuple[dict[str, Any] | None, str | None]:
@@ -447,7 +476,13 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         return error("Invalid JSON body", 400)
     customer_id = (body or {}).get("customer_id")
     customer_name = (body or {}).get("customer_name") or "Customer"
-    customer_phone = (body or {}).get("customer_phone") or customer_id or ""
+    # Accept multiple field names from automations
+    customer_phone = (
+        (body or {}).get("customer_phone")
+        or (body or {}).get("from_number")
+        or (body or {}).get("phone")
+        or ""
+    )
     if not customer_id:
         return error("customer_id required", 400)
     pk = build_pk(tenant_id)
@@ -471,7 +506,21 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
     # Resolve contact: find by phone or create, and update total_spent + lead_status
     contact_id: str | None = None
-    contact_item, contact_id = _find_contact_by_phone(tenant_id, customer_phone)
+    # If phone isn't explicitly provided, customer_id may be the phone (common in n8n flows)
+    effective_phone = customer_phone
+    if not _looks_like_phone(effective_phone) and _looks_like_phone(str(customer_id)):
+        effective_phone = str(customer_id)
+
+    # If customer_id is actually a contact_id, use the stored phone (best effort)
+    if not _looks_like_phone(effective_phone):
+        try:
+            existing_contact = get_item(pk, build_sk("CONTACT", str(customer_id)))
+            if existing_contact and _looks_like_phone(existing_contact.get("phone")):
+                effective_phone = existing_contact.get("phone")  # keep original formatting for storage
+        except DynamoDBError:
+            pass
+
+    contact_item, contact_id = _find_contact_by_phone(tenant_id, effective_phone)
     now = now_iso()
     if contact_item:
         existing_total = contact_item.get("total_spent")
@@ -503,7 +552,7 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                 "tenant_id": tenant_id,
                 "contact_id": contact_id,
                 "name": customer_name,
-                "phone": customer_phone,
+                "phone": effective_phone,
                 "source_channel": "whatsapp",
                 "lead_status": "closed_won",
                 "tier": "bronze",
@@ -530,22 +579,23 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
     # Decrement inventory quantities for each purchased item
     for cart_i in items_raw:
-        pid = cart_i.get("product_id")
+        pid = cart_i.get("product_id") or cart_i.get("id") or cart_i.get("productId") or cart_i.get("productID")
         qty_sold = int(cart_i.get("quantity", 1))
         if not pid:
             continue
         product_sk = build_sk("PRODUCT", pid)
         try:
-            prod = get_item(pk, product_sk)
-            if prod:
-                current_qty = int(prod.get("quantity", 0))
-                new_qty = max(current_qty - qty_sold, 0)
-                update_item(pk=pk, sk=product_sk, updates={"quantity": new_qty, "updated_at": now})
+            prod = get_item(pk, product_sk, consistent_read=True)
+            if not prod:
+                continue
+            current_qty = int(prod.get("quantity", 0))
+            new_qty = max(current_qty - qty_sold, 0)
+            update_item(pk=pk, sk=product_sk, updates={"quantity": new_qty, "updated_at": now})
         except DynamoDBError:
             pass  # Non-fatal: inventory update failure shouldn't block checkout
 
     # Mark conversation closed: find the latest message for this customer and set category to closed
-    _mark_conversation_closed(pk, customer_phone)
+    _mark_conversation_closed(pk, effective_phone)
 
     return created(transaction.to_dict())
 

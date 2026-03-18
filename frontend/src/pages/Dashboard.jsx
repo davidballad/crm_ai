@@ -23,9 +23,11 @@ export default function Dashboard() {
   const { data: insightData } = useInsights();
 
   const products = productData?.products || productData?.items || [];
-  const lowStockProducts = products.filter(
-    (p) => p.quantity <= (p.reorder_threshold ?? 10),
-  );
+  const lowStockProducts = products.filter((p) => {
+    const q = Number(p.quantity);
+    const t = Number(p.reorder_threshold ?? 10);
+    return !Number.isNaN(q) && !Number.isNaN(t) && q <= t;
+  });
   const totalValue = products.reduce(
     (sum, p) => sum + (p.quantity || 0) * Number(p.unit_cost || 0),
     0,
@@ -74,7 +76,7 @@ export default function Dashboard() {
               <BrainCircuit className="h-5 w-5 text-brand-600" />
               <h2 className="text-sm font-semibold text-gray-900">AI Summary</h2>
             </div>
-            <Link to="/insights" className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+            <Link to="/app/insights" className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
               View all <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
@@ -83,7 +85,7 @@ export default function Dashboard() {
           ) : (
             <p className="text-sm text-gray-400">
               No AI insights generated yet. Visit the{' '}
-              <Link to="/insights" className="text-brand-600 underline">Insights page</Link>{' '}
+              <Link to="/app/insights" className="text-brand-600 underline">Insights page</Link>{' '}
               to generate them.
             </p>
           )}
@@ -96,7 +98,7 @@ export default function Dashboard() {
               <AlertTriangle className="h-5 w-5 text-amber-500" />
               <h2 className="text-sm font-semibold text-gray-900">Low Stock Alerts</h2>
             </div>
-            <Link to="/inventory" className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+            <Link to="/app/inventory" className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
               View all <ArrowRight className="h-3 w-3" />
             </Link>
           </div>

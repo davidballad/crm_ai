@@ -85,7 +85,7 @@ export default function LeadsList() {
                     key={c.contact_id}
                     className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md transition-shadow"
                   >
-                    <Link to={`/leads/${c.contact_id}`} className="block">
+                    <Link to={`/app/leads/${c.contact_id}`} className="block">
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-gray-900">{c.name}</span>
                         <TierBadge tier={c.tier} />

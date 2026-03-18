@@ -47,6 +47,21 @@ export default function MessagesInbox() {
     return from || to;
   };
 
+  const getMessageText = (m) => {
+    const t =
+      m?.text ??
+      m?.message_text ??
+      m?.metadata?.text ??
+      m?.metadata?.message_text ??
+      m?.metadata?.message ??
+      m?.metadata?.body ??
+      m?.metadata?.caption ??
+      m?.body ??
+      '';
+    if (t === null || t === undefined) return '';
+    return typeof t === 'string' ? t : String(t);
+  };
+
   // One chat per customer number: group by customer phone, keep latest message per conversation
   const byNumber = messages.reduce((acc, m) => {
     const num = getCustomerPhone(m) || '_unknown';
@@ -65,7 +80,7 @@ export default function MessagesInbox() {
       contact_name: contact?.name,
       category: latest.category || 'active',
       latest_ts: latest.created_ts,
-      latest_text: latest.text,
+      latest_text: getMessageText(latest),
       message_id: latest.message_id,
     };
   });
@@ -115,7 +130,10 @@ export default function MessagesInbox() {
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-gray-900">Messages</h1>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <img src="/whatsapp-glyph.svg" alt="" className="h-6 w-6" aria-hidden />
+          Messages
+        </h1>
         <p className="text-sm text-gray-500">WhatsApp conversations — click to open and reply</p>
       </div>
 
@@ -127,11 +145,12 @@ export default function MessagesInbox() {
         </div>
       ) : (
         <div className="flex flex-1 min-h-0 gap-4">
-          <div className="flex gap-4 overflow-x-auto pb-4 shrink-0">
+          {/* Left-side Kanban (vertical) */}
+          <aside className="hidden lg:flex w-96 shrink-0 flex-col gap-4">
             {CATEGORIES.map((cat) => (
               <div
                 key={cat.id}
-                className={`flex w-80 shrink-0 flex-col rounded-xl border-t-4 ${cat.color} border border-gray-200 bg-gray-50/50`}
+                className={`flex flex-col rounded-xl border-t-4 ${cat.color} border border-gray-200 bg-gray-50/50`}
               >
                 <div className="border-b border-gray-200 px-4 py-3 flex items-center gap-2">
                   <span className={`h-2.5 w-2.5 rounded-full ${cat.dot}`} />
@@ -140,7 +159,8 @@ export default function MessagesInbox() {
                     {byCategory[cat.id]?.length ?? 0}
                   </span>
                 </div>
-                <div className="flex-1 space-y-2 p-3 min-h-[120px] max-h-[70vh] overflow-y-auto">
+                {/* ~3 chat cards tall, then scroll */}
+                <div className="space-y-2 p-3 max-h-72 overflow-y-auto">
                   {(byCategory[cat.id] || []).map((conv) => (
                     <button
                       type="button"
@@ -151,15 +171,17 @@ export default function MessagesInbox() {
                       }`}
                     >
                       <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span className="font-medium text-gray-900 text-sm">
+                        <span className="font-medium text-gray-900 text-sm truncate">
                           {conv.contact_name || conv.from_number}
                         </span>
-                        <span>{conv.latest_ts ? new Date(conv.latest_ts).toLocaleTimeString() : ''}</span>
+                        <span className="shrink-0 ml-2">
+                          {conv.latest_ts ? new Date(conv.latest_ts).toLocaleTimeString() : ''}
+                        </span>
                       </div>
                       <p className="mt-1.5 text-sm text-gray-700 line-clamp-2">{conv.latest_text}</p>
                       {conv.contact_id ? (
                         <Link
-                          to={`/leads/${conv.contact_id}`}
+                          to={`/app/leads/${conv.contact_id}`}
                           onClick={(e) => e.stopPropagation()}
                           className="mt-2 inline-block text-xs text-brand-600 hover:underline"
                         >
@@ -173,8 +195,9 @@ export default function MessagesInbox() {
                 </div>
               </div>
             ))}
-          </div>
+          </aside>
 
+          {/* Main thread (WhatsApp UI) */}
           {selectedConv ? (
             <div className="flex flex-1 flex-col min-w-0 rounded-xl border border-gray-200 bg-white">
               <div className="flex items-center gap-2 border-b border-gray-200 px-4 py-3">
@@ -186,25 +209,24 @@ export default function MessagesInbox() {
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </button>
-                <div>
-                  <p className="font-semibold text-gray-900">{selectedConv.contact_name || selectedConv.from_number}</p>
-                  <p className="text-xs text-gray-500">{selectedConv.from_number}</p>
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900 truncate">
+                    {selectedConv.contact_name || selectedConv.from_number}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">{selectedConv.from_number}</p>
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {threadMessages.map((m) => {
                   const isThem = (m.from_number || '').replace(/\s/g, '') !== businessPhone;
                   return (
-                    <div
-                      key={m.message_id}
-                      className={`flex ${isThem ? 'justify-start' : 'justify-end'}`}
-                    >
+                    <div key={m.message_id} className={`flex ${isThem ? 'justify-start' : 'justify-end'}`}>
                       <div
                         className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                           isThem ? 'bg-gray-100 text-gray-900' : 'bg-brand-600 text-white'
                         }`}
                       >
-                        <p className="whitespace-pre-wrap">{m.text}</p>
+                        <p className="whitespace-pre-wrap">{getMessageText(m)}</p>
                         <p className={`mt-1 text-xs ${isThem ? 'text-gray-500' : 'text-brand-100'}`}>
                           {m.created_ts ? new Date(m.created_ts).toLocaleString() : ''}
                         </p>

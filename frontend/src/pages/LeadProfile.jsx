@@ -60,6 +60,13 @@ export default function LeadProfile() {
   const patchContact = usePatchContact();
 
   const messages = messagesData?.messages || [];
+  const PREVIEW_COUNT = 8;
+  const previewMessages = messages.slice(-PREVIEW_COUNT);
+
+const getMessageText = (m) => {
+  const t = m?.text ?? m?.message_text ?? m?.metadata?.text ?? m?.body ?? '';
+  return t != null && t !== undefined ? (typeof t === 'string' ? t : String(t)) : '';
+};
 
   const handleStatusChange = (e) => {
     const lead_status = e.target.value;
@@ -84,7 +91,7 @@ export default function LeadProfile() {
     return (
       <div className="card text-center text-sm text-red-600">
         {error?.message || 'Lead not found'}
-        <Link to="/leads" className="mt-3 block text-brand-600 hover:underline">Back to leads</Link>
+        <Link to="/app/leads" className="mt-3 block text-brand-600 hover:underline">Back to leads</Link>
       </div>
     );
   }
@@ -92,7 +99,7 @@ export default function LeadProfile() {
   return (
     <div>
       <div className="mb-6 flex items-center gap-4">
-        <Link to="/leads" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700">
+        <Link to="/app/leads" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="flex-1">
@@ -165,15 +172,19 @@ export default function LeadProfile() {
           {messages.length === 0 ? (
             <p className="text-sm text-gray-500">No messages yet.</p>
           ) : (
-            <ul className="space-y-3 max-h-96 overflow-y-auto">
-              {messages.map((m) => (
+            <>
+              <p className="mb-3 text-xs text-gray-500">
+                Showing last {Math.min(PREVIEW_COUNT, messages.length)} message(s).
+              </p>
+              <ul className="space-y-3 max-h-96 overflow-y-auto">
+                {previewMessages.map((m) => (
                 <li
                   key={m.message_id}
                   className={`rounded-lg p-3 text-sm ${
                     m.from_number ? 'ml-4 bg-brand-50 text-gray-900' : 'mr-4 bg-gray-100 text-gray-900'
                   }`}
                 >
-                  <p>{m.text}</p>
+                  <p>{getMessageText(m)}</p>
                   <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
                     <span>{m.created_ts ? new Date(m.created_ts).toLocaleString() : ''}</span>
                     {m.category && (
@@ -183,8 +194,9 @@ export default function LeadProfile() {
                     )}
                   </div>
                 </li>
-              ))}
-            </ul>
+                ))}
+              </ul>
+            </>
           )}
         </div>
       </div>

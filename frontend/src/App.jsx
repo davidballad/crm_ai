@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import { setTokenGetter } from './api/client';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
@@ -17,15 +18,15 @@ import WhatsAppSetup from './pages/WhatsAppSetup';
 
 export default function App() {
   const { token } = useAuth();
-  // Set token getter during render so the first API requests (e.g. on Dashboard) always see the token.
-  // Using useEffect caused a race where requests could run before the getter was set → 401.
   setTokenGetter(() => token);
 
   return (
     <Routes>
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route
+        path="/app"
         element={
           <ProtectedRoute>
             <Layout />

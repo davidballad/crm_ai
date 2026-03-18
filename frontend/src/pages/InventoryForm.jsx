@@ -92,7 +92,7 @@ export default function InventoryForm() {
       } else {
         await createMutation.mutateAsync(payload);
       }
-      navigate('/inventory');
+      navigate('/app/inventory');
     } catch (err) {
       setError(err.message);
     }
@@ -110,7 +110,7 @@ export default function InventoryForm() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <button onClick={() => navigate('/inventory')} className="mb-4 flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+      <button onClick={() => navigate('/app/inventory')} className="mb-4 flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
         <ArrowLeft className="h-4 w-4" /> Back to inventory
       </button>
 
@@ -226,7 +226,7 @@ export default function InventoryForm() {
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={() => navigate('/inventory')} className="btn-secondary">Cancel</button>
+          <button type="button" onClick={() => navigate('/app/inventory')} className="btn-secondary">Cancel</button>
           <button type="submit" disabled={saving} className="btn-primary">
             {saving ? 'Saving...' : isEdit ? 'Update product' : 'Create product'}
           </button>

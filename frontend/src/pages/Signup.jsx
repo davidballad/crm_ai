@@ -1,17 +1,18 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
-import { Layers } from 'lucide-react';
 import { createTenant } from '../api/onboarding';
 import { useAuth } from '../context/AuthContext';
 
-const BUSINESS_TYPES = [
-  { value: 'restaurant', label: 'Restaurant' },
-  { value: 'retail', label: 'Retail' },
-  { value: 'bar', label: 'Bar' },
-  { value: 'other', label: 'Other' },
+const BUSINESS_TYPE_KEYS = [
+  { value: 'restaurant', labelKey: 'signup.businessTypes.restaurant' },
+  { value: 'retail', labelKey: 'signup.businessTypes.retail' },
+  { value: 'bar', labelKey: 'signup.businessTypes.bar' },
+  { value: 'other', labelKey: 'signup.businessTypes.other' },
 ];
 
 export default function Signup() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { signIn } = useAuth();
   const [form, setForm] = useState({
@@ -30,7 +31,7 @@ export default function Signup() {
     e.preventDefault();
     setError('');
     if (form.owner_password.length < 8) {
-      setError('Password must be at least 8 characters');
+      setError(t('signup.passwordMinLength'));
       return;
     }
     setSubmitting(true);
@@ -39,7 +40,7 @@ export default function Signup() {
       await signIn(form.owner_email, form.owner_password);
       navigate('/', { replace: true });
     } catch (err) {
-      setError(err.message || 'Signup failed');
+      setError(err.message || t('signup.signupFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -47,13 +48,15 @@ export default function Signup() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
+      <div className="absolute right-4 top-4 flex gap-1 text-sm text-gray-600">
+        <button type="button" onClick={() => i18n.changeLanguage('en')} className={`rounded px-2 py-1 ${i18n.language === 'en' ? 'bg-brand-100 font-medium text-brand-700' : 'hover:bg-gray-200'}`}>EN</button>
+        <button type="button" onClick={() => i18n.changeLanguage('es')} className={`rounded px-2 py-1 ${i18n.language === 'es' ? 'bg-brand-100 font-medium text-brand-700' : 'hover:bg-gray-200'}`}>ES</button>
+      </div>
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600">
-            <Layers className="h-6 w-6 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Create your account</h1>
-          <p className="mt-2 text-sm text-gray-500">Start managing your business with AI insights</p>
+          <img src="/mainLogo.png" alt="Clienta AI" className="mx-auto mb-4 h-16 w-auto" />
+          <h1 className="text-2xl font-bold text-gray-900">{t('signup.title')}</h1>
+          <p className="mt-2 text-sm text-gray-500">{t('signup.tagline')}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-5">
@@ -62,42 +65,42 @@ export default function Signup() {
           )}
 
           <div>
-            <label htmlFor="business_name" className="mb-1 block text-sm font-medium text-gray-700">Business name</label>
-            <input id="business_name" required value={form.business_name} onChange={update('business_name')} className="input-field" placeholder="My Business" />
+            <label htmlFor="business_name" className="mb-1 block text-sm font-medium text-gray-700">{t('signup.businessName')}</label>
+            <input id="business_name" required value={form.business_name} onChange={update('business_name')} className="input-field" placeholder={t('signup.placeholderBusiness')} />
           </div>
 
           <div>
-            <label htmlFor="business_type" className="mb-1 block text-sm font-medium text-gray-700">Business type</label>
+            <label htmlFor="business_type" className="mb-1 block text-sm font-medium text-gray-700">{t('signup.businessType')}</label>
             <select id="business_type" value={form.business_type} onChange={update('business_type')} className="input-field">
-              {BUSINESS_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              {BUSINESS_TYPE_KEYS.map((opt) => <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>)}
             </select>
           </div>
 
           <div>
-            <label htmlFor="owner_email" className="mb-1 block text-sm font-medium text-gray-700">Email</label>
-            <input id="owner_email" type="email" required value={form.owner_email} onChange={update('owner_email')} className="input-field" placeholder="you@business.com" />
+            <label htmlFor="owner_email" className="mb-1 block text-sm font-medium text-gray-700">{t('common.email')}</label>
+            <input id="owner_email" type="email" required value={form.owner_email} onChange={update('owner_email')} className="input-field" placeholder={t('common.placeholderEmail')} />
           </div>
 
           <div>
-            <label htmlFor="owner_password" className="mb-1 block text-sm font-medium text-gray-700">Password</label>
-            <input id="owner_password" type="password" required minLength={8} value={form.owner_password} onChange={update('owner_password')} className="input-field" placeholder="Min. 8 characters" />
+            <label htmlFor="owner_password" className="mb-1 block text-sm font-medium text-gray-700">{t('common.password')}</label>
+            <input id="owner_password" type="password" required minLength={8} value={form.owner_password} onChange={update('owner_password')} className="input-field" placeholder={t('signup.placeholderPassword')} />
           </div>
 
           <div>
             <label htmlFor="meta_phone_number_id" className="mb-1 block text-sm font-medium text-gray-700">
-              WhatsApp Phone Number ID
+              {t('signup.whatsappPhoneNumberId')}
             </label>
-            <input id="meta_phone_number_id" required value={form.meta_phone_number_id} onChange={update('meta_phone_number_id')} className="input-field" placeholder="e.g. 106540352242922" />
-            <p className="mt-1 text-xs text-gray-400">From your Meta Developer Console &rarr; WhatsApp &rarr; Phone numbers</p>
+            <input id="meta_phone_number_id" required value={form.meta_phone_number_id} onChange={update('meta_phone_number_id')} className="input-field" placeholder={t('signup.placeholderPhoneId')} />
+            <p className="mt-1 text-xs text-gray-400">{t('signup.whatsappHint')}</p>
           </div>
 
           <button type="submit" disabled={submitting} className="btn-primary w-full">
-            {submitting ? 'Creating account...' : 'Create account'}
+            {submitting ? t('common.creatingAccount') : t('common.createAccount')}
           </button>
 
           <p className="text-center text-sm text-gray-500">
-            Already have an account?{' '}
-            <Link to="/login" className="font-medium text-brand-600 hover:text-brand-500">Sign in</Link>
+            {t('signup.alreadyHaveAccount')}{' '}
+            <Link to="/login" className="font-medium text-brand-600 hover:text-brand-500">{t('common.signIn')}</Link>
           </p>
         </form>
       </div>

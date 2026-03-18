@@ -18,6 +18,30 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+function formatForecast(f) {
+  if (typeof f === 'string') return f;
+  const name = f.product_name || f.productName || 'Product';
+  const date = f.estimated_restock_date || f.estimatedRestockDate || '';
+  const reason = f.reason || '';
+  if (date && reason) return `${name} — ${date}: ${reason}`;
+  if (reason) return `${name}: ${reason}`;
+  return name || JSON.stringify(f);
+}
+
+function formatReorderSuggestion(r) {
+  if (typeof r === 'string') return r;
+  const name = r.product_name || r.productName || 'Product';
+  const qty = r.suggested_order_quantity ?? r.suggestedOrderQuantity ?? r.quantity;
+  const current = r.current_quantity ?? r.currentQuantity;
+  const threshold = r.reorder_threshold ?? r.reorderThreshold;
+  const reason = r.reason || '';
+  let text = name;
+  if (qty != null) text += ` — order ${qty} units`;
+  if (current != null && threshold != null) text += ` (current: ${current}, threshold: ${threshold})`;
+  if (reason) text += `. ${reason}`;
+  return text || JSON.stringify(r);
+}
+
 export default function Insights() {
   const { data, isLoading, error } = useInsights();
   const generate = useGenerateInsights();
@@ -76,7 +100,11 @@ export default function Insights() {
                   {insight.forecasts.map((f, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />
-                      <span>{typeof f === 'string' ? f : f.description || JSON.stringify(f)}</span>
+                      <span>
+                        {typeof f === 'string'
+                          ? f
+                          : formatForecast(f)}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -90,7 +118,9 @@ export default function Insights() {
                   {insight.reorder_suggestions.map((r, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                      <span>{typeof r === 'string' ? r : r.description || `${r.product}: order ${r.quantity} units`}</span>
+                      <span>
+                        {typeof r === 'string' ? r : formatReorderSuggestion(r)}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -104,37 +134,44 @@ export default function Insights() {
                   {insight.spending_trends.map((s, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
-                      <span>{typeof s === 'string' ? s : s.description || JSON.stringify(s)}</span>
+                      <span>{typeof s === 'string' ? s : (s.description || s.reason || JSON.stringify(s))}</span>
                     </li>
                   ))}
                 </ul>
               </InsightCard>
             )}
 
-            {/* Revenue insights */}
+            {/* Revenue by day (chart from backend data) */}
+            {insight.revenue_by_day_of_week && Object.keys(insight.revenue_by_day_of_week).length > 0 && (
+              <InsightCard title="Revenue by day of week" icon={BarChart3}>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart
+                    data={['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => ({
+                      day: day.slice(0, 3),
+                      revenue: Number(insight.revenue_by_day_of_week?.[day]) || 0,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Revenue']} />
+                    <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Revenue" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </InsightCard>
+            )}
+
+            {/* Revenue insights (AI bullet points) */}
             {insight.revenue_insights?.length > 0 && (
               <InsightCard title="Revenue Insights" icon={BarChart3}>
-                {/* Render chart if data is structured, else bullet list */}
-                {insight.revenue_insights.every((r) => r.day && r.revenue) ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={insight.revenue_insights}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip />
-                      <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <ul className="space-y-2">
-                    {insight.revenue_insights.map((r, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-                        <span>{typeof r === 'string' ? r : r.description || JSON.stringify(r)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <ul className="space-y-2">
+                  {insight.revenue_insights.map((r, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                      <span>{typeof r === 'string' ? r : r.description || JSON.stringify(r)}</span>
+                    </li>
+                  ))}
+                </ul>
               </InsightCard>
             )}
           </div>

@@ -60,6 +60,9 @@ token.json
 # Generated diagrams (kept in docs/generated-diagrams/ only)
 generated-diagrams/
 
+# Docs assets (brand/media images; not needed for app deployment)
+docs/images/
+
 # Coverage
 htmlcov/
 .coverage

@@ -1,0 +1,54 @@
+{
+  "common": {
+    "signIn": "Iniciar sesión",
+    "signOut": "Cerrar sesión",
+    "signingIn": "Iniciando sesión...",
+    "createAccount": "Crear cuenta",
+    "creatingAccount": "Creando cuenta...",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "placeholderEmail": "tu@negocio.com",
+    "placeholderPassword": "Ingresa tu contraseña",
+    "language": "Idioma"
+  },
+  "login": {
+    "title": "Iniciar sesión",
+    "tagline": "Información de negocio con IA para tu empresa",
+    "signInFailed": "Error al iniciar sesión",
+    "noAccount": "¿No tienes cuenta?",
+    "createOne": "Crear una"
+  },
+  "signup": {
+    "title": "Crea tu cuenta",
+    "tagline": "Empieza a gestionar tu negocio con información con IA",
+    "businessName": "Nombre del negocio",
+    "businessType": "Tipo de negocio",
+    "whatsappPhoneNumberId": "ID del número de WhatsApp",
+    "whatsappHint": "Desde la consola de desarrolladores de Meta → WhatsApp → Números de teléfono",
+    "placeholderBusiness": "Mi Negocio",
+    "placeholderPassword": "Mín. 8 caracteres",
+    "placeholderPhoneId": "ej. 106540352242922",
+    "passwordMinLength": "La contraseña debe tener al menos 8 caracteres",
+    "signupFailed": "Error al crear la cuenta",
+    "alreadyHaveAccount": "¿Ya tienes cuenta?",
+    "businessTypes": {
+      "restaurant": "Restaurante",
+      "retail": "Retail",
+      "bar": "Bar",
+      "other": "Otro"
+    }
+  },
+  "layout": {
+    "dashboard": "Panel",
+    "messages": "Mensajes",
+    "leads": "Contactos",
+    "inventory": "Inventario",
+    "transactions": "Transacciones",
+    "aiInsights": "Informes IA",
+    "connectWhatsApp": "Conectar WhatsApp"
+  },
+  "dashboard": {
+    "title": "Panel",
+    "welcome": "Bienvenido"
+  }
+}

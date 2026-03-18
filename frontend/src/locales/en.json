@@ -1,0 +1,54 @@
+{
+  "common": {
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "signingIn": "Signing in...",
+    "createAccount": "Create account",
+    "creatingAccount": "Creating account...",
+    "email": "Email",
+    "password": "Password",
+    "placeholderEmail": "you@business.com",
+    "placeholderPassword": "Enter your password",
+    "language": "Language"
+  },
+  "login": {
+    "title": "Sign in",
+    "tagline": "AI-powered business insights for your business",
+    "signInFailed": "Sign in failed",
+    "noAccount": "Don't have an account?",
+    "createOne": "Create one"
+  },
+  "signup": {
+    "title": "Create your account",
+    "tagline": "Start managing your business with AI insights",
+    "businessName": "Business name",
+    "businessType": "Business type",
+    "whatsappPhoneNumberId": "WhatsApp Phone Number ID",
+    "whatsappHint": "From your Meta Developer Console → WhatsApp → Phone numbers",
+    "placeholderBusiness": "My Business",
+    "placeholderPassword": "Min. 8 characters",
+    "placeholderPhoneId": "e.g. 106540352242922",
+    "passwordMinLength": "Password must be at least 8 characters",
+    "signupFailed": "Signup failed",
+    "alreadyHaveAccount": "Already have an account?",
+    "businessTypes": {
+      "restaurant": "Restaurant",
+      "retail": "Retail",
+      "bar": "Bar",
+      "other": "Other"
+    }
+  },
+  "layout": {
+    "dashboard": "Dashboard",
+    "messages": "Messages",
+    "leads": "Leads",
+    "inventory": "Inventory",
+    "transactions": "Transactions",
+    "aiInsights": "AI Insights",
+    "connectWhatsApp": "Connect WhatsApp"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome"
+  }
+}

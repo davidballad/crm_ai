@@ -21,7 +21,6 @@ from shared.response import success, error, server_error, not_found, created
 from shared.models import AIInsight, Product, Transaction
 from shared.utils import now_iso, today_str, build_pk, build_sk
 
-from google import genai
 from boto3.dynamodb.conditions import Key
 
 
@@ -84,11 +83,14 @@ def _gather_products(tenant_id: str) -> tuple[list[dict[str, Any]], int, Any]:
     low_stock_count = 0
 
     for item in all_products:
-        product = Product.from_dynamo(item)
-        if product.unit_cost is not None:
-            total_inventory_value += product.unit_cost * product.quantity
-        if product.quantity <= product.reorder_threshold:
-            low_stock_count += 1
+        try:
+            product = Product.from_dynamo(item)
+            if product.unit_cost is not None:
+                total_inventory_value += product.unit_cost * product.quantity
+            if product.quantity <= product.reorder_threshold:
+                low_stock_count += 1
+        except Exception:
+            continue
 
     return all_products, low_stock_count, total_inventory_value
 
@@ -153,12 +155,19 @@ def _build_transaction_summary(transaction_items: list[dict[str, Any]]) -> dict[
             except (ValueError, TypeError):
                 pass
 
-        for line in txn.items:
-            pid = line.product_id
+        for line in (txn.items or []):
+            pid = line.get("product_id") if isinstance(line, dict) else getattr(line, "product_id", None)
+            if not pid:
+                continue
+            name = line.get("product_name", "") if isinstance(line, dict) else getattr(line, "product_name", "")
+            qty = line.get("quantity", 0) if isinstance(line, dict) else getattr(line, "quantity", 0)
+            qty = int(qty) if qty is not None else 0
+            up = line.get("unit_price", 0) if isinstance(line, dict) else getattr(line, "unit_price", 0)
+            up = Decimal(str(up)) if up is not None else Decimal("0")
             if pid not in product_sales:
-                product_sales[pid] = {"product_id": pid, "product_name": line.product_name, "revenue": Decimal("0"), "quantity": 0}
-            product_sales[pid]["revenue"] += line.quantity * line.unit_price
-            product_sales[pid]["quantity"] += line.quantity
+                product_sales[pid] = {"product_id": pid, "product_name": name, "revenue": Decimal("0"), "quantity": 0}
+            product_sales[pid]["revenue"] += qty * up
+            product_sales[pid]["quantity"] += qty
 
     top_products = sorted(
         product_sales.values(),
@@ -235,15 +244,20 @@ def _extract_json_from_response(response_text: str) -> dict[str, Any]:
 
 
 def _invoke_gemini(prompt: str) -> dict[str, Any]:
-    """Call Google Gemini (AI Studio) via the official SDK and return parsed JSON.
+    """Call Google Gemini (AI Studio) via the official SDK and return parsed JSON."""
+    api_key = (os.environ.get("GEMINI_API_KEY") or "").strip()
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY is not set in Lambda environment")
 
-    The client reads GEMINI_API_KEY from the environment (see google.genai docs).
-    """
-    if not (os.environ.get("GEMINI_API_KEY") or "").strip():
-        raise ValueError("GEMINI_API_KEY is not set")
+    try:
+        from google import genai  # type: ignore
+    except ImportError as e:
+        raise ValueError(f"Gemini SDK not installed: {e}") from e
+    except Exception as e:
+        raise ValueError(f"Gemini SDK error: {e}") from e
 
     model_id = os.environ.get("GEMINI_MODEL_ID", "gemini-2.5-flash")
-    client = genai.Client()
+    client = genai.Client(api_key=api_key)
 
     try:
         response = client.models.generate_content(
@@ -254,8 +268,8 @@ def _invoke_gemini(prompt: str) -> dict[str, Any]:
     except Exception as e:
         raise RuntimeError(f"Gemini API error: {e}") from e
 
-    text = response.text if getattr(response, "text", None) else ""
-    if not text:
+    text = getattr(response, "text", None) if response else None
+    if not text or not (isinstance(text, str) and text.strip()):
         raise ValueError("Gemini response had no text")
 
     return _extract_json_from_response(text)
@@ -277,6 +291,12 @@ def get_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     try:
         item = get_item(pk=pk, sk=sk)
     except Exception as e:
+        import traceback
+        try:
+            print(f"GET /insights get_item error: {e}")
+            print(traceback.format_exc())
+        except Exception:
+            pass
         return server_error(str(e))
 
     if not item:
@@ -284,6 +304,24 @@ def get_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
     body = _to_json_serializable(item)
     return success(body)
+
+
+def _safe_low_stock_items(products: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build list of low-stock product dicts, skipping any item that fails to parse."""
+    result: list[dict[str, Any]] = []
+    for p in products:
+        try:
+            qty = p.get("quantity")
+            thresh = p.get("reorder_threshold", 10)
+            if qty is None:
+                continue
+            q = int(qty) if not isinstance(qty, Decimal) else int(qty)
+            t = int(thresh) if not isinstance(thresh, Decimal) else int(thresh)
+            if q <= t:
+                result.append(Product.from_dynamo(p).to_dict())
+        except Exception:
+            continue
+    return result
 
 
 def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
@@ -297,12 +335,7 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         products, low_stock_count, total_inventory_value = _gather_products(tenant_id)
         transaction_items = _gather_transactions(tenant_id)
         transaction_summary = _build_transaction_summary(transaction_items)
-
-        low_stock_items = [
-            Product.from_dynamo(p).to_dict()
-            for p in products
-            if p.get("quantity", 0) <= p.get("reorder_threshold", 10)
-        ]
+        low_stock_items = _safe_low_stock_items(products)
 
         # Step 2 & 3: Build prompt and call Gemini
         prompt = _build_insights_prompt(
@@ -320,9 +353,9 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         except RuntimeError as e:
             return error(f"AI service error: {e}", 503)
         except json.JSONDecodeError as e:
-            return server_error(f"Failed to parse AI response: {e}")
+            return error(f"Invalid AI response format: {e}", 502)
         except Exception as e:
-            return server_error(f"AI generation failed: {str(e)}")
+            return error(f"AI generation failed: {type(e).__name__}: {e}", 503)
 
         # Step 4 & 5: Build insight record and store in DynamoDB
         generated_at = now_iso()
@@ -337,6 +370,7 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             "reorder_suggestions": ai_result.get("reorder_suggestions", []),
             "spending_trends": ai_result.get("spending_trends", []),
             "revenue_insights": ai_result.get("revenue_insights", []),
+            "revenue_by_day_of_week": transaction_summary.get("revenue_by_day_of_week", {}),
             "generated_at": generated_at,
         }
 
@@ -351,7 +385,14 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         return created(body)
 
     except Exception as e:
-        return server_error(str(e))
+        import traceback
+        err_msg = f"Insights error: {type(e).__name__}: {str(e)}"
+        try:
+            print(err_msg)
+            print(traceback.format_exc())
+        except Exception:
+            pass
+        return server_error(err_msg)
 
 
 # ---------------------------------------------------------------------------

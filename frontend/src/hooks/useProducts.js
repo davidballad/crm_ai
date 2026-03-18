@@ -13,6 +13,7 @@ export function useProduct(id) {
     queryKey: ['products', id],
     queryFn: () => fetchProduct(id),
     enabled: !!id,
+    staleTime: 0, // always refetch when opening edit so quantity isn't overwritten with stale cache
   });
 }
 

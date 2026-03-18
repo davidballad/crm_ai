@@ -1,9 +1,11 @@
 import { AlertTriangle } from 'lucide-react';
 
 export default function LowStockBadge({ quantity, threshold }) {
-  if (quantity > threshold) return null;
+  const q = Number(quantity);
+  const t = Number(threshold);
+  if (Number.isNaN(q) || Number.isNaN(t) || q > t) return null;
 
-  const critical = quantity === 0;
+  const critical = q === 0;
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -14,21 +15,21 @@ import {
   Settings,
 } from 'lucide-react';
 
-const NAV_ITEMS = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/messages', icon: MessageSquare, label: 'Messages' },
-  { to: '/leads', icon: Users, label: 'Leads' },
-  { to: '/inventory', icon: Package, label: 'Inventory' },
-  { to: '/transactions', icon: ShoppingCart, label: 'Transactions' },
-  { to: '/insights', icon: BrainCircuit, label: 'AI Insights' },
-  { to: '/settings/whatsapp', icon: Settings, label: 'Connect WhatsApp' },
+const NAV_KEYS = [
+  { to: '/app', icon: LayoutDashboard, labelKey: 'layout.dashboard' },
+  { to: '/app/messages', icon: MessageSquare, labelKey: 'layout.messages' },
+  { to: '/app/leads', icon: Users, labelKey: 'layout.leads' },
+  { to: '/app/inventory', icon: Package, labelKey: 'layout.inventory' },
+  { to: '/app/transactions', icon: ShoppingCart, labelKey: 'layout.transactions' },
+  { to: '/app/insights', icon: BrainCircuit, labelKey: 'layout.aiInsights' },
+  { to: '/app/settings/whatsapp', icon: Settings, labelKey: 'layout.connectWhatsApp' },
 ];
 
-function SidebarLink({ to, icon: Icon, label, onClick }) {
+function SidebarLink({ to, icon: Icon, labelKey, t, onClick }) {
   return (
     <NavLink
       to={to}
-      end={to === '/'}
+      end={to === '/app'}
       onClick={onClick}
       className={({ isActive }) =>
         `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
@@ -39,33 +40,31 @@ function SidebarLink({ to, icon: Icon, label, onClick }) {
       }
     >
       <Icon className="h-5 w-5 shrink-0" />
-      {label}
+      {t(labelKey)}
     </NavLink>
   );
 }
 
 export default function Layout() {
+  const { t, i18n } = useTranslation();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleSignOut = () => {
     signOut();
-    navigate('/login');
+    navigate('/');
   };
 
   const sidebar = (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2.5 border-b border-gray-200 px-5 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600">
-          <LayoutDashboard className="h-4 w-4 text-white" />
-        </div>
-        <span className="text-lg font-bold text-gray-900">Clienta AI</span>
+      <div className="flex items-center justify-center border-b border-gray-200 px-5 py-4">
+        <img src="/mainLogo.png" alt="Clienta AI" className="h-14 w-auto" />
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {NAV_ITEMS.map((item) => (
-          <SidebarLink key={item.to} {...item} onClick={() => setMobileOpen(false)} />
+        {NAV_KEYS.map((item) => (
+          <SidebarLink key={item.to} to={item.to} icon={item.icon} labelKey={item.labelKey} t={t} onClick={() => setMobileOpen(false)} />
         ))}
       </nav>
 
@@ -78,8 +77,21 @@ export default function Layout() {
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors"
         >
           <LogOut className="h-5 w-5 shrink-0" />
-          Sign out
+          {t('common.signOut')}
         </button>
+        <a
+          href="https://aws.amazon.com/what-is-cloud-computing"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 flex items-center justify-center px-3 py-2 text-gray-400 hover:text-gray-500"
+          aria-label="Powered by AWS Cloud Computing"
+        >
+          <img
+            src="https://d0.awsstatic.com/logos/powered-by-aws.png"
+            alt="Powered by AWS Cloud Computing"
+            className="h-6"
+          />
+        </a>
       </div>
     </div>
   );
@@ -114,6 +126,23 @@ export default function Layout() {
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex-1" />
+          <div className="flex items-center gap-1 text-sm text-gray-600">
+            <span className="sr-only">{t('common.language')}</span>
+            <button
+              type="button"
+              onClick={() => i18n.changeLanguage('en')}
+              className={`rounded px-2 py-1 font-medium ${i18n.language === 'en' ? 'bg-brand-100 text-brand-700' : 'hover:bg-gray-100'}`}
+            >
+              EN
+            </button>
+            <button
+              type="button"
+              onClick={() => i18n.changeLanguage('es')}
+              className={`rounded px-2 py-1 font-medium ${i18n.language === 'es' ? 'bg-brand-100 text-brand-700' : 'hover:bg-gray-100'}`}
+            >
+              ES
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">

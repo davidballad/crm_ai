@@ -24,6 +24,14 @@ LIMIT_MAX = 100
 VALID_CATEGORIES = {"active", "incomplete", "closed"}
 
 
+def _normalize_phone(s: str | None) -> str:
+    """Normalize phone for comparison (digits only)."""
+    raw = (s or "").strip()
+    if not raw:
+        return ""
+    return "".join(ch for ch in raw if ch.isdigit())
+
+
 # ---------------------------------------------------------------------------
 # Pagination helpers
 # ---------------------------------------------------------------------------
@@ -80,7 +88,7 @@ def list_messages(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
 
 def list_contact_messages(tenant_id: str, contact_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """GET /contacts/{id}/messages — conversation history."""
+    """GET /contacts/{id}/messages — conversation history. Includes messages linked by contact_id or by contact phone."""
     params = event.get("queryStringParameters") or {}
     next_token = params.get("next_token")
     try:
@@ -89,15 +97,30 @@ def list_contact_messages(tenant_id: str, contact_id: str, event: dict[str, Any]
         limit = LIMIT_DEFAULT
 
     pk = build_pk(tenant_id)
+    contact_phone_norm = ""
+    try:
+        contact_item = get_item(pk=pk, sk=build_sk("CONTACT", contact_id))
+        if contact_item and contact_item.get("phone"):
+            contact_phone_norm = _normalize_phone(contact_item.get("phone"))
+    except DynamoDBError:
+        pass
+
     last_key = _decode_next_token(next_token)
     try:
-        items, last_eval = query_items(pk=pk, sk_prefix=MESSAGE_SK_PREFIX, limit=limit, last_key=last_key)
-        messages = [
-            Message.from_dynamo(item).to_dict()
-            for item in items
-            if item.get("contact_id") == contact_id
-        ]
-        body = {"messages": messages}
+        # Fetch enough items to find messages for this contact (by contact_id or phone)
+        items, last_eval = query_items(pk=pk, sk_prefix=MESSAGE_SK_PREFIX, limit=LIMIT_MAX, last_key=last_key)
+        out: list[dict[str, Any]] = []
+        for item in items:
+            if item.get("contact_id") == contact_id:
+                out.append(Message.from_dynamo(item).to_dict())
+                continue
+            if contact_phone_norm:
+                from_n = _normalize_phone(item.get("from_number"))
+                to_n = _normalize_phone(item.get("to_number"))
+                if from_n == contact_phone_norm or to_n == contact_phone_norm:
+                    out.append(Message.from_dynamo(item).to_dict())
+        out.sort(key=lambda m: (m.get("created_ts") or ""))
+        body = {"messages": out[:limit]}
         if _encode_next_token(last_eval):
             body["next_token"] = _encode_next_token(last_eval)
         return success(body=body)
