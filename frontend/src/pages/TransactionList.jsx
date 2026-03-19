@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTransactions, useDailySummary } from '../hooks/useTransactions';
 import StatsCard from '../components/StatsCard';
 import { ShoppingCart, DollarSign, Receipt, CreditCard } from 'lucide-react';
@@ -8,6 +9,7 @@ function todayStr() {
 }
 
 export default function TransactionList() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('today');
   const [filters, setFilters] = useState({
     startDate: todayStr(),
@@ -24,8 +26,8 @@ export default function TransactionList() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Transactions</h1>
-        <p className="text-sm text-gray-500">Sales history (orders come from WhatsApp flow)</p>
+        <h1 className="text-xl font-bold text-gray-900">{t('transactions.title')}</h1>
+        <p className="text-sm text-gray-500">{t('transactions.subtitle')}</p>
       </div>
 
       {/* Date range tabs */}
@@ -44,7 +46,7 @@ export default function TransactionList() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Today
+            {t('transactions.today')}
           </button>
           <button
             type="button"
@@ -55,7 +57,7 @@ export default function TransactionList() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Previous days
+            {t('transactions.previousDays')}
           </button>
         </nav>
       </div>
@@ -64,7 +66,7 @@ export default function TransactionList() {
         <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-200 bg-white p-3">
           <div className="flex flex-col">
             <label htmlFor="start-date" className="text-xs font-medium text-gray-500">
-              Start date
+              {t('transactions.startDate')}
             </label>
             <input
               id="start-date"
@@ -76,7 +78,7 @@ export default function TransactionList() {
           </div>
           <div className="flex flex-col">
             <label htmlFor="end-date" className="text-xs font-medium text-gray-500">
-              End date
+              {t('transactions.endDate')}
             </label>
             <input
               id="end-date"
@@ -96,7 +98,7 @@ export default function TransactionList() {
             }
             className="btn-primary px-4 py-2 text-sm"
           >
-            Apply
+            {t('transactions.apply')}
           </button>
         </div>
       )}
@@ -105,22 +107,22 @@ export default function TransactionList() {
       {summary && (
         <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatsCard
-            title="Today's revenue"
+            title={t('transactions.todayRevenue')}
             value={`$${Number(summary.total_revenue || 0).toFixed(2)}`}
             icon={DollarSign}
           />
           <StatsCard
-            title="Transactions"
+            title={t('transactions.transactionCount')}
             value={summary.transaction_count || 0}
             icon={Receipt}
           />
           <StatsCard
-            title="Items sold"
+            title={t('transactions.itemsSold')}
             value={summary.items_sold || 0}
             icon={ShoppingCart}
           />
           <StatsCard
-            title="Avg. sale"
+            title={t('transactions.avgSale')}
             value={
               summary.transaction_count
                 ? `$${(Number(summary.total_revenue || 0) / summary.transaction_count).toFixed(2)}`
@@ -149,11 +151,11 @@ export default function TransactionList() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Items</th>
-                <th className="px-4 py-3 text-right">Total</th>
-                <th className="px-4 py-3">Payment</th>
-                <th className="px-4 py-3">Notes</th>
+                <th className="px-4 py-3">{t('transactions.date')}</th>
+                <th className="px-4 py-3">{t('transactions.items')}</th>
+                <th className="px-4 py-3 text-right">{t('transactions.total')}</th>
+                <th className="px-4 py-3">{t('transactions.payment')}</th>
+                <th className="px-4 py-3">{t('transactions.notes')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

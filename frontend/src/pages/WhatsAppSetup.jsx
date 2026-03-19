@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { completeSetup, getTenantConfig } from '../api/onboarding';
 import { MessageCircle, ExternalLink, Pencil, CheckCircle } from 'lucide-react';
 
 export default function WhatsAppSetup() {
+  const { t } = useTranslation();
   const [metaPhoneNumberId, setMetaPhoneNumberId] = useState('');
   const [metaAccessToken, setMetaAccessToken] = useState('');
   const [metaBusinessAccountId, setMetaBusinessAccountId] = useState('');
@@ -51,10 +53,10 @@ export default function WhatsAppSetup() {
         ...(metaAccessToken.trim() && { meta_access_token: metaAccessToken.trim() }),
         ...(aiSystemPrompt.trim() && { ai_system_prompt: aiSystemPrompt.trim() }),
       });
-      setSuccess('WhatsApp is linked. n8n can now resolve your business when messages arrive.');
+      setSuccess(t('whatsapp.successLinked'));
       setEditing(false);
     } catch (err) {
-      setError(err.message || 'Setup failed');
+      setError(err.message || t('whatsapp.setupFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -214,7 +216,7 @@ export default function WhatsAppSetup() {
                 </button>
                 {isConnected && (
                   <button type="button" onClick={() => { setEditing(false); setError(''); setSuccess(''); }} className="btn-secondary">
-                    Cancel
+                    {t('whatsapp.cancel')}
                   </button>
                 )}
               </div>

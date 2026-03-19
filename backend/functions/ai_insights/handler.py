@@ -19,7 +19,7 @@ from shared.db import get_item, put_item, query_items, get_table
 from shared.auth import require_auth
 from shared.response import success, error, server_error, not_found, created
 from shared.models import AIInsight, Product, Transaction
-from shared.utils import now_iso, today_str, build_pk, build_sk
+from shared.utils import now_iso, today_str, build_pk, build_sk, parse_body
 
 from boto3.dynamodb.conditions import Key
 
@@ -192,6 +192,7 @@ def _build_insights_prompt(
     low_stock_count: int,
     low_stock_items: list[dict[str, Any]],
     transaction_summary: dict[str, Any],
+    language: str = "en",
 ) -> str:
     """Build a structured prompt for the AI model to generate insights."""
     low_stock_list = "\n".join(
@@ -199,7 +200,15 @@ def _build_insights_prompt(
         for p in low_stock_items[:20]
     )
 
-    return f"""You are a business analyst for a small business CRM. Based on the following data, generate a JSON object with the specified fields.
+    lang_instruction = (
+        "You must write the entire JSON response in Spanish (summary, forecasts, reorder_suggestions, spending_trends, revenue_insights — all text in Spanish)."
+        if (language or "").strip().lower().startswith("es")
+        else "You must write the entire JSON response in English."
+    )
+
+    return f"""You are a business analyst for a small business CRM. {lang_instruction}
+
+Based on the following data, generate a JSON object with the specified fields.
 
 ## Business Context (Inventory)
 - Total number of products: {product_count}
@@ -331,6 +340,9 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     sk = build_sk("INSIGHT", date_str)
 
     try:
+        body = parse_body(event)
+        language = (body.get("language") or "").strip() or "en"
+
         # Step 1: Gather business data
         products, low_stock_count, total_inventory_value = _gather_products(tenant_id)
         transaction_items = _gather_transactions(tenant_id)
@@ -344,6 +356,7 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             low_stock_count=low_stock_count,
             low_stock_items=low_stock_items,
             transaction_summary=transaction_summary,
+            language=language,
         )
 
         try:

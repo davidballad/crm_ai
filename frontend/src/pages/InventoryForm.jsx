@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useProduct, useCreateProduct, useUpdateProduct } from '../hooks/useProducts';
 import { getUploadImageUrl } from '../api/inventory';
@@ -17,6 +18,7 @@ const EMPTY = {
 };
 
 export default function InventoryForm() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
@@ -68,7 +70,7 @@ export default function InventoryForm() {
       if (!image_url) throw new Error('No image_url returned');
       setForm((prev) => ({ ...prev, image_url }));
     } catch (err) {
-      setError(err.message || 'Image upload failed');
+      setError(err.message || t('inventoryForm.imageUploadFailed'));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -111,11 +113,11 @@ export default function InventoryForm() {
   return (
     <div className="mx-auto max-w-2xl">
       <button onClick={() => navigate('/app/inventory')} className="mb-4 flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
-        <ArrowLeft className="h-4 w-4" /> Back to inventory
+        <ArrowLeft className="h-4 w-4" /> {t('inventoryForm.backToInventory')}
       </button>
 
       <h1 className="mb-6 text-xl font-bold text-gray-900">
-        {isEdit ? 'Edit product' : 'Add product'}
+        {isEdit ? t('inventoryForm.editProduct') : t('inventoryForm.addProduct')}
       </h1>
 
       <form onSubmit={handleSubmit} className="card space-y-5">
@@ -123,49 +125,49 @@ export default function InventoryForm() {
 
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Product name *</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.productName')}</label>
             <input required value={form.name} onChange={update('name')} className="input-field" />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Category</label>
-            <input value={form.category} onChange={update('category')} className="input-field" placeholder="e.g. Food, Beverage" />
+            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.category')}</label>
+            <input value={form.category} onChange={update('category')} className="input-field" placeholder={t('inventoryForm.placeholderCategory')} />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">SKU</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.sku')}</label>
             <input value={form.sku} onChange={update('sku')} className="input-field" />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Quantity *</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.quantity')}</label>
             <input type="number" min="0" required value={form.quantity} onChange={update('quantity')} className="input-field" />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Unit</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.unit')}</label>
             <select value={form.unit} onChange={update('unit')} className="input-field">
-              <option value="each">Each</option>
-              <option value="kg">Kilogram</option>
-              <option value="lb">Pound</option>
-              <option value="liter">Liter</option>
-              <option value="oz">Ounce</option>
-              <option value="case">Case</option>
+              <option value="each">{t('inventoryForm.unitEach')}</option>
+              <option value="kg">{t('inventoryForm.unitKg')}</option>
+              <option value="lb">{t('inventoryForm.unitLb')}</option>
+              <option value="liter">{t('inventoryForm.unitLiter')}</option>
+              <option value="oz">{t('inventoryForm.unitOz')}</option>
+              <option value="case">{t('inventoryForm.unitCase')}</option>
             </select>
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Unit cost ($)</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.unitCost')}</label>
             <input type="number" step="0.01" min="0" value={form.unit_cost} onChange={update('unit_cost')} className="input-field" />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Reorder threshold</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.reorderThreshold')}</label>
             <input type="number" min="0" value={form.reorder_threshold} onChange={update('reorder_threshold')} className="input-field" />
           </div>
 
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Product image</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.productImage')}</label>
             <div className="flex flex-wrap items-start gap-3">
               <button
                 type="button"
@@ -178,7 +180,7 @@ export default function InventoryForm() {
                 ) : (
                   <Upload className="h-4 w-4" />
                 )}
-                {uploading ? 'Uploading...' : 'Upload image'}
+                {uploading ? t('inventoryForm.uploading') : t('inventoryForm.uploadImage')}
               </button>
               <input
                 ref={fileInputRef}
@@ -192,7 +194,7 @@ export default function InventoryForm() {
                 onClick={() => setShowUrlInput((v) => !v)}
                 className="text-sm text-gray-500 hover:text-gray-700"
               >
-                {showUrlInput ? 'Hide URL' : 'Or paste image URL'}
+                {showUrlInput ? t('inventoryForm.hideUrl') : t('inventoryForm.orPasteImageUrl')}
               </button>
             </div>
             {showUrlInput && (
@@ -201,7 +203,7 @@ export default function InventoryForm() {
                 value={form.image_url}
                 onChange={update('image_url')}
                 className="input-field mt-2"
-                placeholder="https://..."
+                placeholder={t('inventoryForm.placeholderImageUrl')}
               />
             )}
             {form.image_url && (
@@ -214,21 +216,21 @@ export default function InventoryForm() {
                     e.target.style.display = 'none';
                   }}
                 />
-                <span className="text-xs text-gray-500">Image will be stored in S3 and used in WhatsApp.</span>
+                <span className="text-xs text-gray-500">{t('inventoryForm.imageStoredHint')}</span>
               </div>
             )}
           </div>
 
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Notes</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.notes')}</label>
             <textarea rows={3} value={form.notes} onChange={update('notes')} className="input-field" />
           </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={() => navigate('/app/inventory')} className="btn-secondary">Cancel</button>
+          <button type="button" onClick={() => navigate('/app/inventory')} className="btn-secondary">{t('inventoryForm.cancel')}</button>
           <button type="submit" disabled={saving} className="btn-primary">
-            {saving ? 'Saving...' : isEdit ? 'Update product' : 'Create product'}
+            {saving ? t('inventoryForm.saving') : isEdit ? t('inventoryForm.updateProduct') : t('inventoryForm.createProduct')}
           </button>
         </div>
       </form>

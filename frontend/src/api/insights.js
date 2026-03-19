@@ -5,6 +5,6 @@ export function fetchInsights(date) {
   return api.get(`/insights${qs}`);
 }
 
-export function generateInsights() {
-  return api.post('/insights/generate');
+export function generateInsights(body = {}) {
+  return api.post('/insights/generate', body);
 }

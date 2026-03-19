@@ -40,7 +40,7 @@ function SidebarLink({ to, icon: Icon, labelKey, t, onClick }) {
       }
     >
       <Icon className="h-5 w-5 shrink-0" />
-      {t(labelKey)}
+      {labelKey === 'layout.leads' ? 'Leads' : t(labelKey)}
     </NavLink>
   );
 }

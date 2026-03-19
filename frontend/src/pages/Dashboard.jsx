@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
 import { useDailySummary } from '../hooks/useTransactions';
@@ -18,6 +19,7 @@ function todayStr() {
 }
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const { data: productData, isLoading: loadingProducts } = useProducts();
   const { data: summary } = useDailySummary(todayStr());
   const { data: insightData } = useInsights();
@@ -38,33 +40,33 @@ export default function Dashboard() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500">Overview of your business today</p>
+        <h1 className="text-xl font-bold text-gray-900">{t('dashboard.title')}</h1>
+        <p className="text-sm text-gray-500">{t('dashboard.overview')}</p>
       </div>
 
       {/* Stats row */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard
-          title="Total products"
+          title={t('dashboard.totalProducts')}
           value={loadingProducts ? '...' : products.length}
           icon={Package}
         />
         <StatsCard
-          title="Inventory value"
+          title={t('dashboard.inventoryValue')}
           value={`$${totalValue.toFixed(2)}`}
           icon={DollarSign}
         />
         <StatsCard
-          title="Today's revenue"
+          title={t('dashboard.todayRevenue')}
           value={`$${Number(summary?.total_revenue || 0).toFixed(2)}`}
           icon={ShoppingCart}
         />
         <StatsCard
-          title="Low stock items"
+          title={t('dashboard.lowStockItems')}
           value={lowStockProducts.length}
           icon={AlertTriangle}
           trend={lowStockProducts.length > 0 ? 'down' : undefined}
-          subtitle={lowStockProducts.length > 0 ? 'Needs attention' : 'All stocked'}
+          subtitle={lowStockProducts.length > 0 ? t('dashboard.needsAttention') : t('dashboard.allStocked')}
         />
       </div>
 
@@ -74,19 +76,19 @@ export default function Dashboard() {
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <BrainCircuit className="h-5 w-5 text-brand-600" />
-              <h2 className="text-sm font-semibold text-gray-900">AI Summary</h2>
+              <h2 className="text-sm font-semibold text-gray-900">{t('dashboard.aiSummary')}</h2>
             </div>
             <Link to="/app/insights" className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
-              View all <ArrowRight className="h-3 w-3" />
+              {t('dashboard.viewAll')} <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
           {insight?.summary ? (
             <p className="text-sm leading-relaxed text-gray-700">{insight.summary}</p>
           ) : (
             <p className="text-sm text-gray-400">
-              No AI insights generated yet. Visit the{' '}
-              <Link to="/app/insights" className="text-brand-600 underline">Insights page</Link>{' '}
-              to generate them.
+              {t('dashboard.noInsightsYet')}{' '}
+              <Link to="/app/insights" className="text-brand-600 underline">{t('dashboard.insightsPage')}</Link>{' '}
+              {t('dashboard.toGenerate')}
             </p>
           )}
         </div>
@@ -96,28 +98,28 @@ export default function Dashboard() {
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-500" />
-              <h2 className="text-sm font-semibold text-gray-900">Low Stock Alerts</h2>
+              <h2 className="text-sm font-semibold text-gray-900">{t('dashboard.lowStockAlerts')}</h2>
             </div>
             <Link to="/app/inventory" className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
-              View all <ArrowRight className="h-3 w-3" />
+              {t('dashboard.viewAll')} <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
           {lowStockProducts.length === 0 ? (
-            <p className="text-sm text-gray-400">All products are well-stocked.</p>
+            <p className="text-sm text-gray-400">{t('dashboard.allWellStocked')}</p>
           ) : (
             <div className="space-y-2">
               {lowStockProducts.slice(0, 5).map((p) => (
                 <div key={p.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
                   <div>
                     <span className="text-sm font-medium text-gray-900">{p.name}</span>
-                    <span className="ml-2 text-xs text-gray-500">{p.quantity} remaining</span>
+                    <span className="ml-2 text-xs text-gray-500">{p.quantity} {t('dashboard.remaining')}</span>
                   </div>
                   <LowStockBadge quantity={p.quantity} threshold={p.reorder_threshold ?? 10} />
                 </div>
               ))}
               {lowStockProducts.length > 5 && (
                 <p className="pt-1 text-xs text-gray-500">
-                  +{lowStockProducts.length - 5} more items
+                  +{lowStockProducts.length - 5} {t('dashboard.moreItems')}
                 </p>
               )}
             </div>

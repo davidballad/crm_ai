@@ -12,7 +12,7 @@ export function useInsights(date) {
 export function useGenerateInsights() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: generateInsights,
+    mutationFn: (variables) => generateInsights(variables || {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['insights'] }),
   });
 }

@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useInsights, useGenerateInsights } from '../hooks/useInsights';
 import InsightCard from '../components/InsightCard';
 import {
@@ -43,20 +45,26 @@ function formatReorderSuggestion(r) {
 }
 
 export default function Insights() {
+  const { t, i18n } = useTranslation();
   const { data, isLoading, error } = useInsights();
   const generate = useGenerateInsights();
 
   const insight = data?.insight || data;
   const hasInsight = insight && insight.summary;
 
-  const handleGenerate = () => generate.mutate();
+  const handleGenerate = () => generate.mutate({ language: i18n.language || 'en' });
+
+  useEffect(() => {
+    document.title = `${t('insights.title')} | Clienta AI`;
+    return () => { document.title = 'Clienta AI'; };
+  }, [t, i18n.language]);
 
   return (
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">AI Insights</h1>
-          <p className="text-sm text-gray-500">AI-powered analysis of your business data</p>
+          <h1 className="text-xl font-bold text-gray-900">{t('insights.title')}</h1>
+          <p className="text-sm text-gray-500">{t('insights.subtitle')}</p>
         </div>
         <button
           onClick={handleGenerate}
@@ -64,7 +72,7 @@ export default function Insights() {
           className="btn-primary gap-2"
         >
           <RefreshCw className={`h-4 w-4 ${generate.isPending ? 'animate-spin' : ''}`} />
-          {generate.isPending ? 'Generating...' : 'Generate insights'}
+          {generate.isPending ? t('insights.generating') : t('insights.generate')}
         </button>
       </div>
 
@@ -75,9 +83,9 @@ export default function Insights() {
       ) : error && !hasInsight ? (
         <div className="card flex flex-col items-center justify-center py-12 text-center">
           <BrainCircuit className="mb-3 h-10 w-10 text-gray-300" />
-          <p className="font-medium text-gray-600">No insights available yet</p>
+          <p className="font-medium text-gray-600">{t('insights.noInsightsYet')}</p>
           <p className="mt-1 text-sm text-gray-400">
-            Click &ldquo;Generate insights&rdquo; to analyze your business data with AI
+            {t('insights.clickGenerate')}
           </p>
         </div>
       ) : hasInsight ? (
@@ -113,7 +121,7 @@ export default function Insights() {
 
             {/* Reorder suggestions */}
             {insight.reorder_suggestions?.length > 0 && (
-              <InsightCard title="Reorder Suggestions" icon={Package}>
+              <InsightCard title={t('insights.reorderSuggestions')} icon={Package}>
                 <ul className="space-y-2">
                   {insight.reorder_suggestions.map((r, i) => (
                     <li key={i} className="flex items-start gap-2">
@@ -129,7 +137,7 @@ export default function Insights() {
 
             {/* Spending trends */}
             {insight.spending_trends?.length > 0 && (
-              <InsightCard title="Spending Trends" icon={DollarSign}>
+              <InsightCard title={t('insights.spendingTrends')} icon={DollarSign}>
                 <ul className="space-y-2">
                   {insight.spending_trends.map((s, i) => (
                     <li key={i} className="flex items-start gap-2">
@@ -163,7 +171,7 @@ export default function Insights() {
 
             {/* Revenue insights (AI bullet points) */}
             {insight.revenue_insights?.length > 0 && (
-              <InsightCard title="Revenue Insights" icon={BarChart3}>
+              <InsightCard title={t('insights.revenueInsights')} icon={BarChart3}>
                 <ul className="space-y-2">
                   {insight.revenue_insights.map((r, i) => (
                     <li key={i} className="flex items-start gap-2">
