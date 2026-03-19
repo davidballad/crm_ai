@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -13,6 +13,8 @@ const CATEGORY_IDS = [
   { id: 'closed', color: 'border-gray-300', dot: 'bg-gray-400' },
 ];
 
+const normalizePhone = (value) => String(value || '').replace(/\D/g, '');
+
 export default function MessagesInbox() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -22,6 +24,9 @@ export default function MessagesInbox() {
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
+  const threadContainerRef = useRef(null);
+  const stickToBottomRef = useRef(true);
+  const previousConversationRef = useRef('');
 
   const messages = data?.messages || [];
   const contacts = contactsData?.contacts || [];
@@ -30,21 +35,22 @@ export default function MessagesInbox() {
     return acc;
   }, {});
   const contactByPhone = contacts.reduce((acc, c) => {
-    if (c.phone) acc[c.phone.replace(/\s/g, '')] = c;
+    const normalized = normalizePhone(c.phone);
+    if (normalized) acc[normalized] = c;
     return acc;
   }, {});
 
   // Detect business phone: the to_number seen most often (destination of inbound messages)
   const toNumberCounts = {};
   messages.forEach((m) => {
-    const to = (m.to_number || '').replace(/\s/g, '');
+    const to = normalizePhone(m.to_number);
     if (to) toNumberCounts[to] = (toNumberCounts[to] || 0) + 1;
   });
   const businessPhone = Object.entries(toNumberCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
 
   const getCustomerPhone = (m) => {
-    const from = (m.from_number || '').replace(/\s/g, '');
-    const to = (m.to_number || '').replace(/\s/g, '');
+    const from = normalizePhone(m.from_number);
+    const to = normalizePhone(m.to_number);
     if (from === businessPhone) return to || from;
     return from || to;
   };
@@ -94,12 +100,29 @@ export default function MessagesInbox() {
     return acc;
   }, {});
 
-  const selectedCustomerPhone = selectedConv?.from_number?.replace(/\s/g, '') || '';
+  const selectedCustomerPhone = normalizePhone(selectedConv?.from_number);
   const threadMessages = selectedCustomerPhone
     ? messages
         .filter((m) => getCustomerPhone(m) === selectedCustomerPhone)
         .sort((a, b) => new Date(a.created_ts || 0) - new Date(b.created_ts || 0))
     : [];
+
+  useEffect(() => {
+    const container = threadContainerRef.current;
+    if (!container || !selectedCustomerPhone) return;
+    const isConversationChange = previousConversationRef.current !== selectedCustomerPhone;
+    if (isConversationChange || stickToBottomRef.current) {
+      container.scrollTop = container.scrollHeight;
+    }
+    previousConversationRef.current = selectedCustomerPhone;
+  }, [selectedCustomerPhone, threadMessages.length]);
+
+  const handleThreadScroll = () => {
+    const container = threadContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    stickToBottomRef.current = distanceFromBottom <= 80;
+  };
 
   const handleSendReply = async (e) => {
     e.preventDefault();
@@ -218,9 +241,9 @@ export default function MessagesInbox() {
                   <p className="text-xs text-gray-500 truncate">{selectedConv.from_number}</p>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div ref={threadContainerRef} onScroll={handleThreadScroll} className="flex-1 overflow-y-auto p-4 space-y-3">
                 {threadMessages.map((m) => {
-                  const isThem = (m.from_number || '').replace(/\s/g, '') !== businessPhone;
+                  const isThem = normalizePhone(m.from_number) !== businessPhone;
                   return (
                     <div key={m.message_id} className={`flex ${isThem ? 'justify-start' : 'justify-end'}`}>
                       <div
