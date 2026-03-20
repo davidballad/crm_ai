@@ -310,6 +310,7 @@ TENANT_CONFIG_FIELDS = (
     "currency", "timezone", "business_hours", "settings",
     "phone_number", "meta_phone_number_id", "meta_business_account_id", "meta_access_token",
     "ai_system_prompt", "capabilities", "delivery_enabled", "payment_methods",
+    "bank_name", "person_name", "account_type", "account_id", "identification_number",
 )
 
 

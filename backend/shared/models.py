@@ -79,7 +79,12 @@ class Transaction(_BaseModel):
     status: str = "pending"
     idempotency_key: str | None = None
     square_payment_id: str | None = None
-    notes: str | None = None
+    customer_phone: str | None = None
+    payment_reference: str | None = None
+    payment_verification_status: str | None = None
+    payment_proof_s3_key: str | None = None
+    payment_proof_content_type: str | None = None
+    payment_proof_received_at: str | None = None
     created_at: str | None = None
 
 
@@ -107,6 +112,11 @@ class Tenant(_BaseModel):
     meta_business_account_id: str | None = None
     meta_access_token: str | None = None
     ai_system_prompt: str | None = None
+    bank_name: str | None = None
+    person_name: str | None = None
+    account_type: str | None = None
+    account_id: str | None = None
+    identification_number: str | None = None
     capabilities: list[str] | None = None
     delivery_enabled: bool = False
     payment_methods: list[str] | None = None

@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTransactions, useDailySummary } from '../hooks/useTransactions';
+import { patchTransaction, fetchTransaction } from '../api/transactions';
+import { sendMessage } from '../api/messages';
 import StatsCard from '../components/StatsCard';
 import { ShoppingCart, DollarSign, Receipt, CreditCard } from 'lucide-react';
 
@@ -10,6 +13,7 @@ function todayStr() {
 
 export default function TransactionList() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('today');
   const [filters, setFilters] = useState({
     startDate: todayStr(),
@@ -17,11 +21,64 @@ export default function TransactionList() {
   });
   const [historyStart, setHistoryStart] = useState('');
   const [historyEnd, setHistoryEnd] = useState('');
+  const [selectedTx, setSelectedTx] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState('');
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState('');
 
   const { data, isLoading, error } = useTransactions(filters);
   const { data: summary } = useDailySummary(todayStr());
 
   const transactions = data?.transactions || data?.items || [];
+
+  const openVerification = async (tx) => {
+    if (!tx?.id) return;
+    setDetailsError('');
+    setVerifyError('');
+    setDetailsLoading(true);
+    try {
+      const full = await fetchTransaction(tx.id);
+      setSelectedTx(full);
+    } catch (err) {
+      setDetailsError(err.message || 'Failed to load transaction details');
+      setSelectedTx(tx);
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  const closeVerification = () => {
+    setSelectedTx(null);
+    setDetailsError('');
+    setVerifyError('');
+  };
+
+  const handleVerify = async () => {
+    if (!selectedTx?.id) return;
+    setVerifyError('');
+    setVerifyLoading(true);
+    try {
+      const updated = await patchTransaction(selectedTx.id, { payment_verification_status: 'verified' });
+      setSelectedTx(updated);
+      if (selectedTx.customer_phone) {
+        await sendMessage({ to_number: selectedTx.customer_phone, text: 'Order Confirmed, thank you!' });
+      }
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    } catch (err) {
+      setVerifyError(err.message || 'Failed to verify payment');
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const verificationTag = (tx) => {
+    const status = tx.payment_verification_status || 'awaiting_verification';
+    if (status === 'verified') {
+      return <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">Verified</span>;
+    }
+    return <span className="inline-flex rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Waiting for verification</span>;
+  };
 
   return (
     <div>
@@ -152,10 +209,11 @@ export default function TransactionList() {
             <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase text-gray-500">
               <tr>
                 <th className="px-4 py-3">{t('transactions.date')}</th>
+                <th className="px-4 py-3">Reference</th>
                 <th className="px-4 py-3">{t('transactions.items')}</th>
                 <th className="px-4 py-3 text-right">{t('transactions.total')}</th>
                 <th className="px-4 py-3">{t('transactions.payment')}</th>
-                <th className="px-4 py-3">{t('transactions.notes')}</th>
+                <th className="px-4 py-3">Payment verification</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -163,6 +221,9 @@ export default function TransactionList() {
                 <tr key={t.id || i} className="hover:bg-gray-50 transition-colors">
                   <td className="whitespace-nowrap px-4 py-3 text-gray-500">
                     {t.created_at ? new Date(t.created_at).toLocaleString() : '—'}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-xs font-medium text-gray-700">
+                    {t.payment_reference || t.id || '—'}
                   </td>
                   <td className="px-4 py-3">
                     {(t.items || []).map((item) => (
@@ -179,11 +240,68 @@ export default function TransactionList() {
                       {t.payment_method}
                     </span>
                   </td>
-                  <td className="max-w-[200px] truncate px-4 py-3 text-gray-500">{t.notes || '—'}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      className="rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      onClick={() => openVerification(t)}
+                    >
+                      {verificationTag(t)}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {selectedTx && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <h3 className="text-base font-semibold text-gray-900">Payment verification</h3>
+              <button type="button" onClick={closeVerification} className="text-sm text-gray-500 hover:text-gray-700">
+                Close
+              </button>
+            </div>
+            <div className="space-y-3 px-4 py-4">
+              {detailsLoading && <p className="text-sm text-gray-500">Loading transaction details...</p>}
+              {detailsError && <p className="text-sm text-red-600">{detailsError}</p>}
+              <div className="text-sm text-gray-700">
+                <p><span className="font-medium">Reference:</span> {selectedTx.payment_reference || selectedTx.id || '—'}</p>
+                <p><span className="font-medium">Customer phone:</span> {selectedTx.customer_phone || '—'}</p>
+                <p><span className="font-medium">Total:</span> ${Number(selectedTx.total || 0).toFixed(2)}</p>
+              </div>
+              {selectedTx.payment_proof_url ? (
+                <div className="overflow-hidden rounded-lg border border-gray-200">
+                  <img src={selectedTx.payment_proof_url} alt="Payment proof" className="max-h-[420px] w-full object-contain bg-gray-50" />
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
+                  Waiting for customer transfer screenshot.
+                </div>
+              )}
+              {verifyError && <p className="text-sm text-red-600">{verifyError}</p>}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-gray-200 px-4 py-3">
+              <button type="button" className="btn-secondary" onClick={closeVerification}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleVerify}
+                disabled={verifyLoading || selectedTx.payment_verification_status === 'verified'}
+              >
+                {selectedTx.payment_verification_status === 'verified'
+                  ? 'Verified'
+                  : verifyLoading
+                    ? 'Verifying...'
+                    : 'Mark verified'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

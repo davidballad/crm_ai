@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import base64
 import json
+import mimetypes
+import urllib.request
 from decimal import Decimal
 from typing import Any
 
 import sys
 import os
+import boto3
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from shared.db import query_items, transact_write, get_table, update_item, get_item, put_item
@@ -20,6 +23,12 @@ from shared.utils import generate_id, now_iso, today_str, build_pk, build_sk, pa
 
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
+
+GRAPH_API_VERSION = "v21.0"
+PAYMENT_STATUS_AWAITING = "awaiting_verification"
+PAYMENT_STATUS_VERIFIED = "verified"
+
+_s3_client = boto3.client("s3")
 
 
 def _get_method(event: dict[str, Any]) -> str:
@@ -66,6 +75,110 @@ def _transaction_sk(timestamp: str, transaction_id: str) -> str:
     return f"TXN#{timestamp}#{transaction_id}"
 
 
+def _normalize_phone(phone: str | None) -> str:
+    return "".join(ch for ch in str(phone or "") if ch.isdigit())
+
+
+def _build_payment_reference(transaction_id: str) -> str:
+    suffix = "".join(ch for ch in transaction_id if ch.isalnum())[-8:].upper()
+    return f"PAY-{suffix}" if suffix else "PAY-UNKNOWN"
+
+
+def _transaction_response(item: dict[str, Any], include_proof_url: bool = False) -> dict[str, Any]:
+    data = Transaction.from_dynamo(item).to_dict()
+    data["has_payment_proof"] = bool(item.get("payment_proof_s3_key"))
+    if include_proof_url and item.get("payment_proof_s3_key"):
+        data["payment_proof_url"] = _build_presigned_proof_url(item.get("payment_proof_s3_key"))
+    return data
+
+
+def _build_presigned_proof_url(s3_key: str | None) -> str | None:
+    if not s3_key:
+        return None
+    bucket = os.environ.get("DATA_BUCKET")
+    if not bucket:
+        return None
+    try:
+        return _s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": s3_key},
+            ExpiresIn=3600,
+        )
+    except Exception:
+        return None
+
+
+def _auto_attach_proof_from_messages(tenant_id: str, transaction_item: dict[str, Any]) -> dict[str, Any]:
+    """Best effort: if no proof stored, find latest inbound image message for this customer and attach it."""
+    if transaction_item.get("payment_proof_s3_key"):
+        return transaction_item
+    if transaction_item.get("payment_verification_status") != PAYMENT_STATUS_AWAITING:
+        return transaction_item
+
+    customer_phone = _normalize_phone(transaction_item.get("customer_phone"))
+    if not customer_phone:
+        return transaction_item
+
+    created_after = transaction_item.get("created_at") or ""
+    pk = build_pk(tenant_id)
+    last_key: dict[str, Any] | None = None
+    selected_media_id = None
+    while True:
+        items, last_key = query_items(pk=pk, sk_prefix="MESSAGE#", limit=100, last_key=last_key)
+        for item in items:
+            metadata = item.get("metadata") or {}
+            media_id = metadata.get("media_id")
+            message_type = metadata.get("message_type")
+            if not media_id or message_type not in {"image", "document", "video"}:
+                continue
+            if _normalize_phone(item.get("from_number")) != customer_phone:
+                continue
+            created_ts = item.get("created_ts") or ""
+            if created_after and created_ts and created_ts < created_after:
+                continue
+            selected_media_id = media_id
+            break
+        if selected_media_id or not last_key:
+            break
+
+    if not selected_media_id:
+        return transaction_item
+
+    tenant = get_item(build_pk(tenant_id), build_sk("TENANT", tenant_id))
+    access_token = (tenant or {}).get("meta_access_token")
+    if not access_token:
+        return transaction_item
+
+    try:
+        data, content_type, mime_type = _fetch_whatsapp_media(access_token, selected_media_id)
+        txn_id = transaction_item.get("id") or "unknown"
+        file_ext = mimetypes.guess_extension(content_type or mime_type or "") or ".jpg"
+        if file_ext == ".jpe":
+            file_ext = ".jpg"
+        bucket = os.environ.get("DATA_BUCKET")
+        if not bucket:
+            return transaction_item
+        s3_key = f"payment-proofs/{tenant_id}/{txn_id}/{selected_media_id}{file_ext}"
+        _s3_client.put_object(
+            Bucket=bucket,
+            Key=s3_key,
+            Body=data,
+            ContentType=(content_type or mime_type or "application/octet-stream"),
+        )
+        return update_item(
+            pk=transaction_item["pk"],
+            sk=transaction_item["sk"],
+            updates={
+                "payment_proof_s3_key": s3_key,
+                "payment_proof_content_type": (content_type or mime_type or "application/octet-stream"),
+                "payment_proof_received_at": now_iso(),
+                "payment_verification_status": PAYMENT_STATUS_AWAITING,
+            },
+        )
+    except Exception:
+        return transaction_item
+
+
 def list_transactions(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """List transactions with pagination and date range filtering."""
     query_params = _get_query_params(event)
@@ -107,9 +220,9 @@ def list_transactions(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         items = response.get("Items", [])
         last_eval = response.get("LastEvaluatedKey")
 
-        transactions = [Transaction.from_dynamo(i) for i in items]
+        transactions = [_transaction_response(i, include_proof_url=False) for i in items]
         result: dict[str, Any] = {
-            "transactions": [t.to_dict() for t in transactions]
+            "transactions": transactions
         }
         if last_eval:
             result["next_token"] = _encode_next_token(last_eval)
@@ -212,7 +325,8 @@ def get_transaction(tenant_id: str, transaction_id: str) -> dict[str, Any]:
         for item in items:
             txn = Transaction.from_dynamo(item)
             if txn.id == transaction_id:
-                return success(txn.to_dict())
+                enriched_item = _auto_attach_proof_from_messages(tenant_id, item)
+                return success(_transaction_response(enriched_item, include_proof_url=True))
         if not last_key:
             break
 
@@ -220,7 +334,7 @@ def get_transaction(tenant_id: str, transaction_id: str) -> dict[str, Any]:
 
 
 def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """PATCH /transactions/{id} — update status (pending → confirmed) and notes."""
+    """PATCH /transactions/{id} — update transaction status and payment verification."""
     pk = build_pk(tenant_id)
 
     # Find transaction by scanning TXN# sort keys
@@ -243,7 +357,7 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
     except (ValueError, json.JSONDecodeError):
         return error("Invalid JSON body", 400)
 
-    allowed = {"status", "notes", "payment_method", "delivery_method", "delivery_location"}
+    allowed = {"status", "payment_method", "delivery_method", "delivery_location", "payment_verification_status"}
     updates: dict[str, Any] = {}
     for key, value in body.items():
         if key in allowed and value is not None:
@@ -251,6 +365,11 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
 
     if "status" in updates and updates["status"] not in ("pending", "confirmed"):
         return error("status must be 'pending' or 'confirmed'", 400)
+    if "payment_verification_status" in updates and updates["payment_verification_status"] not in (
+        PAYMENT_STATUS_AWAITING,
+        PAYMENT_STATUS_VERIFIED,
+    ):
+        return error("payment_verification_status must be 'awaiting_verification' or 'verified'", 400)
 
     if not updates:
         return error("Nothing to update", 400)
@@ -260,7 +379,7 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
     except DynamoDBError as e:
         return server_error(str(e))
 
-    return success(body=Transaction.from_dynamo(updated_item).to_dict())
+    return success(body=_transaction_response(updated_item, include_proof_url=True))
 
 
 def _line_quantity(line: Any) -> int:
@@ -567,9 +686,12 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         total=total,
         payment_method="whatsapp",
         contact_id=contact_id,
+        customer_phone=effective_phone,
+        payment_verification_status=PAYMENT_STATUS_AWAITING,
         status="pending",
     )
     transaction.id = generate_id()
+    transaction.payment_reference = _build_payment_reference(transaction.id)
     transaction.created_at = now
     sk_txn = _transaction_sk(transaction.created_at, transaction.id)
     txn_record = {"pk": pk, "sk": sk_txn, **transaction.to_dynamo()}
@@ -598,6 +720,113 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     _mark_conversation_closed(pk, effective_phone)
 
     return created(transaction.to_dict())
+
+
+def _find_latest_awaiting_transaction_item(tenant_id: str, customer_phone: str) -> dict[str, Any] | None:
+    pk = build_pk(tenant_id)
+    normalized = _normalize_phone(customer_phone)
+    if not normalized:
+        return None
+    last_key: dict[str, Any] | None = None
+    while True:
+        items, last_key = query_items(pk, sk_prefix="TXN#", limit=100, last_key=last_key)
+        for item in items:
+            if item.get("payment_verification_status") != PAYMENT_STATUS_AWAITING:
+                continue
+            if _normalize_phone(item.get("customer_phone")) == normalized:
+                return item
+        if not last_key:
+            break
+    return None
+
+
+def _fetch_whatsapp_media(tenant_access_token: str, media_id: str) -> tuple[bytes, str | None, str | None]:
+    meta_req = urllib.request.Request(
+        f"https://graph.facebook.com/{GRAPH_API_VERSION}/{media_id}",
+        headers={"Authorization": f"Bearer {tenant_access_token}"},
+    )
+    with urllib.request.urlopen(meta_req, timeout=15) as resp:
+        media_meta = json.loads(resp.read().decode("utf-8"))
+    media_url = media_meta.get("url")
+    if not media_url:
+        raise ValueError("Media URL not found in Graph response")
+    mime_type = media_meta.get("mime_type")
+
+    bin_req = urllib.request.Request(
+        media_url,
+        headers={"Authorization": f"Bearer {tenant_access_token}"},
+    )
+    with urllib.request.urlopen(bin_req, timeout=30) as resp:
+        data = resp.read()
+        content_type = resp.headers.get("Content-Type") or mime_type
+    return data, content_type, mime_type
+
+
+def attach_payment_proof(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /transactions/payment-proof — attach WhatsApp image to latest awaiting transaction by customer phone."""
+    try:
+        body = parse_body(event)
+    except Exception:
+        return error("Invalid JSON body", 400)
+
+    customer_phone = (body.get("customer_phone") or body.get("from_number") or "").strip()
+    media_id = (body.get("media_id") or "").strip()
+    if not customer_phone or not media_id:
+        return error("customer_phone and media_id are required", 400)
+
+    latest = _find_latest_awaiting_transaction_item(tenant_id, customer_phone)
+    if not latest:
+        return not_found("No awaiting transaction found for this customer")
+
+    tenant = get_item(build_pk(tenant_id), build_sk("TENANT", tenant_id))
+    access_token = (tenant or {}).get("meta_access_token")
+    if not access_token:
+        return error("Tenant does not have meta_access_token configured", 400)
+
+    try:
+        data, content_type, mime_type = _fetch_whatsapp_media(access_token, media_id)
+    except Exception as e:
+        return error(f"Failed to download media from WhatsApp: {e}", 400)
+
+    txn_id = latest.get("id") or latest.get("transaction_id") or "unknown"
+    file_ext = mimetypes.guess_extension(content_type or mime_type or "") or ".jpg"
+    if file_ext == ".jpe":
+        file_ext = ".jpg"
+    s3_key = f"payment-proofs/{tenant_id}/{txn_id}/{media_id}{file_ext}"
+    bucket = os.environ.get("DATA_BUCKET")
+    if not bucket:
+        return server_error("DATA_BUCKET not configured")
+
+    try:
+        _s3_client.put_object(
+            Bucket=bucket,
+            Key=s3_key,
+            Body=data,
+            ContentType=(content_type or mime_type or "application/octet-stream"),
+        )
+    except Exception as e:
+        return server_error(f"Failed to store payment proof: {e}")
+
+    updates = {
+        "payment_proof_s3_key": s3_key,
+        "payment_proof_content_type": (content_type or mime_type or "application/octet-stream"),
+        "payment_proof_received_at": now_iso(),
+        "payment_verification_status": PAYMENT_STATUS_AWAITING,
+    }
+    try:
+        updated_item = update_item(pk=latest["pk"], sk=latest["sk"], updates=updates)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+    response = _transaction_response(updated_item, include_proof_url=True)
+    return success(
+        {
+            "message": "Payment proof attached",
+            "transaction_id": response.get("id"),
+            "payment_reference": response.get("payment_reference"),
+            "transaction": response,
+        }
+    )
 
 
 def clear_cart(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
@@ -647,6 +876,10 @@ def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]
     # POST /transactions - record sale
     if method == "POST" and (path == "/transactions" or path.endswith("/transactions")):
         return record_sale(tenant_id, event)
+
+    # POST /transactions/payment-proof - attach screenshot proof from WhatsApp media
+    if method == "POST" and (path == "/transactions/payment-proof" or path.endswith("/transactions/payment-proof")):
+        return attach_payment_proof(tenant_id, event)
 
     # PATCH /transactions/{id} - update status
     if method == "PATCH" and path.startswith("/transactions/"):
