@@ -99,8 +99,9 @@ export default function WhatsAppSetup() {
         <p className="text-sm text-gray-500">
           Link your Meta WhatsApp number to this business so the n8n workflow can route messages here.
         </p>
-        <div className="mt-4">
-          <img src="/meta-lockup.svg" alt="Meta" className="h-5 w-auto object-contain" loading="lazy" />
+        <div className="mt-4 flex items-center gap-2">
+          <img src="/whatsapp-glyph.svg" alt="" className="h-8 w-8 object-contain" width={32} height={32} loading="lazy" decoding="async" />
+          <span className="text-sm font-medium text-gray-700">WhatsApp Business</span>
         </div>
       </div>
 

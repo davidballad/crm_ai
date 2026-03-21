@@ -100,6 +100,17 @@
       "subtitle": "We run on Amazon Web Services. Your business data is encrypted and stored securely in the cloud.",
       "whatsAppByMeta": "WhatsApp by Meta"
     },
+    "phoneMock": {
+      "header": "WhatsApp Business",
+      "msgIn": "Hi — do you have the blue shirts in stock?",
+      "msgOut": "Yes, 12 left. Want me to reserve two for you?"
+    },
+    "carousel": {
+      "prev": "Previous slide",
+      "next": "Next slide",
+      "slideList": "Feature slides",
+      "goToSlide": "Go to slide {{n}}"
+    },
     "offers": {
       "title": "Everything you need in one place",
       "subtitle": "Stop juggling spreadsheets and apps. Clienta AI keeps inventory, customers, and insights in sync.",
@@ -249,6 +260,7 @@
     "sending": "Sending…",
     "sentViaHint": "Sent via WhatsApp using your Connect WhatsApp token.",
     "selectConversation": "Select a conversation to view thread and reply",
+    "backToList": "Back to conversations",
     "failedToSend": "Failed to send"
   }
 }

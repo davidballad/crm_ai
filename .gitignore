@@ -38,6 +38,7 @@ terraform/config/prod/*.tfvars
 .idea/
 *.swp
 *.swo
+.cursor/
 
 # OS
 .DS_Store
@@ -53,6 +54,7 @@ Thumbs.db
 credentials.json
 token.json
 *.pem
+workflow.json
 
 # AWS
 .aws-sam/

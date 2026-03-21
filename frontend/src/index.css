@@ -8,6 +8,43 @@
   }
 }
 
+/* Landing page only — scroll reveals, hero mesh, reduced motion */
+.landing-page {
+  font-family: DM Sans, system-ui, sans-serif;
+}
+
+.landing-page .landing-hero-bg {
+  background: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(37, 99, 235, 0.35), transparent 55%),
+    radial-gradient(ellipse 80% 50% at 100% 0%, rgba(99, 102, 241, 0.2), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 0% 100%, rgba(30, 58, 138, 0.35), transparent 45%),
+    linear-gradient(165deg, #0f172a 0%, #0c1222 45%, #111827 100%);
+}
+
+.landing-page .landing-grain {
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.landing-reveal {
+  opacity: 0;
+  transform: translateY(1.25rem);
+  transition: opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1), transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.landing-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+
 @layer components {
   .btn-primary {
     @apply inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;

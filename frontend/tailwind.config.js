@@ -3,6 +3,10 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        'landing-serif': ['Cormorant Garamond', 'Georgia', 'serif'],
+        'landing-sans': ['DM Sans', 'system-ui', 'sans-serif'],
+      },
       colors: {
         brand: {
           50: '#eff6ff',

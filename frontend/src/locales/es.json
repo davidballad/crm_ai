@@ -100,6 +100,17 @@
       "subtitle": "Funcionamos con Amazon Web Services. Tus datos están cifrados y almacenados de forma segura en la nube.",
       "whatsAppByMeta": "WhatsApp by Meta"
     },
+    "phoneMock": {
+      "header": "WhatsApp Business",
+      "msgIn": "Hola — ¿tienen la camiseta azul en stock?",
+      "msgOut": "Sí, quedan 12. ¿Quieres que te reserve dos?"
+    },
+    "carousel": {
+      "prev": "Diapositiva anterior",
+      "next": "Diapositiva siguiente",
+      "slideList": "Funciones",
+      "goToSlide": "Ir a la diapositiva {{n}}"
+    },
     "offers": {
       "title": "Todo lo que necesitas en un solo lugar",
       "subtitle": "Deja de usar hojas de cálculo y varias apps. Clienta AI mantiene inventario, clientes e informes sincronizados.",
@@ -249,6 +260,7 @@
     "sending": "Enviando…",
     "sentViaHint": "Enviado por WhatsApp con tu token de Conectar WhatsApp.",
     "selectConversation": "Selecciona una conversación para ver el hilo y responder",
+    "backToList": "Volver a conversaciones",
     "failedToSend": "Error al enviar"
   }
 }

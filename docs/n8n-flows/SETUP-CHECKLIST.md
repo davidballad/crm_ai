@@ -2,6 +2,8 @@
 
 Use this after importing `docs/workflow.json` into n8n. Complete each step for the workflow to work end-to-end.
 
+**Keeping the repo file updated:** After you edit the workflow in n8n, refresh `docs/workflow.json` so Git matches production — see [WORKFLOW-SYNC.md](./WORKFLOW-SYNC.md).
+
 ---
 
 ## 1. API URL and Service Key (Extract & Filter node)
