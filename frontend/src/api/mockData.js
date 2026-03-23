@@ -30,9 +30,9 @@ const DAILY_SUMMARY = {
 };
 
 const CONTACTS = [
-  { contact_id: 'con-001', name: 'Alice Smith', email: 'alice@example.com', phone: '+15551234567', source_channel: 'whatsapp', lead_status: 'closed_won', tier: 'gold', tags: [], created_ts: new Date().toISOString() },
-  { contact_id: 'con-002', name: 'Bob Jones', email: 'bob@example.com', phone: '+15559876543', source_channel: 'whatsapp', lead_status: 'interested', tier: 'silver', tags: [], created_ts: new Date().toISOString() },
-  { contact_id: 'con-003', name: 'Carol Lee', email: 'carol@example.com', phone: '+15557778888', source_channel: 'whatsapp', lead_status: 'prospect', tier: 'bronze', tags: [], created_ts: new Date().toISOString() },
+  { contact_id: 'con-001', name: 'Alice Smith', email: 'alice@example.com', phone: '+15551234567', source_channel: 'whatsapp', lead_status: 'closed_won', tier: 'gold', tags: [], conversation_mode: 'bot', created_ts: new Date().toISOString() },
+  { contact_id: 'con-002', name: 'Bob Jones', email: 'bob@example.com', phone: '+15559876543', source_channel: 'whatsapp', lead_status: 'interested', tier: 'silver', tags: [], conversation_mode: 'bot', created_ts: new Date().toISOString() },
+  { contact_id: 'con-003', name: 'Carol Lee', email: 'carol@example.com', phone: '+15557778888', source_channel: 'whatsapp', lead_status: 'prospect', tier: 'bronze', tags: [], conversation_mode: 'human', created_ts: new Date().toISOString() },
 ];
 
 const MESSAGES = [

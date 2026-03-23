@@ -11,6 +11,9 @@ import {
   Check,
   ShieldCheck,
   ChevronDown,
+  Globe,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 import { submitContact } from '../api/contact';
 import { useHeroParallax, useLandingReveal } from '../hooks/useLandingScroll';
@@ -20,6 +23,7 @@ const FEATURE_ICONS = [Package, MessageSquare, BarChart3, Users, ShoppingCart];
 
 const SUBJECT_COLLABORATION = 'Collaboration';
 const SUBJECT_PRICING = 'Pricing inquiry';
+const SUBJECT_CUSTOM_DEV = 'Web & app development';
 
 /** Lightweight WhatsApp glyph from /public only (~2KB SVG). */
 function WhatsAppGlyph({ className }) {
@@ -87,6 +91,13 @@ export default function Landing() {
 
   const openPricingForm = () => {
     setContactSubject(SUBJECT_PRICING);
+    setFormError(null);
+    setSent(false);
+    scrollToContact();
+  };
+
+  const openServicesContact = () => {
+    setContactSubject(SUBJECT_CUSTOM_DEV);
     setFormError(null);
     setSent(false);
     scrollToContact();
@@ -302,6 +313,9 @@ export default function Landing() {
                 {contactSubject === SUBJECT_PRICING && (
                   <p className="text-sm font-medium text-brand-600">{t('landing.collaborate.formSubjectPricing')}</p>
                 )}
+                {contactSubject === SUBJECT_CUSTOM_DEV && (
+                  <p className="text-sm font-medium text-brand-600">{t('landing.collaborate.formSubjectServices')}</p>
+                )}
                 <div>
                   <label htmlFor="contact-name" className="block text-sm font-medium text-gray-700">
                     {t('landing.collaborate.formName')} *
@@ -356,6 +370,76 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Custom development services */}
+      <section
+        id="services"
+        className="scroll-mt-24 border-t border-gray-100 bg-gradient-to-b from-slate-50/90 via-white to-brand-50/20 py-20"
+      >
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="landing-reveal text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600/90 sm:text-sm">{t('landing.services.eyebrow')}</p>
+            <h2 className="mt-4 font-landing-serif text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
+              {t('landing.services.title')}
+            </h2>
+            <p className="mx-auto mt-5 max-w-3xl text-base leading-relaxed text-gray-600 sm:text-lg">{t('landing.services.subtitle')}</p>
+          </div>
+
+          <div className="landing-reveal mt-14 grid gap-8 lg:grid-cols-2 lg:gap-10">
+            <div className="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-8 shadow-sm ring-1 ring-gray-100/80 transition-shadow duration-300 hover:shadow-xl hover:shadow-slate-200/60">
+              <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gradient-to-br from-brand-100/80 to-brand-50 opacity-80 transition-opacity group-hover:opacity-100" aria-hidden />
+              <div className="relative">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white shadow-lg shadow-brand-600/25">
+                  <Globe className="h-6 w-6" strokeWidth={1.75} />
+                </div>
+                <h3 className="mt-6 text-xl font-semibold text-gray-900">{t('landing.services.webTitle')}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:text-base">{t('landing.services.webDesc')}</p>
+                <ul className="mt-6 space-y-3 text-sm text-gray-700">
+                  {['webPoint1', 'webPoint2', 'webPoint3'].map((k) => (
+                    <li key={k} className="flex gap-3">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
+                      <span>{t(`landing.services.${k}`)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            <div className="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-8 shadow-sm ring-1 ring-gray-100/80 transition-shadow duration-300 hover:shadow-xl hover:shadow-slate-200/60">
+              <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gradient-to-br from-indigo-100/90 to-brand-50 opacity-80 transition-opacity group-hover:opacity-100" aria-hidden />
+              <div className="relative">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-800 text-white shadow-lg shadow-slate-900/20">
+                  <Layers className="h-6 w-6" strokeWidth={1.75} />
+                </div>
+                <h3 className="mt-6 text-xl font-semibold text-gray-900">{t('landing.services.appTitle')}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:text-base">{t('landing.services.appDesc')}</p>
+                <ul className="mt-6 space-y-3 text-sm text-gray-700">
+                  {['appPoint1', 'appPoint2', 'appPoint3'].map((k) => (
+                    <li key={k} className="flex gap-3">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
+                      <span>{t(`landing.services.${k}`)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="landing-reveal mt-12 flex flex-col items-center">
+            <div className="flex items-center gap-2 text-gray-500">
+              <Sparkles className="h-4 w-4 text-brand-500" />
+              <p className="text-center text-sm text-gray-500 sm:text-base">{t('landing.services.ctaHint')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={openServicesContact}
+              className="mt-6 inline-flex items-center justify-center rounded-full bg-gray-900 px-8 py-3.5 text-sm font-medium text-white shadow-lg shadow-gray-900/15 transition-colors hover:bg-gray-800 sm:text-base"
+            >
+              {t('landing.services.cta')}
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing */}
       <section className="border-t border-gray-100 bg-white py-20" id="pricing">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -369,7 +453,7 @@ export default function Landing() {
               <p className="mt-1 text-2xl font-bold text-brand-600">{t('landing.pricing.starterPrice')}</p>
               <p className="mt-2 text-sm text-gray-600">{t('landing.pricing.starterDesc')}</p>
               <ul className="mt-6 space-y-3">
-                {['featureInv', 'featureLeads', 'featureAI', 'featureWhatsApp'].map((k) => (
+                {['featureInv', 'featureWhatsApp', 'featureReporting'].map((k) => (
                   <li key={k} className="flex items-center gap-2 text-sm text-gray-700">
                     <Check className="h-4 w-4 shrink-0 text-green-600" />
                     {t(`landing.pricing.${k}`)}
@@ -381,15 +465,15 @@ export default function Landing() {
                 onClick={openPricingForm}
                 className="mt-6 block w-full rounded-lg border border-brand-600 py-2.5 text-center text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50"
               >
-                {t('landing.pricing.contactForPricing')}
+                {t('landing.pricing.contactInitialSetup')}
               </button>
             </div>
-            <div className="landing-reveal rounded-2xl border border-gray-200 bg-gradient-to-b from-white to-gray-50/50 p-8 shadow-sm ring-1 ring-gray-100">
+            <div className="landing-reveal rounded-2xl border-2 border-brand-200 bg-gradient-to-b from-brand-50/40 to-white p-8 shadow-md ring-1 ring-brand-100">
               <h3 className="text-xl font-semibold text-gray-900">{t('landing.pricing.growthName')}</h3>
               <p className="mt-1 text-2xl font-bold text-brand-600">{t('landing.pricing.growthPrice')}</p>
               <p className="mt-2 text-sm text-gray-600">{t('landing.pricing.growthDesc')}</p>
               <ul className="mt-6 space-y-3">
-                {['featureEverything', 'featureAnnualBilling', 'featureReporting', 'featureSupport'].map((k) => (
+                {['featureEverythingInFree', 'featureLeads', 'featureAI', 'featureMonthlyOrAnnual', 'featureSupport'].map((k) => (
                   <li key={k} className="flex items-center gap-2 text-sm text-gray-700">
                     <Check className="h-4 w-4 shrink-0 text-green-600" />
                     {t(`landing.pricing.${k}`)}

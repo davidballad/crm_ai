@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const FEATURE_COUNT = 5;
+const SLIDE_PCT = 100 / FEATURE_COUNT;
 const AUTOPLAY_MS = 7000;
 
 /**
@@ -103,15 +104,19 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
           <div className="overflow-hidden rounded-3xl border border-gray-200/90 bg-gray-50/40 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.18)] ring-1 ring-gray-100 md:mx-14 lg:mx-20">
             <div
               className={`flex ${transitionClass}`}
-              style={{ transform: `translate3d(-${index * 100}%, 0, 0)` }}
+              style={{
+                width: `${FEATURE_COUNT * 100}%`,
+                transform: `translate3d(-${index * SLIDE_PCT}%, 0, 0)`,
+              }}
             >
               {FeatureIcons.map((Ic, i) => (
                 <article
                   key={i}
-                  className="min-w-full shrink-0 px-5 py-12 sm:px-10 sm:py-14 md:px-14 md:py-16 lg:px-20 lg:py-20"
+                  className="shrink-0 px-5 py-12 sm:px-10 sm:py-14 md:px-14 md:py-16 lg:px-20 lg:py-20"
+                  style={{ width: `${SLIDE_PCT}%` }}
                   aria-hidden={i !== index}
                 >
-                  <div className="mx-auto flex max-w-4xl flex-col items-center text-center md:min-h-[280px] lg:min-h-[320px]">
+                  <div className="mx-auto flex w-full max-w-4xl flex-col items-center text-center md:min-h-[280px] lg:min-h-[320px]">
                     <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-100 to-brand-200/70 text-brand-700 shadow-inner md:h-24 md:w-24 lg:h-28 lg:w-28">
                       <Ic className="h-10 w-10 md:h-12 md:w-12 lg:h-14 lg:w-14" strokeWidth={1.5} />
                     </div>

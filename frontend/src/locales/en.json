@@ -137,25 +137,44 @@
       "formSubmit": "Send message",
       "formSending": "Sending...",
       "formSuccess": "Thanks! We'll get back to you within 1–2 business days.",
-      "formError": "Something went wrong. Please try again or email us directly."
+      "formError": "Something went wrong. Please try again or email us directly.",
+      "formSubjectServices": "Custom websites & applications"
+    },
+    "services": {
+      "eyebrow": "Beyond the CRM",
+      "title": "Custom websites & applications",
+      "subtitle": "We design and build polished, scalable digital products — not only Clienta AI. From marketing sites to full-stack apps, we partner with businesses that want clarity, performance, and solutions that grow with them.",
+      "webTitle": "Websites & digital experiences",
+      "webDesc": "Brand-forward sites, conversion-focused landing pages, and fast, accessible front ends that look sharp on every device.",
+      "webPoint1": "Responsive UI, design systems, and content structure",
+      "webPoint2": "SEO-ready builds and analytics-ready foundations",
+      "webPoint3": "Deployment, performance, and ongoing improvements",
+      "appTitle": "Applications & integrations",
+      "appDesc": "Custom web apps, internal tools, and integrations that connect your stack — CRM, payments, messaging, and operations — with maintainable, production-grade code.",
+      "appPoint1": "Dashboards, workflows, and REST/GraphQL APIs",
+      "appPoint2": "Security-first patterns and multi-tenant–aware architecture",
+      "appPoint3": "Iterative delivery and long-term support options",
+      "cta": "Discuss your project",
+      "ctaHint": "Share your goals — we’ll follow up with next steps and a tailored scope."
     },
     "pricing": {
       "title": "Simple pricing",
-      "subtitle": "One plan, two ways to pay. Contact us for a quote that fits your business.",
+      "subtitle": "Start free, or unlock AI on Pro — pay monthly or annually (more savings). Contact us for a quote.",
       "contactForPricing": "Contact for pricing",
-      "starterName": "Starter",
-      "starterPrice": "Monthly",
-      "starterDesc": "Pay month to month — one simple plan",
-      "growthName": "Growth",
-      "growthPrice": "Annual",
-      "growthDesc": "Pay yearly and save",
+      "contactInitialSetup": "Contact us for initial setup",
+      "starterName": "Free",
+      "starterPrice": "Free",
+      "starterDesc": "Core CRM for inventory and WhatsApp — ideal to get started.",
+      "growthName": "Pro",
+      "growthPrice": "Paid",
+      "growthDesc": "Monthly or annual billing — choose annual for the best savings.",
       "featureInv": "Inventory & products",
       "featureLeads": "Leads & messages",
-      "featureAI": "AI insights",
       "featureWhatsApp": "WhatsApp integration",
-      "featureEverything": "Everything in Starter",
-      "featureAnnualBilling": "Annual billing (save vs monthly)",
+      "featureAI": "AI insights",
+      "featureEverythingInFree": "Everything in Free",
       "featureReporting": "Transactions & reporting",
+      "featureMonthlyOrAnnual": "Monthly or annual billing (save with annual)",
       "featureSupport": "Priority support"
     },
     "footer": {
@@ -245,6 +264,13 @@
     "total": "Total",
     "payment": "Payment",
     "notes": "Notes"
+  },
+  "leadProfile": {
+    "whatsappReplies": "WhatsApp",
+    "conversationMode": {
+      "bot": "AI & automation (default)",
+      "human": "Human only (no AI replies)"
+    }
   },
   "messages": {
     "title": "Messages",

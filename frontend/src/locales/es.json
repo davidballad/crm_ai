@@ -137,25 +137,44 @@
       "formSubmit": "Enviar mensaje",
       "formSending": "Enviando...",
       "formSuccess": "Gracias. Te responderemos en 1–2 días hábiles.",
-      "formError": "Algo salió mal. Intenta de nuevo o escríbenos por correo."
+      "formError": "Algo salió mal. Intenta de nuevo o escríbenos por correo.",
+      "formSubjectServices": "Sitios web y aplicaciones a medida"
+    },
+    "services": {
+      "eyebrow": "Más allá del CRM",
+      "title": "Sitios web y aplicaciones a medida",
+      "subtitle": "Diseñamos y construimos productos digitales sólidos y escalables — no solo Clienta AI. Desde sitios de marketing hasta aplicaciones full stack, trabajamos con negocios que buscan claridad, rendimiento y soluciones que crecen con ellos.",
+      "webTitle": "Websites y experiencias digitales",
+      "webDesc": "Sitios con identidad de marca, landings orientadas a conversión y frontends rápidos y accesibles que se ven bien en cualquier dispositivo.",
+      "webPoint1": "UI responsive, sistemas de diseño y estructura de contenido",
+      "webPoint2": "Bases listas para SEO y analítica",
+      "webPoint3": "Despliegue, rendimiento y mejoras continuas",
+      "appTitle": "Aplicaciones e integraciones",
+      "appDesc": "Aplicaciones web a medida, herramientas internas e integraciones que conectan tu stack — CRM, pagos, mensajería y operaciones — con código mantenible y listo para producción.",
+      "appPoint1": "Paneles, flujos de trabajo y APIs REST/GraphQL",
+      "appPoint2": "Seguridad por diseño y arquitectura multi‑tenant",
+      "appPoint3": "Entrega iterativa y opciones de soporte a largo plazo",
+      "cta": "Hablemos de tu proyecto",
+      "ctaHint": "Cuéntanos tus objetivos — te responderemos con siguientes pasos y un alcance a medida."
     },
     "pricing": {
       "title": "Precios simples",
-      "subtitle": "Un plan, dos formas de pago. Contáctanos para una cotización a tu medida.",
+      "subtitle": "Empieza gratis o activa IA con Pro — pago mensual o anual (más ahorro). Contáctanos para una cotización.",
       "contactForPricing": "Solicitar precios",
-      "starterName": "Starter",
-      "starterPrice": "Mensual",
-      "starterDesc": "Paga mes a mes — un plan simple",
-      "growthName": "Growth",
-      "growthPrice": "Anual",
-      "growthDesc": "Paga por año y ahorra",
+      "contactInitialSetup": "Contáctanos para la configuración inicial",
+      "starterName": "Gratis",
+      "starterPrice": "Gratis",
+      "starterDesc": "CRM esencial para inventario y WhatsApp — ideal para empezar.",
+      "growthName": "Pro",
+      "growthPrice": "De pago",
+      "growthDesc": "Facturación mensual o anual — elige anual para mayor ahorro.",
       "featureInv": "Inventario y productos",
       "featureLeads": "Contactos y mensajes",
-      "featureAI": "Informes IA",
       "featureWhatsApp": "Integración WhatsApp",
-      "featureEverything": "Todo en Starter",
-      "featureAnnualBilling": "Facturación anual (ahorro vs mensual)",
+      "featureAI": "Informes IA",
+      "featureEverythingInFree": "Todo lo del plan Gratis",
       "featureReporting": "Transacciones e informes",
+      "featureMonthlyOrAnnual": "Pago mensual o anual (ahorro con anual)",
       "featureSupport": "Soporte prioritario"
     },
     "footer": {
@@ -245,6 +264,13 @@
     "total": "Total",
     "payment": "Pago",
     "notes": "Notas"
+  },
+  "leadProfile": {
+    "whatsappReplies": "WhatsApp",
+    "conversationMode": {
+      "bot": "IA y automatización (predeterminado)",
+      "human": "Solo humano (sin respuestas de IA)"
+    }
   },
   "messages": {
     "title": "Mensajes",

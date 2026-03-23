@@ -215,6 +215,8 @@ class Contact(_BaseModel):
     last_activity_ts: str | None = None
     tags: list[str] | None = None
     created_ts: str | None = None
+    # WhatsApp: "bot" = AI/n8n handles replies; "human" = staff-only until set back to bot
+    conversation_mode: str = "bot"
 
 
 @dataclass

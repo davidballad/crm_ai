@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useContact, usePatchContact } from '../hooks/useContacts';
 import { useContactMessages } from '../hooks/useContactMessages';
 import { ArrowLeft, MessageSquare } from 'lucide-react';
@@ -53,7 +54,13 @@ function TierBadge({ tier }) {
   );
 }
 
+const CONVERSATION_MODE_OPTIONS = [
+  { value: 'bot', key: 'bot' },
+  { value: 'human', key: 'human' },
+];
+
 export default function LeadProfile() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const { data: contact, isLoading, error } = useContact(id);
   const { data: messagesData } = useContactMessages(id);
@@ -78,6 +85,12 @@ const getMessageText = (m) => {
     const tier = e.target.value;
     if (!id || !tier) return;
     patchContact.mutate({ id, data: { tier } });
+  };
+
+  const handleConversationModeChange = (e) => {
+    const conversation_mode = e.target.value;
+    if (!id || !conversation_mode) return;
+    patchContact.mutate({ id, data: { conversation_mode } });
   };
 
   if (isLoading) {
@@ -129,6 +142,21 @@ const getMessageText = (m) => {
               >
                 {TIER_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500">{t('leadProfile.whatsappReplies')}</span>
+              <select
+                value={contact.conversation_mode || 'bot'}
+                onChange={handleConversationModeChange}
+                disabled={patchContact.isPending}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-60"
+              >
+                {CONVERSATION_MODE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {t(`leadProfile.conversationMode.${o.key}`)}
+                  </option>
                 ))}
               </select>
             </label>

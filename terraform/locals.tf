@@ -50,6 +50,10 @@ locals {
       memory_size = 128
       timeout     = 10
     }
+    shop = {
+      memory_size = 256
+      timeout     = 30
+    }
   }
 
   packages_dir = "${path.module}/packages"

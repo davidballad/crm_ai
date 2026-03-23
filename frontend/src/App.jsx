@@ -15,6 +15,7 @@ import LeadsList from './pages/LeadsList';
 import LeadProfile from './pages/LeadProfile';
 import MessagesInbox from './pages/MessagesInbox';
 import WhatsAppSetup from './pages/WhatsAppSetup';
+import Shop from './pages/Shop';
 
 export default function App() {
   const { token } = useAuth();
@@ -23,6 +24,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/shop" element={<Shop />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route

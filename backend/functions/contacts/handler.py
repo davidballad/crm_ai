@@ -22,6 +22,10 @@ LIMIT_MAX = 100
 
 VALID_LEAD_STATUSES = {"prospect", "interested", "closed_won", "abandoned"}
 VALID_TIERS = {"bronze", "silver", "gold"}
+VALID_CONVERSATION_MODES = {"bot", "human"}
+
+# When filtering by phone, paginate until match (contacts may not be on first page).
+_PHONE_LOOKUP_MAX_PAGES = 40
 
 
 def _decode_next_token(token: str | None) -> dict[str, Any] | None:
@@ -54,6 +58,30 @@ def list_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     last_key = _decode_next_token(next_token)
 
     try:
+        if phone_filter:
+            # Paginate until we find a matching phone (or exhaust pages).
+            found: list[dict[str, Any]] = []
+            last_key_loop = last_key
+            for _ in range(_PHONE_LOOKUP_MAX_PAGES):
+                items, last_eval = query_items(
+                    pk=pk,
+                    sk_prefix=CONTACT_SK_PREFIX,
+                    limit=limit,
+                    last_key=last_key_loop,
+                )
+                for item in items:
+                    c = Contact.from_dynamo(item).to_dict()
+                    if c.get("phone") == phone_filter:
+                        found.append(c)
+                        break
+                if found:
+                    break
+                if not last_eval:
+                    break
+                last_key_loop = last_eval
+            body: dict[str, Any] = {"contacts": found}
+            return success(body=body)
+
         items, last_eval = query_items(
             pk=pk,
             sk_prefix=CONTACT_SK_PREFIX,
@@ -61,10 +89,8 @@ def list_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             last_key=last_key,
         )
         contacts = [Contact.from_dynamo(item).to_dict() for item in items]
-        if phone_filter:
-            contacts = [c for c in contacts if c.get("phone") == phone_filter]
         next_token_out = _encode_next_token(last_eval)
-        body: dict[str, Any] = {"contacts": contacts}
+        body = {"contacts": contacts}
         if next_token_out:
             body["next_token"] = next_token_out
         return success(body=body)
@@ -111,6 +137,10 @@ def create_contact(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         item["last_activity_ts"] = contact_data.last_activity_ts
     if contact_data.tags is not None:
         item["tags"] = contact_data.tags
+    if contact_data.conversation_mode is not None:
+        item["conversation_mode"] = contact_data.conversation_mode
+    elif "conversation_mode" not in item:
+        item["conversation_mode"] = "bot"
 
     try:
         put_item(item)
@@ -155,7 +185,7 @@ def patch_contact(
 
     allowed = {
         "name", "phone", "email", "source_channel", "lead_status",
-        "tier", "total_spent", "last_activity_ts", "tags",
+        "tier", "total_spent", "last_activity_ts", "tags", "conversation_mode",
     }
     updates: dict[str, Any] = {}
     for key, value in body.items():
@@ -166,6 +196,11 @@ def patch_contact(
         return error(f"lead_status must be one of: {', '.join(sorted(VALID_LEAD_STATUSES))}", 400)
     if "tier" in updates and updates["tier"] not in VALID_TIERS:
         return error(f"tier must be one of: {', '.join(sorted(VALID_TIERS))}", 400)
+    if "conversation_mode" in updates and updates["conversation_mode"] not in VALID_CONVERSATION_MODES:
+        return error(
+            f"conversation_mode must be one of: {', '.join(sorted(VALID_CONVERSATION_MODES))}",
+            400,
+        )
     if "name" in updates and not updates["name"]:
         return error("name cannot be empty", 400)
 

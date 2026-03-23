@@ -116,6 +116,14 @@ resource "aws_apigatewayv2_integration" "contact" {
   payload_format_version = "2.0"
 }
 
+resource "aws_apigatewayv2_integration" "shop" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.services["shop"].invoke_arn
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
 # -----------------------------------------------------------------------------
 # Routes (with JWT authorizer except onboarding/tenant)
 # -----------------------------------------------------------------------------
@@ -483,6 +491,37 @@ resource "aws_apigatewayv2_route" "contact" {
   target    = "integrations/${aws_apigatewayv2_integration.contact.id}"
 }
 
+# Shop routes (public, token-verified inside Lambda)
+resource "aws_apigatewayv2_route" "shop_token" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /shop/token"
+  target    = "integrations/${aws_apigatewayv2_integration.shop.id}"
+}
+
+resource "aws_apigatewayv2_route" "shop_products" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /shop/products"
+  target    = "integrations/${aws_apigatewayv2_integration.shop.id}"
+}
+
+resource "aws_apigatewayv2_route" "shop_cart_get" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /shop/cart"
+  target    = "integrations/${aws_apigatewayv2_integration.shop.id}"
+}
+
+resource "aws_apigatewayv2_route" "shop_cart_post" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /shop/cart"
+  target    = "integrations/${aws_apigatewayv2_integration.shop.id}"
+}
+
+resource "aws_apigatewayv2_route" "shop_checkout" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /shop/checkout"
+  target    = "integrations/${aws_apigatewayv2_integration.shop.id}"
+}
+
 # -----------------------------------------------------------------------------
 # API Gateway Stage (default)
 # -----------------------------------------------------------------------------
@@ -503,7 +542,7 @@ resource "aws_apigatewayv2_stage" "default" {
 # -----------------------------------------------------------------------------
 
 resource "aws_lambda_permission" "api_gateway" {
-  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact"])
+  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact", "shop"])
 
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
