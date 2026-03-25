@@ -22,6 +22,10 @@ export function patchTransaction(id, data) {
   return api.patch(`/transactions/${id}`, data);
 }
 
+export function cancelTransaction(id) {
+  return api.delete(`/transactions/${id}`);
+}
+
 export function fetchDailySummary(date) {
   const qs = date ? `?date=${date}` : '';
   return api.get(`/transactions/summary${qs}`);

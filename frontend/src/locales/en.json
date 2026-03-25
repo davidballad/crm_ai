@@ -91,7 +91,7 @@
     "hero": {
       "badge": "For your business",
       "title": "You don't need more customers — you need to answer faster",
-      "subtitle": "One simple CRM: inventory, WhatsApp, leads, sales, and daily AI insights. Get started in minutes.",
+      "subtitle": "One simple CRM: inventory, WhatsApp, leads, and sales. AI insights on Pro. Every plan starts with a 14-day free trial—get started in minutes.",
       "getStarted": "Get started",
       "logIn": "Log in"
     },
@@ -159,12 +159,12 @@
     },
     "pricing": {
       "title": "Simple pricing",
-      "subtitle": "Start free, or unlock AI on Pro — pay monthly or annually (more savings). Contact us for a quote.",
+      "subtitle": "We don't offer a forever-free tier—every plan includes a 14-day free trial. Basic covers core CRM; Pro adds AI. Pay monthly or annually (more savings). Contact us for a quote.",
       "contactForPricing": "Contact for pricing",
       "contactInitialSetup": "Contact us for initial setup",
-      "starterName": "Free",
-      "starterPrice": "Free",
-      "starterDesc": "Core CRM for inventory and WhatsApp — ideal to get started.",
+      "starterName": "Basic",
+      "starterPrice": "14-day free trial",
+      "starterDesc": "Try the full core CRM—inventory, WhatsApp, leads, and reporting—then continue on Basic as a paid plan.",
       "growthName": "Pro",
       "growthPrice": "Paid",
       "growthDesc": "Monthly or annual billing — choose annual for the best savings.",
@@ -172,7 +172,7 @@
       "featureLeads": "Leads & messages",
       "featureWhatsApp": "WhatsApp integration",
       "featureAI": "AI insights",
-      "featureEverythingInFree": "Everything in Free",
+      "featureEverythingInBasic": "Everything in Basic",
       "featureReporting": "Transactions & reporting",
       "featureMonthlyOrAnnual": "Monthly or annual billing (save with annual)",
       "featureSupport": "Priority support"
@@ -243,7 +243,10 @@
     "linkWhatsApp": "Link WhatsApp",
     "cancel": "Cancel",
     "successLinked": "WhatsApp is linked. n8n can now resolve your business when messages arrive.",
-    "setupFailed": "Setup failed"
+    "setupFailed": "Setup failed",
+    "supportPhoneLabel": "Human support phone (WhatsApp or phone)",
+    "supportPhoneHint": "Digits only (country code + number). Shown to customers when they choose “Human agent” in chat.",
+    "supportPhoneDisplay": "Human support contact"
   },
   "transactions": {
     "title": "Transactions",
@@ -263,14 +266,11 @@
     "items": "Items",
     "total": "Total",
     "payment": "Payment",
-    "notes": "Notes"
-  },
-  "leadProfile": {
-    "whatsappReplies": "WhatsApp",
-    "conversationMode": {
-      "bot": "AI & automation (default)",
-      "human": "Human only (no AI replies)"
-    }
+    "notes": "Notes",
+    "cancelOrder": "Cancel order",
+    "cancelConfirm": "Cancel this transaction? This will remove it from history and restore inventory quantities.",
+    "cancelFailed": "Failed to cancel transaction",
+    "orderVerifiedMessage": "Order confirmed, thank you!"
   },
   "messages": {
     "title": "Messages",
@@ -288,5 +288,25 @@
     "selectConversation": "Select a conversation to view thread and reply",
     "backToList": "Back to conversations",
     "failedToSend": "Failed to send"
+  },
+  "shop": {
+    "missingToken": "Missing shop token",
+    "orderConfirmed": "Order confirmed",
+    "total": "Total",
+    "orderSentToWhatsapp": "We sent your order summary to WhatsApp. Reply there with your payment screenshot to complete the order.",
+    "openWhatsapp": "Open WhatsApp",
+    "all": "All",
+    "noImage": "No image",
+    "add": "Add",
+    "noProducts": "No products available.",
+    "cart": "Cart",
+    "cartEmpty": "Your cart is empty.",
+    "each": "each",
+    "orderNotesPlaceholder": "Add order notes (optional): allergies, no onions, extra spicy, etc.",
+    "placingOrder": "Placing order...",
+    "placeOrder": "Place order",
+    "item": "item",
+    "items": "items",
+    "viewCart": "View cart"
   }
 }

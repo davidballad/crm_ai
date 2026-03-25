@@ -252,6 +252,18 @@ resource "aws_apigatewayv2_route" "transactions_patch" {
   target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
 }
 
+resource "aws_apigatewayv2_route" "transactions_delete" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "DELETE /transactions/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+}
+
+resource "aws_apigatewayv2_route" "transactions_payment_proof" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /transactions/payment-proof"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+}
+
 # Cart routes (WhatsApp order flow; same transactions Lambda)
 resource "aws_apigatewayv2_route" "cart_get" {
   api_id    = aws_apigatewayv2_api.main.id
@@ -481,6 +493,12 @@ resource "aws_apigatewayv2_route" "onboarding_resolve_phone" {
 resource "aws_apigatewayv2_route" "onboarding_tenant_ids" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "GET /onboarding/tenant-ids"
+  target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
+}
+
+resource "aws_apigatewayv2_route" "onboarding_service_tenant" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /onboarding/service/tenant"
   target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
 }
 

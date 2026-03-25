@@ -7,6 +7,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from typing import Any
 
 import boto3
@@ -46,6 +47,84 @@ PRODUCT_SK_PREFIX = "PRODUCT#"
 GSI1_NAME = "GSI1"
 LIMIT_DEFAULT = 50
 LIMIT_MAX = 100
+SEARCH_SCAN_MAX = 500
+
+
+def _normalize_search_text(s: str) -> str:
+    if not s:
+        return ""
+    raw = unicodedata.normalize("NFD", s)
+    raw = "".join(c for c in raw if unicodedata.category(c) != "Mn")
+    return raw.lower()
+
+
+def _search_tokens(q: str) -> list[str]:
+    raw = _normalize_search_text(q)
+    return [t for t in re.split(r"[^\w]+", raw, flags=re.UNICODE) if len(t) >= 2]
+
+
+def _score_product(query_tokens: list[str], product: dict[str, Any]) -> float:
+    """Rank products by name/category/notes/tags match (tags weighted higher)."""
+    if not query_tokens:
+        return 0.0
+    name = _normalize_search_text(str(product.get("name") or ""))
+    cat = _normalize_search_text(str(product.get("category") or ""))
+    notes = _normalize_search_text(str(product.get("notes") or ""))
+    tags = product.get("tags")
+    tag_strs: list[str] = []
+    if isinstance(tags, list):
+        tag_strs = [_normalize_search_text(str(t)) for t in tags if t]
+    score = 0.0
+    for tok in query_tokens:
+        if tok in name:
+            score += 3.0
+        if tok in cat:
+            score += 2.0
+        if tok in notes:
+            score += 1.5
+        for tg in tag_strs:
+            if not tg:
+                continue
+            if tok == tg or tok in tg or tg in tok:
+                score += 6.0
+    return score
+
+
+def search_products(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """GET /inventory?search=...&limit=N — ranked product suggestions (tags + text)."""
+    params = event.get("queryStringParameters") or {}
+    q = (params.get("search") or "").strip()
+    try:
+        top = min(max(int(params.get("limit", 5)), 1), 25)
+    except (TypeError, ValueError):
+        top = 5
+    if not q:
+        return error("search query parameter is required", 400)
+    pk = build_pk(tenant_id)
+    all_items: list[dict[str, Any]] = []
+    last_key: dict[str, Any] | None = None
+    try:
+        while len(all_items) < SEARCH_SCAN_MAX:
+            batch, last_key = query_items(
+                pk=pk, sk_prefix=PRODUCT_SK_PREFIX, limit=100, last_key=last_key
+            )
+            all_items.extend(batch)
+            if not last_key:
+                break
+        query_tokens = _search_tokens(q)
+        if not query_tokens:
+            return success(body={"products": []})
+        scored: list[tuple[float, dict[str, Any]]] = []
+        for item in all_items:
+            prod = Product.from_dynamo(item).to_dict()
+            s = _score_product(query_tokens, prod)
+            if s > 0:
+                scored.append((s, prod))
+        scored.sort(key=lambda x: -x[0])
+        top_products = [p for _, p in scored[:top]]
+        return success(body={"products": top_products})
+    except DynamoDBError as e:
+        return server_error(str(e))
 INVENTORY_IMAGES_PREFIX = "inventory-images"
 PRESIGNED_EXPIRY = 300  # 5 minutes
 MAX_UPLOAD_IMAGE_URLS = 50
@@ -182,6 +261,8 @@ def get_upload_image_urls_bulk(
 def list_products(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """List products with optional category filter and pagination."""
     params = event.get("queryStringParameters") or {}
+    if (params.get("search") or "").strip():
+        return search_products(tenant_id, event)
     next_token = params.get("next_token")
     category = params.get("category")
     try:
@@ -272,6 +353,8 @@ def create_product(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         item["image_url"] = product_data.image_url
     if product_data.notes is not None:
         item["notes"] = product_data.notes
+    if product_data.tags is not None:
+        item["tags"] = product_data.tags
 
     try:
         put_item(item)
@@ -325,7 +408,7 @@ def update_product(
     # Build updates from allowed fields
     allowed = {
         "name", "category", "quantity", "unit_cost", "reorder_threshold",
-        "supplier_id", "sku", "unit", "image_url", "notes",
+        "supplier_id", "sku", "unit", "image_url", "notes", "tags",
     }
     updates: dict[str, Any] = {}
     for key, value in body.items():
@@ -362,11 +445,13 @@ def delete_product(tenant_id: str, product_id: str) -> dict[str, Any]:
     return no_content()
 
 
-CSV_TEMPLATE = "name,category,quantity,unit_cost,reorder_threshold,unit,sku,image_url,notes\n"
+CSV_TEMPLATE = (
+    "name,category,tags,quantity,unit_cost,reorder_threshold,unit,sku,image_url,notes\n"
+)
 
 REQUIRED_CSV_COLUMNS = {"name", "quantity"}
 VALID_CSV_COLUMNS = {
-    "name", "category", "quantity", "unit_cost",
+    "name", "category", "tags", "quantity", "unit_cost",
     "reorder_threshold", "unit", "sku", "image_url", "notes",
 }
 
@@ -375,9 +460,9 @@ def get_csv_template(tenant_id: str) -> dict[str, Any]:
     """Return a sample CSV template with example rows."""
     sample = (
         CSV_TEMPLATE
-        + 'Chicken Breast,Food,100,4.50,20,lb,,Fresh boneless\n'
-        + 'Rice,Food,200,1.20,30,lb,,Long grain\n'
-        + 'Cooking Oil,Food,50,3.00,10,bottle,,Vegetable oil\n'
+        + 'Chicken Breast,Food,"proteina,pollo",100,4.50,20,lb,,Fresh boneless\n'
+        + 'Rice,Food,granos,200,1.20,30,lb,,Long grain\n'
+        + 'Cooking Oil,Food,,50,3.00,10,bottle,,Vegetable oil\n'
     )
     return {
         "statusCode": 200,
@@ -470,6 +555,10 @@ def import_csv(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         sku = row.get("sku", "").strip() or None
         image_url = row.get("image_url", "").strip() or None
         notes = row.get("notes", "").strip() or None
+        tags_raw = row.get("tags", "").strip()
+        tags: list[str] | None = None
+        if tags_raw:
+            tags = [t.strip().lower() for t in tags_raw.split(",") if t.strip()]
 
         product_id = generate_id()
         sk = build_sk("PRODUCT", product_id)
@@ -498,6 +587,8 @@ def import_csv(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             item["image_url"] = image_url
         if notes:
             item["notes"] = notes
+        if tags:
+            item["tags"] = tags
 
         items_to_write.append(item)
         imported.append({"id": product_id, "name": name, "quantity": quantity})

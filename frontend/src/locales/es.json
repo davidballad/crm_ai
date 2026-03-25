@@ -91,7 +91,7 @@
     "hero": {
       "badge": "Para tu negocio",
       "title": "No necesitas más clientes — necesitas responder más rápido",
-      "subtitle": "Un solo CRM: inventario, WhatsApp, contactos, ventas e informes diarios con IA. Empieza en minutos.",
+      "subtitle": "Un solo CRM: inventario, WhatsApp, contactos y ventas. Informes con IA en Pro. Todos los planes incluyen 14 días de prueba gratis—empieza en minutos.",
       "getStarted": "Comenzar",
       "logIn": "Iniciar sesión"
     },
@@ -159,12 +159,12 @@
     },
     "pricing": {
       "title": "Precios simples",
-      "subtitle": "Empieza gratis o activa IA con Pro — pago mensual o anual (más ahorro). Contáctanos para una cotización.",
+      "subtitle": "No ofrecemos un plan gratuito permanente: todos los planes incluyen 14 días de prueba gratis. Básico cubre el CRM esencial; Pro añade IA. Pago mensual o anual (más ahorro). Contáctanos para una cotización.",
       "contactForPricing": "Solicitar precios",
       "contactInitialSetup": "Contáctanos para la configuración inicial",
-      "starterName": "Gratis",
-      "starterPrice": "Gratis",
-      "starterDesc": "CRM esencial para inventario y WhatsApp — ideal para empezar.",
+      "starterName": "Básico",
+      "starterPrice": "14 días de prueba gratis",
+      "starterDesc": "Prueba el CRM completo—inventario, WhatsApp, contactos e informes—y luego continúa en Básico con un plan de pago.",
       "growthName": "Pro",
       "growthPrice": "De pago",
       "growthDesc": "Facturación mensual o anual — elige anual para mayor ahorro.",
@@ -172,7 +172,7 @@
       "featureLeads": "Contactos y mensajes",
       "featureWhatsApp": "Integración WhatsApp",
       "featureAI": "Informes IA",
-      "featureEverythingInFree": "Todo lo del plan Gratis",
+      "featureEverythingInBasic": "Todo lo del plan Básico",
       "featureReporting": "Transacciones e informes",
       "featureMonthlyOrAnnual": "Pago mensual o anual (ahorro con anual)",
       "featureSupport": "Soporte prioritario"
@@ -243,7 +243,10 @@
     "linkWhatsApp": "Vincular WhatsApp",
     "cancel": "Cancelar",
     "successLinked": "WhatsApp vinculado. n8n puede resolver tu negocio cuando lleguen mensajes.",
-    "setupFailed": "Error de configuración"
+    "setupFailed": "Error de configuración",
+    "supportPhoneLabel": "Teléfono de atención humana (WhatsApp o fijo)",
+    "supportPhoneHint": "Solo dígitos (código de país + número). Se muestra cuando el cliente elige «Agente humano» en el chat.",
+    "supportPhoneDisplay": "Contacto de atención humana"
   },
   "transactions": {
     "title": "Transacciones",
@@ -263,14 +266,11 @@
     "items": "Productos",
     "total": "Total",
     "payment": "Pago",
-    "notes": "Notas"
-  },
-  "leadProfile": {
-    "whatsappReplies": "WhatsApp",
-    "conversationMode": {
-      "bot": "IA y automatización (predeterminado)",
-      "human": "Solo humano (sin respuestas de IA)"
-    }
+    "notes": "Notas",
+    "cancelOrder": "Cancelar pedido",
+    "cancelConfirm": "¿Cancelar esta transacción? Se eliminará del historial y se restaurará el inventario.",
+    "cancelFailed": "No se pudo cancelar la transacción",
+    "orderVerifiedMessage": "Pedido confirmado, ¡gracias!"
   },
   "messages": {
     "title": "Mensajes",
@@ -288,5 +288,25 @@
     "selectConversation": "Selecciona una conversación para ver el hilo y responder",
     "backToList": "Volver a conversaciones",
     "failedToSend": "Error al enviar"
+  },
+  "shop": {
+    "missingToken": "Falta el token de la tienda",
+    "orderConfirmed": "Pedido confirmado",
+    "total": "Total",
+    "orderSentToWhatsapp": "Enviamos el resumen de tu pedido por WhatsApp. Responde ahí con tu captura de pago para completar el pedido.",
+    "openWhatsapp": "Abrir WhatsApp",
+    "all": "Todos",
+    "noImage": "Sin imagen",
+    "add": "Agregar",
+    "noProducts": "No hay productos disponibles.",
+    "cart": "Carrito",
+    "cartEmpty": "Tu carrito está vacío.",
+    "each": "c/u",
+    "orderNotesPlaceholder": "Agrega notas del pedido (opcional): alergias, sin cebolla, extra picante, etc.",
+    "placingOrder": "Realizando pedido...",
+    "placeOrder": "Realizar pedido",
+    "item": "producto",
+    "items": "productos",
+    "viewCart": "Ver carrito"
   }
 }

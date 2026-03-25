@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchTransactions, recordSale, fetchDailySummary } from '../api/transactions';
 
-export function useTransactions(filters) {
+export function useTransactions(filters, queryOptions = {}) {
   return useQuery({
     queryKey: ['transactions', filters],
     queryFn: () => fetchTransactions(filters),
+    ...queryOptions,
   });
 }
 

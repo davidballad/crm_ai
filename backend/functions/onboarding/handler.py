@@ -456,6 +456,26 @@ def list_tenant_ids(event: dict[str, Any]) -> dict[str, Any]:
     return success(body={"tenant_ids": tenant_ids, "count": len(tenant_ids)})
 
 
+def get_service_tenant_context(event: dict[str, Any]) -> dict[str, Any]:
+    """GET /onboarding/service/tenant?tenant_id= — full tenant row including meta_access_token (n8n / automation only)."""
+    if not validate_service_key(event):
+        headers = event.get("headers") or {}
+        if not (headers.get("x-service-key") or headers.get("X-Service-Key")):
+            return error("X-Service-Key header required", 401)
+        return error("Invalid service key", 401)
+    params = event.get("queryStringParameters") or {}
+    tenant_id = (params.get("tenant_id") or "").strip()
+    if not tenant_id:
+        return error("tenant_id query parameter is required", 400)
+    try:
+        config = _load_tenant_config(tenant_id)
+    except DynamoDBError as e:
+        return server_error(str(e))
+    if not config:
+        return error("Tenant not found", 404)
+    return success(body=config)
+
+
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
@@ -477,6 +497,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # Service key only: list tenant IDs (for Phase 3 scheduler / multi-tenant n8n)
     if method == "GET" and ("/onboarding/tenant-ids" in path):
         return list_tenant_ids(event)
+
+    # Service key only: full tenant for n8n (WhatsApp send, Phase 3 nudges)
+    if method == "GET" and ("/onboarding/service/tenant" in path):
+        return get_service_tenant_context(event)
 
     # Auth required: setup and config
     if method == "POST" and ("/onboarding/setup" in path):

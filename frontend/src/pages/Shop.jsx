@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ShoppingCart, Plus, Minus, Trash2, X, ChevronUp } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
+const ORDER_NOTES_MAX_LEN = 300;
 
 async function shopFetch(path, token, options = {}) {
   const sep = path.includes('?') ? '&' : '?';
@@ -19,6 +21,7 @@ async function shopFetch(path, token, options = {}) {
 }
 
 export default function Shop() {
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const token = params.get('t') || '';
 
@@ -30,10 +33,10 @@ export default function Shop() {
   const [checkingOut, setCheckingOut] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
   const [filter, setFilter] = useState('');
-  const [customerName, setCustomerName] = useState('');
+  const [orderNotes, setOrderNotes] = useState('');
 
   useEffect(() => {
-    if (!token) { setErr('Missing shop token'); setLoading(false); return; }
+    if (!token) { setErr(t('shop.missingToken')); setLoading(false); return; }
     Promise.all([
       shopFetch('/shop/products', token),
       shopFetch('/shop/cart', token),
@@ -84,7 +87,7 @@ export default function Shop() {
     try {
       const res = await shopFetch('/shop/checkout', token, {
         method: 'POST',
-        body: JSON.stringify({ customer_name: customerName || 'Customer' }),
+        body: JSON.stringify({ order_notes: (orderNotes || '').trim() }),
       });
       setOrderResult(res);
       setCart([]);
@@ -93,7 +96,7 @@ export default function Shop() {
     } finally {
       setCheckingOut(false);
     }
-  }, [token, customerName]);
+  }, [token, orderNotes]);
 
   if (loading) {
     return (
@@ -118,12 +121,12 @@ export default function Shop() {
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-green-700">
             <ShoppingCart className="h-7 w-7" />
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Order confirmed</h1>
+          <h1 className="text-xl font-bold text-gray-900">{t('shop.orderConfirmed')}</h1>
           <p className="mt-2 text-gray-600">
-            Total: <span className="font-semibold">${Number(orderResult.total).toFixed(2)}</span>
+            {t('shop.total')}: <span className="font-semibold">${Number(orderResult.total).toFixed(2)}</span>
           </p>
           <p className="mt-4 text-sm text-gray-600">
-            We sent your order summary to WhatsApp. Reply there with your payment screenshot to complete the order.
+            {t('shop.orderSentToWhatsapp')}
           </p>
           {orderResult.wa_link && (
             <a
@@ -133,7 +136,7 @@ export default function Shop() {
               className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-sm font-medium text-white hover:bg-green-700 transition-colors"
             >
               <img src="/whatsapp-glyph.svg" alt="" className="h-5 w-5 brightness-0 invert" />
-              Open WhatsApp
+              {t('shop.openWhatsapp')}
             </a>
           )}
         </div>
@@ -173,7 +176,7 @@ export default function Shop() {
                 onClick={() => setFilter(c)}
                 className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${filter === c ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
               >
-                {c || 'All'}
+                {c || t('shop.all')}
               </button>
             ))}
           </div>
@@ -191,7 +194,7 @@ export default function Shop() {
                 {p.image_url ? (
                   <img src={p.image_url} alt={p.name} className="h-32 w-full object-cover" />
                 ) : (
-                  <div className="flex h-32 items-center justify-center bg-gray-100 text-gray-400 text-xs">No image</div>
+                  <div className="flex h-32 items-center justify-center bg-gray-100 text-gray-400 text-xs">{t('shop.noImage')}</div>
                 )}
                 <div className="flex flex-1 flex-col p-3">
                   <h3 className="text-sm font-medium text-gray-900 leading-tight">{p.name}</h3>
@@ -203,7 +206,7 @@ export default function Shop() {
                         onClick={() => updateCart(p.id, 'add')}
                         className="flex w-full items-center justify-center gap-1 rounded-lg bg-brand-600 py-2 text-xs font-medium text-white hover:bg-brand-700 transition-colors"
                       >
-                        <Plus className="h-3.5 w-3.5" /> Add
+                        <Plus className="h-3.5 w-3.5" /> {t('shop.add')}
                       </button>
                     ) : (
                       <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50">
@@ -223,7 +226,7 @@ export default function Shop() {
           })}
         </div>
         {filtered.length === 0 && (
-          <p className="mt-12 text-center text-sm text-gray-500">No products available.</p>
+          <p className="mt-12 text-center text-sm text-gray-500">{t('shop.noProducts')}</p>
         )}
       </main>
 
@@ -233,13 +236,13 @@ export default function Shop() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setCartOpen(false)} />
           <div className="relative z-50 max-h-[75vh] overflow-y-auto rounded-t-2xl border-t border-gray-200 bg-white shadow-xl">
             <div className="sticky top-0 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
-              <h2 className="text-base font-semibold text-gray-900">Cart ({cartCount})</h2>
+              <h2 className="text-base font-semibold text-gray-900">{t('shop.cart')} ({cartCount})</h2>
               <button type="button" onClick={() => setCartOpen(false)} className="rounded p-1 text-gray-500 hover:bg-gray-100">
                 <X className="h-5 w-5" />
               </button>
             </div>
             {cart.length === 0 ? (
-              <p className="p-6 text-center text-sm text-gray-500">Your cart is empty.</p>
+              <p className="p-6 text-center text-sm text-gray-500">{t('shop.cartEmpty')}</p>
             ) : (
               <>
                 <ul className="divide-y divide-gray-100 px-4">
@@ -247,7 +250,7 @@ export default function Shop() {
                     <li key={i.product_id} className="flex items-center gap-3 py-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{i.product_name}</p>
-                        <p className="text-xs text-gray-500">${Number(i.unit_price).toFixed(2)} each</p>
+                        <p className="text-xs text-gray-500">${Number(i.unit_price).toFixed(2)} {t('shop.each')}</p>
                       </div>
                       <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50">
                         <button type="button" onClick={() => updateCart(i.product_id, 'set', i.quantity - 1)} className="px-2 py-1 text-gray-600 hover:text-red-600">
@@ -266,23 +269,27 @@ export default function Shop() {
                 </ul>
                 <div className="border-t border-gray-100 px-4 py-4">
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium text-gray-700">Total</span>
+                    <span className="text-sm font-medium text-gray-700">{t('shop.total')}</span>
                     <span className="text-lg font-bold text-gray-900">${cartTotal.toFixed(2)}</span>
                   </div>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={e => setCustomerName(e.target.value)}
-                    placeholder="Your name (optional)"
+                  <textarea
+                    value={orderNotes}
+                    onChange={e => setOrderNotes(e.target.value.slice(0, ORDER_NOTES_MAX_LEN))}
+                    placeholder={t('shop.orderNotesPlaceholder')}
+                    rows={3}
+                    maxLength={ORDER_NOTES_MAX_LEN}
                     className="mb-3 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                   />
+                  <p className="mb-3 text-right text-xs text-gray-500">
+                    {orderNotes.length}/{ORDER_NOTES_MAX_LEN}
+                  </p>
                   <button
                     type="button"
                     onClick={handleCheckout}
                     disabled={checkingOut || cart.length === 0}
                     className="w-full rounded-lg bg-green-600 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {checkingOut ? 'Placing order...' : 'Place order'}
+                    {checkingOut ? t('shop.placingOrder') : t('shop.placeOrder')}
                   </button>
                 </div>
               </>
@@ -296,14 +303,16 @@ export default function Shop() {
         <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-gray-200 bg-white px-4 py-3 shadow-lg">
           <div className="mx-auto flex max-w-2xl items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-gray-900">{cartCount} item{cartCount !== 1 ? 's' : ''} — ${cartTotal.toFixed(2)}</p>
+              <p className="text-sm font-semibold text-gray-900">
+                {cartCount} {t(cartCount !== 1 ? 'shop.items' : 'shop.item')} — ${cartTotal.toFixed(2)}
+              </p>
             </div>
             <button
               type="button"
               onClick={() => setCartOpen(true)}
               className="flex items-center gap-1.5 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700 transition-colors"
             >
-              <ChevronUp className="h-4 w-4" /> View cart
+              <ChevronUp className="h-4 w-4" /> {t('shop.viewCart')}
             </button>
           </div>
         </div>

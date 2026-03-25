@@ -125,7 +125,7 @@ export default function WhatsAppSetup() {
               Phone number ID: <code className="rounded bg-gray-100 px-1.5 py-0.5">{config.meta_phone_number_id}</code>
             </p>
             <p className="mt-1 text-sm text-gray-600">
-              Business phone: <code className="rounded bg-gray-100 px-1.5 py-0.5">{normalizePhoneNumber(config.phone_number || config.settings?.phone_number) || '—'}</code>
+              {t('whatsapp.supportPhoneDisplay')}: <code className="rounded bg-gray-100 px-1.5 py-0.5">{normalizePhoneNumber(config.phone_number || config.settings?.phone_number) || '—'}</code>
             </p>
             {config.meta_business_account_id && (
               <p className="mt-1 text-sm text-gray-600">
@@ -197,7 +197,7 @@ export default function WhatsAppSetup() {
 
           <div>
             <label htmlFor="business_phone_number" className="mb-1 block text-sm font-medium text-gray-700">
-              Business phone number
+              {t('whatsapp.supportPhoneLabel')}
             </label>
             <input
               id="business_phone_number"

@@ -473,7 +473,7 @@ export default function Landing() {
               <p className="mt-1 text-2xl font-bold text-brand-600">{t('landing.pricing.growthPrice')}</p>
               <p className="mt-2 text-sm text-gray-600">{t('landing.pricing.growthDesc')}</p>
               <ul className="mt-6 space-y-3">
-                {['featureEverythingInFree', 'featureLeads', 'featureAI', 'featureMonthlyOrAnnual', 'featureSupport'].map((k) => (
+                {['featureEverythingInBasic', 'featureLeads', 'featureAI', 'featureMonthlyOrAnnual', 'featureSupport'].map((k) => (
                   <li key={k} className="flex items-center gap-2 text-sm text-gray-700">
                     <Check className="h-4 w-4 shrink-0 text-green-600" />
                     {t(`landing.pricing.${k}`)}

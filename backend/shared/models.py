@@ -47,6 +47,7 @@ class Product(_BaseModel):
     name: str
     id: str | None = None
     category: str | None = None
+    tags: list[str] | None = None
     quantity: int = 0
     unit_cost: Decimal | None = None
     reorder_threshold: int = 10
@@ -80,6 +81,7 @@ class Transaction(_BaseModel):
     idempotency_key: str | None = None
     square_payment_id: str | None = None
     customer_phone: str | None = None
+    order_notes: str | None = None
     payment_reference: str | None = None
     payment_verification_status: str | None = None
     payment_proof_s3_key: str | None = None

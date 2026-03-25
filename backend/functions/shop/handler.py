@@ -22,6 +22,7 @@ from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
 GRAPH_API_VERSION = "v21.0"
 TOKEN_TTL_SECONDS = 86400  # 24 h
 PAYMENT_STATUS_AWAITING = "awaiting_verification"
+ORDER_NOTES_MAX_LEN = 300
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +242,9 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
     """POST /shop/checkout — creates transaction from cart, sends WhatsApp summary, clears cart."""
     body = parse_body(event)
     customer_name = (body.get("customer_name") or "Customer").strip()
+    order_notes = (body.get("order_notes") or "").strip()
+    if len(order_notes) > ORDER_NOTES_MAX_LEN:
+        return error(f"order_notes must be <= {ORDER_NOTES_MAX_LEN} characters", 400)
 
     pk = build_pk(tenant_id)
     cart_sk = _cart_sk(customer_phone)
@@ -277,7 +281,16 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         except DynamoDBError as e:
             return server_error(str(e))
 
-    txn = Transaction(items=txn_items, total=total, payment_method="whatsapp", contact_id=contact_id, customer_phone=customer_phone, payment_verification_status=PAYMENT_STATUS_AWAITING, status="pending")
+    txn = Transaction(
+        items=txn_items,
+        total=total,
+        payment_method="whatsapp",
+        contact_id=contact_id,
+        customer_phone=customer_phone,
+        order_notes=order_notes or None,
+        payment_verification_status=PAYMENT_STATUS_AWAITING,
+        status="pending",
+    )
     txn.id = generate_id()
     txn.created_at = now
     sk_txn = f"TXN#{txn.created_at}#{txn.id}"
@@ -302,7 +315,24 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
     # Send WhatsApp order summary
     tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
     summary = "\n".join(lines) + f"\n———\nTotal: ${total:.2f}"
-    wa_text = f"Order #{txn.id[:8]} confirmed.\n\n{summary}\n\nTo complete payment, reply here with a screenshot of your transfer."
+    notes_block = f"\nNotes: {order_notes}" if order_notes else ""
+    bank_lines: list[str] = []
+    if tenant.get("bank_name"):
+        bank_lines.append(f"Banco: {tenant.get('bank_name')}")
+    if tenant.get("person_name"):
+        bank_lines.append(f"Titular: {tenant.get('person_name')}")
+    if tenant.get("account_type"):
+        bank_lines.append(f"Tipo de cuenta: {tenant.get('account_type')}")
+    if tenant.get("account_id"):
+        bank_lines.append(f"Cuenta: {tenant.get('account_id')}")
+    if tenant.get("identification_number"):
+        bank_lines.append(f"Referencia: {tenant.get('identification_number')}")
+    bank_block = f"\n\nDatos bancarios:\n" + "\n".join(bank_lines) if bank_lines else ""
+
+    wa_text = (
+        f"Orden #{txn.id[:8]} confirmada.\n\n{summary}{notes_block}{bank_block}\n\n"
+        "Para completar el pago, responde aquí con una captura de tu transferencia."
+    )
     _send_whatsapp_message(tenant, customer_phone, wa_text)
 
     # Build wa.me link for frontend

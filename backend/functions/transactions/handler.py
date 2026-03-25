@@ -14,7 +14,7 @@ import os
 import boto3
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-from shared.db import query_items, transact_write, get_table, update_item, get_item, put_item
+from shared.db import query_items, transact_write, get_table, update_item, get_item, put_item, delete_item
 from shared.db import DynamoDBError
 from shared.auth import require_auth
 from shared.response import success, created, not_found, error, server_error, no_content
@@ -27,6 +27,7 @@ from botocore.exceptions import ClientError
 GRAPH_API_VERSION = "v21.0"
 PAYMENT_STATUS_AWAITING = "awaiting_verification"
 PAYMENT_STATUS_VERIFIED = "verified"
+ORDER_NOTES_MAX_LEN = 300
 
 _s3_client = boto3.client("s3")
 
@@ -382,6 +383,79 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
     return success(body=_transaction_response(updated_item, include_proof_url=True))
 
 
+def _find_transaction_item_by_id(tenant_id: str, transaction_id: str) -> dict[str, Any] | None:
+    """Find and return raw transaction item by transaction id."""
+    pk = build_pk(tenant_id)
+    last_key: dict[str, Any] | None = None
+    while True:
+        items, last_key = query_items(pk, sk_prefix="TXN#", limit=100, last_key=last_key)
+        for item in items:
+            if item.get("id") == transaction_id:
+                return item
+        if not last_key:
+            break
+    return None
+
+
+def cancel_transaction(tenant_id: str, transaction_id: str) -> dict[str, Any]:
+    """DELETE /transactions/{id} — restore inventory and remove transaction from history."""
+    transaction_item = _find_transaction_item_by_id(tenant_id, transaction_id)
+    if not transaction_item:
+        return not_found("Transaction not found")
+
+    pk = build_pk(tenant_id)
+    transaction = Transaction.from_dynamo(transaction_item)
+
+    # Restore inventory quantities for all transaction lines.
+    for line in transaction.items or []:
+        product_id = line.get("product_id") if isinstance(line, dict) else getattr(line, "product_id", None)
+        if not product_id:
+            continue
+        qty = _line_quantity(line)
+        if qty <= 0:
+            continue
+        product_sk = build_sk("PRODUCT", product_id)
+        try:
+            product_item = get_item(pk, product_sk, consistent_read=True)
+            if not product_item:
+                continue
+            current_qty = int(product_item.get("quantity", 0))
+            update_item(
+                pk=pk,
+                sk=product_sk,
+                updates={"quantity": current_qty + qty, "updated_at": now_iso()},
+            )
+        except DynamoDBError as e:
+            return server_error(f"Failed to restore inventory for product {product_id}: {e}")
+
+    # Adjust contact total_spent best-effort when contact exists.
+    contact_id = transaction_item.get("contact_id")
+    if contact_id:
+        contact_sk = build_sk("CONTACT", contact_id)
+        try:
+            contact_item = get_item(pk, contact_sk, consistent_read=True)
+            if contact_item is not None:
+                current_total = Decimal(str(contact_item.get("total_spent", "0")))
+                tx_total = Decimal(str(transaction_item.get("total", "0")))
+                new_total = current_total - tx_total
+                if new_total < 0:
+                    new_total = Decimal("0")
+                update_item(
+                    pk=pk,
+                    sk=contact_sk,
+                    updates={"total_spent": new_total, "last_activity_ts": now_iso()},
+                )
+        except Exception:
+            pass
+
+    try:
+        delete_item(pk=transaction_item["pk"], sk=transaction_item["sk"])
+    except DynamoDBError as e:
+        return server_error(f"Failed to delete transaction: {e}")
+
+    return success({"message": "Transaction canceled", "transaction_id": transaction_id})
+
+
 def _line_quantity(line: Any) -> int:
     """Safely get quantity from a line item (dict from DynamoDB or TransactionItem)."""
     if line is None:
@@ -588,7 +662,7 @@ def _mark_conversation_closed(pk: str, customer_phone: str) -> None:
 
 
 def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """POST /cart/checkout — body: customer_id, customer_name, customer_phone. Creates transaction from cart, clears cart, returns transaction. Updates or creates contact with total_spent."""
+    """POST /cart/checkout — body: customer_id, customer_name, customer_phone, order_notes."""
     try:
         body = parse_body(event)
     except Exception:
@@ -602,6 +676,9 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         or (body or {}).get("phone")
         or ""
     )
+    order_notes = ((body or {}).get("order_notes") or "").strip()
+    if len(order_notes) > ORDER_NOTES_MAX_LEN:
+        return error(f"order_notes must be <= {ORDER_NOTES_MAX_LEN} characters", 400)
     if not customer_id:
         return error("customer_id required", 400)
     pk = build_pk(tenant_id)
@@ -687,6 +764,7 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         payment_method="whatsapp",
         contact_id=contact_id,
         customer_phone=effective_phone,
+        order_notes=order_notes or None,
         payment_verification_status=PAYMENT_STATUS_AWAITING,
         status="pending",
     )
@@ -728,16 +806,21 @@ def _find_latest_awaiting_transaction_item(tenant_id: str, customer_phone: str) 
     if not normalized:
         return None
     last_key: dict[str, Any] | None = None
+    latest_match: dict[str, Any] | None = None
+    latest_created_at = ""
     while True:
         items, last_key = query_items(pk, sk_prefix="TXN#", limit=100, last_key=last_key)
         for item in items:
             if item.get("payment_verification_status") != PAYMENT_STATUS_AWAITING:
                 continue
             if _normalize_phone(item.get("customer_phone")) == normalized:
-                return item
+                created_at = str(item.get("created_at") or "")
+                if created_at >= latest_created_at:
+                    latest_created_at = created_at
+                    latest_match = item
         if not last_key:
             break
-    return None
+    return latest_match
 
 
 def _fetch_whatsapp_media(tenant_access_token: str, media_id: str) -> tuple[bytes, str | None, str | None]:
@@ -885,6 +968,11 @@ def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]
     if method == "PATCH" and path.startswith("/transactions/"):
         txn_id = path_params.get("id") or path.split("/")[-1]
         return patch_transaction(tenant_id, txn_id, event)
+
+    # DELETE /transactions/{id} - cancel transaction (restock + remove)
+    if method == "DELETE" and path.startswith("/transactions/"):
+        txn_id = path_params.get("id") or path.split("/")[-1]
+        return cancel_transaction(tenant_id, txn_id)
 
     # Cart (WhatsApp order flow)
     if method == "GET" and (path == "/cart" or path.endswith("/cart")):

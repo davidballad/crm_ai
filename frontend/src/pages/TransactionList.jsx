@@ -1,14 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTransactions, useDailySummary } from '../hooks/useTransactions';
-import { patchTransaction, fetchTransaction } from '../api/transactions';
+import { patchTransaction, fetchTransaction, cancelTransaction } from '../api/transactions';
 import { sendMessage } from '../api/messages';
 import StatsCard from '../components/StatsCard';
 import { ShoppingCart, DollarSign, Receipt, CreditCard } from 'lucide-react';
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 export default function TransactionList() {
@@ -26,11 +30,75 @@ export default function TransactionList() {
   const [detailsError, setDetailsError] = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState('');
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState('');
 
-  const { data, isLoading, error } = useTransactions(filters);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem('clienta-notification-sound') === 'true';
+  });
+  const knownProofTxIdsRef = useRef(new Set());
+  const notificationInitRef = useRef(false);
+
+  const { data, isLoading, error } = useTransactions(filters, {
+    refetchInterval: 15000,
+    refetchIntervalInBackground: true,
+  });
   const { data: summary } = useDailySummary(todayStr());
 
   const transactions = data?.transactions || data?.items || [];
+
+  const playAlertTone = () => {
+    if (!soundEnabled || typeof window === 'undefined') return;
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    try {
+      const ctx = new AudioCtx();
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+      oscillator.frequency.setValueAtTime(660, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.28);
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.3);
+      oscillator.onended = () => ctx.close().catch(() => {});
+    } catch {
+      // Best effort only; browser may block audio until explicit user interaction.
+    }
+  };
+
+  const sendBrowserNotification = (tx) => {
+    if (typeof window === 'undefined') return;
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    const ref = tx.payment_reference || tx.id || 'order';
+    const total = Number(tx.total || 0).toFixed(2);
+    const body = `Transfer screenshot received (${ref}) - Total: $${total}`;
+    try {
+      const n = new Notification('New payment proof to verify', { body });
+      n.onclick = () => {
+        window.focus();
+        openVerification(tx);
+      };
+    } catch {
+      // Ignore notification failures on restricted browsers.
+    }
+  };
+
+  const enableBrowserNotifications = async () => {
+    if (typeof window === 'undefined') return;
+    if (!('Notification' in window)) return;
+    try {
+      await Notification.requestPermission();
+    } catch {
+      // Ignore prompt errors on unsupported browser contexts.
+    }
+  };
 
   const openVerification = async (tx) => {
     if (!tx?.id) return;
@@ -52,6 +120,7 @@ export default function TransactionList() {
     setSelectedTx(null);
     setDetailsError('');
     setVerifyError('');
+    setCancelError('');
   };
 
   const handleVerify = async () => {
@@ -62,13 +131,53 @@ export default function TransactionList() {
       const updated = await patchTransaction(selectedTx.id, { payment_verification_status: 'verified' });
       setSelectedTx(updated);
       if (selectedTx.customer_phone) {
-        await sendMessage({ to_number: selectedTx.customer_phone, text: 'Order Confirmed, thank you!' });
+        await sendMessage({
+          to_number: selectedTx.customer_phone,
+          text: t('transactions.orderVerifiedMessage'),
+        });
       }
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
     } catch (err) {
       setVerifyError(err.message || 'Failed to verify payment');
     } finally {
       setVerifyLoading(false);
+    }
+  };
+
+  const handleCancelTransaction = async () => {
+    if (!selectedTx?.id) return;
+    const confirmed = window.confirm(
+      'Cancel this transaction? This will remove it from history and restore inventory quantities.',
+    );
+    if (!confirmed) return;
+    setCancelError('');
+    setCancelLoading(true);
+    try {
+      await cancelTransaction(selectedTx.id);
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['daily-summary'] });
+      closeVerification();
+    } catch (err) {
+      setCancelError(err.message || 'Failed to cancel transaction');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const handleCancelFromRow = async (tx) => {
+    if (!tx?.id) return;
+    const confirmed = window.confirm(
+      t('transactions.cancelConfirm'),
+    );
+    if (!confirmed) return;
+    try {
+      await cancelTransaction(tx.id);
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['daily-summary'] });
+    } catch (err) {
+      setCancelError(err.message || t('transactions.cancelFailed'));
     }
   };
 
@@ -80,11 +189,84 @@ export default function TransactionList() {
     return <span className="inline-flex rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Waiting for verification</span>;
   };
 
+  useEffect(() => {
+    const syncTodayIfNeeded = () => {
+      if (activeTab !== 'today') return;
+      const today = todayStr();
+      if (filters.startDate !== today || filters.endDate !== today) {
+        setFilters({ startDate: today, endDate: today });
+      }
+    };
+
+    syncTodayIfNeeded();
+    window.addEventListener('focus', syncTodayIfNeeded);
+    document.addEventListener('visibilitychange', syncTodayIfNeeded);
+    return () => {
+      window.removeEventListener('focus', syncTodayIfNeeded);
+      document.removeEventListener('visibilitychange', syncTodayIfNeeded);
+    };
+  }, [activeTab, filters.startDate, filters.endDate]);
+
+  useEffect(() => {
+    const pendingProofTx = transactions.filter(
+      (tx) => tx?.id && tx?.has_payment_proof && tx?.payment_verification_status !== 'verified',
+    );
+    const currentIds = new Set(pendingProofTx.map((tx) => tx.id));
+
+    if (!notificationInitRef.current) {
+      knownProofTxIdsRef.current = currentIds;
+      notificationInitRef.current = true;
+      return;
+    }
+
+    pendingProofTx.forEach((tx) => {
+      if (!knownProofTxIdsRef.current.has(tx.id)) {
+        sendBrowserNotification(tx);
+        playAlertTone();
+      }
+    });
+
+    currentIds.forEach((id) => knownProofTxIdsRef.current.add(id));
+  }, [transactions]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('clienta-notification-sound', soundEnabled ? 'true' : 'false');
+  }, [soundEnabled]);
+
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-xl font-bold text-gray-900">{t('transactions.title')}</h1>
         <p className="text-sm text-gray-500">{t('transactions.subtitle')}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="rounded-md border border-brand-200 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
+            onClick={enableBrowserNotifications}
+          >
+            {typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+              ? 'Browser alerts enabled'
+              : 'Enable browser alerts'}
+          </button>
+          <button
+            type="button"
+            className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
+              soundEnabled
+                ? 'border-green-200 text-green-700 hover:bg-green-50'
+                : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+            }`}
+            onClick={() => {
+              setSoundEnabled((prev) => !prev);
+              if (!soundEnabled) playAlertTone();
+            }}
+          >
+            {soundEnabled ? 'Sound alert: on' : 'Sound alert: off'}
+          </button>
+          <p className="text-xs text-gray-500">
+            Live checks run every 15s while this page is open.
+          </p>
+        </div>
       </div>
 
       {/* Date range tabs */}
@@ -211,43 +393,58 @@ export default function TransactionList() {
                 <th className="px-4 py-3">{t('transactions.date')}</th>
                 <th className="px-4 py-3">Reference</th>
                 <th className="px-4 py-3">{t('transactions.items')}</th>
+                <th className="px-4 py-3">Notes</th>
                 <th className="px-4 py-3 text-right">{t('transactions.total')}</th>
                 <th className="px-4 py-3">{t('transactions.payment')}</th>
                 <th className="px-4 py-3">Payment verification</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {transactions.map((t, i) => (
-                <tr key={t.id || i} className="hover:bg-gray-50 transition-colors">
+              {transactions.map((tx, i) => (
+                <tr key={tx.id || i} className="hover:bg-gray-50 transition-colors">
                   <td className="whitespace-nowrap px-4 py-3 text-gray-500">
-                    {t.created_at ? new Date(t.created_at).toLocaleString() : '—'}
+                    {tx.created_at ? new Date(tx.created_at).toLocaleString() : '—'}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-xs font-medium text-gray-700">
-                    {t.payment_reference || t.id || '—'}
+                    {tx.payment_reference || tx.id || '—'}
                   </td>
                   <td className="px-4 py-3">
-                    {(t.items || []).map((item) => (
+                    {(tx.items || []).map((item) => (
                       <span key={item.product_id} className="mr-2 inline-block rounded bg-gray-100 px-2 py-0.5 text-xs">
                         {item.product_name} x{item.quantity}
                       </span>
                     ))}
                   </td>
+                  <td className="max-w-[240px] px-4 py-3 text-xs text-gray-600">
+                    <span className="line-clamp-2">{tx.order_notes || '—'}</span>
+                  </td>
                   <td className="px-4 py-3 text-right font-medium tabular-nums">
-                    ${Number(t.total || 0).toFixed(2)}
+                    ${Number(tx.total || 0).toFixed(2)}
                   </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium capitalize text-gray-700">
-                      {t.payment_method}
+                      {tx.payment_method}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      className="rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
-                      onClick={() => openVerification(t)}
-                    >
-                      {verificationTag(t)}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        onClick={() => openVerification(tx)}
+                      >
+                        {verificationTag(tx)}
+                      </button>
+                      {tx.payment_verification_status !== 'verified' && (
+                        <button
+                          type="button"
+                          className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+                          onClick={() => handleCancelFromRow(tx)}
+                        >
+                          {t('transactions.cancelOrder')}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -272,6 +469,7 @@ export default function TransactionList() {
                 <p><span className="font-medium">Reference:</span> {selectedTx.payment_reference || selectedTx.id || '—'}</p>
                 <p><span className="font-medium">Customer phone:</span> {selectedTx.customer_phone || '—'}</p>
                 <p><span className="font-medium">Total:</span> ${Number(selectedTx.total || 0).toFixed(2)}</p>
+                <p><span className="font-medium">Notes:</span> {selectedTx.order_notes || '—'}</p>
               </div>
               {selectedTx.payment_proof_url ? (
                 <div className="overflow-hidden rounded-lg border border-gray-200">
@@ -283,8 +481,17 @@ export default function TransactionList() {
                 </div>
               )}
               {verifyError && <p className="text-sm text-red-600">{verifyError}</p>}
+              {cancelError && <p className="text-sm text-red-600">{cancelError}</p>}
             </div>
             <div className="flex justify-end gap-2 border-t border-gray-200 px-4 py-3">
+              <button
+                type="button"
+                className="rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={handleCancelTransaction}
+                disabled={verifyLoading || cancelLoading}
+              >
+                {cancelLoading ? 'Canceling...' : 'Cancel transaction'}
+              </button>
               <button type="button" className="btn-secondary" onClick={closeVerification}>
                 Cancel
               </button>
