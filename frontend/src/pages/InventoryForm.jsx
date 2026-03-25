@@ -15,6 +15,7 @@ const EMPTY = {
   unit: 'each',
   image_url: '',
   notes: '',
+  tags: '',
 };
 
 export default function InventoryForm() {
@@ -45,6 +46,7 @@ export default function InventoryForm() {
         unit: product.unit || 'each',
         image_url: product.image_url || '',
         notes: product.notes || '',
+        tags: Array.isArray(product.tags) ? product.tags.join(', ') : (product.tags || ''),
       });
     }
   }, [existing]);
@@ -80,12 +82,14 @@ export default function InventoryForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    const rawTags = (form.tags || '').split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
     const payload = {
       ...form,
       quantity: Number(form.quantity),
       unit_cost: form.unit_cost ? Number(form.unit_cost) : undefined,
       reorder_threshold: Number(form.reorder_threshold),
       image_url: form.image_url?.trim() || undefined,
+      tags: rawTags.length > 0 ? rawTags : undefined,
     };
 
     try {
@@ -224,6 +228,17 @@ export default function InventoryForm() {
           <div className="sm:col-span-2">
             <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.notes')}</label>
             <textarea rows={3} value={form.notes} onChange={update('notes')} className="input-field" />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.tags')}</label>
+            <input
+              value={form.tags}
+              onChange={update('tags')}
+              className="input-field"
+              placeholder={t('inventoryForm.tagsPlaceholder')}
+            />
+            <p className="mt-1 text-xs text-gray-500">{t('inventoryForm.tagsHint')}</p>
           </div>
         </div>
 

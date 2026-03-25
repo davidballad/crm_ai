@@ -48,6 +48,24 @@ GSI1_NAME = "GSI1"
 LIMIT_DEFAULT = 50
 LIMIT_MAX = 100
 SEARCH_SCAN_MAX = 500
+AUTO_TAG_STOPWORDS = {
+    "de",
+    "del",
+    "la",
+    "las",
+    "el",
+    "los",
+    "y",
+    "con",
+    "para",
+    "por",
+    "en",
+    "a",
+    "the",
+    "and",
+    "for",
+    "with",
+}
 
 
 def _normalize_search_text(s: str) -> str:
@@ -61,6 +79,61 @@ def _normalize_search_text(s: str) -> str:
 def _search_tokens(q: str) -> list[str]:
     raw = _normalize_search_text(q)
     return [t for t in re.split(r"[^\w]+", raw, flags=re.UNICODE) if len(t) >= 2]
+
+
+def _sanitize_tag_list(values: Any) -> list[str]:
+    """Normalize/dedupe tag arrays from UI/API/CSV."""
+    if not isinstance(values, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        tag = _normalize_search_text(str(value or "")).strip()
+        if len(tag) < 2:
+            continue
+        if tag in seen:
+            continue
+        seen.add(tag)
+        out.append(tag)
+    return out
+
+
+def _auto_tags_from_fields(name: Any, category: Any, notes: Any) -> list[str]:
+    """Create lightweight tags from product text fields."""
+    text = " ".join([str(name or ""), str(category or ""), str(notes or "")]).strip()
+    if not text:
+        return []
+    tokens = _search_tokens(text)
+    out: list[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        if token in AUTO_TAG_STOPWORDS:
+            continue
+        if token in seen:
+            continue
+        seen.add(token)
+        out.append(token)
+        if len(out) >= 12:
+            break
+    return out
+
+
+def _build_product_tags(
+    *,
+    manual_tags: Any,
+    name: Any,
+    category: Any,
+    notes: Any,
+) -> list[str] | None:
+    """Merge manual tags + auto-generated tags and return deduped list."""
+    merged: list[str] = []
+    seen: set[str] = set()
+    for tag in _sanitize_tag_list(manual_tags) + _auto_tags_from_fields(name, category, notes):
+        if tag in seen:
+            continue
+        seen.add(tag)
+        merged.append(tag)
+    return merged or None
 
 
 def _score_product(query_tokens: list[str], product: dict[str, Any]) -> float:
@@ -353,8 +426,14 @@ def create_product(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         item["image_url"] = product_data.image_url
     if product_data.notes is not None:
         item["notes"] = product_data.notes
-    if product_data.tags is not None:
-        item["tags"] = product_data.tags
+    tags = _build_product_tags(
+        manual_tags=product_data.tags,
+        name=product_data.name,
+        category=product_data.category,
+        notes=product_data.notes,
+    )
+    if tags:
+        item["tags"] = tags
 
     try:
         put_item(item)
@@ -422,6 +501,19 @@ def update_product(
         category_val = updates["category"]
         updates["gsi1pk"] = pk
         updates["gsi1sk"] = f"CATEGORY#{category_val}"
+
+    # Keep tags smart and self-healing on every edit.
+    effective_name = updates.get("name", existing.get("name"))
+    effective_category = updates.get("category", existing.get("category"))
+    effective_notes = updates.get("notes", existing.get("notes"))
+    effective_manual_tags = updates.get("tags", existing.get("tags"))
+    computed_tags = _build_product_tags(
+        manual_tags=effective_manual_tags,
+        name=effective_name,
+        category=effective_category,
+        notes=effective_notes,
+    )
+    updates["tags"] = computed_tags or []
 
     try:
         updated_item = update_item(pk=pk, sk=sk, updates=updates)
@@ -587,8 +679,14 @@ def import_csv(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             item["image_url"] = image_url
         if notes:
             item["notes"] = notes
-        if tags:
-            item["tags"] = tags
+        computed_tags = _build_product_tags(
+            manual_tags=tags,
+            name=name,
+            category=category,
+            notes=notes,
+        )
+        if computed_tags:
+            item["tags"] = computed_tags
 
         items_to_write.append(item)
         imported.append({"id": product_id, "name": name, "quantity": quantity})
