@@ -80,7 +80,24 @@
     "reorderSuggestions": "Reorder Suggestions",
     "spendingTrends": "Spending Trends",
     "revenueByDay": "Revenue by day of week",
-    "revenueInsights": "Revenue Insights"
+    "revenueInsights": "Revenue Insights",
+    "leadInsights": "Pipeline & leads",
+    "leadPipeline": "Leads by status",
+    "leadTiers": "Leads by tier",
+    "topProducts": "Top products by revenue (30 days)",
+    "funnelSnapshot": "Lead funnel (snapshot)",
+    "funnelDisclaimer": "Shows how many contacts are in each stage today. Ratios compare current stage sizes, not conversion of a single cohort over time.",
+    "funnelContacts": "Contacts",
+    "funnelNoPipeline": "No contacts in prospect, interested, or closed won yet.",
+    "funnelAbandoned": "{{count}} marked abandoned",
+    "funnelRatePI": "Prospect → interested: {{pct}}%",
+    "funnelRateIC": "Interested → closed won: {{pct}}%",
+    "funnelRatePC": "Prospect → closed won: {{pct}}%",
+    "funnelStage": {
+      "prospect": "Prospect",
+      "interested": "Interested",
+      "closed_won": "Closed won"
+    }
   },
   "landing": {
     "nav": {
@@ -293,6 +310,9 @@
     "failedToSend": "Failed to send"
   },
   "shop": {
+    "pageTitle": "Order online",
+    "poweredBy": "Powered by",
+    "poweredByAria": "Powered by Clienta AI",
     "missingToken": "Missing shop token",
     "orderConfirmed": "Order confirmed",
     "total": "Total",
@@ -301,6 +321,7 @@
     "all": "All",
     "noImage": "No image",
     "add": "Add",
+    "notAvailable": "Not available",
     "noProducts": "No products available.",
     "cart": "Cart",
     "cartEmpty": "Your cart is empty.",

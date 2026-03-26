@@ -32,6 +32,16 @@ ORDER_NOTES_MAX_LEN = 300
 _s3_client = boto3.client("s3")
 
 
+def _inventory_stock_qty(product_item: dict[str, Any]) -> int:
+    q = product_item.get("quantity", 0)
+    if isinstance(q, Decimal):
+        return max(int(q), 0)
+    try:
+        return max(int(q or 0), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _get_method(event: dict[str, Any]) -> str:
     """Extract HTTP method from event."""
     return (
@@ -573,20 +583,24 @@ def add_cart_item(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         return not_found("Product not found")
     product_name = product_item.get("name") or product_item.get("product_name") or "Item"
     unit_price = product_item.get("unit_cost") or Decimal("0")
+    stock = _inventory_stock_qty(product_item)
+    if stock <= 0:
+        return error("Product is out of stock", 400)
     cart_sk = _cart_sk(customer_id)
     cart_item = get_item(pk, cart_sk, consistent_read=True)
     items = list(cart_item.get("items", [])) if cart_item else []
     found = False
     for i in items:
         if i.get("product_id") == product_id:
-            i["quantity"] = int(i.get("quantity", 0)) + quantity
+            new_qty = int(i.get("quantity", 0)) + quantity
+            i["quantity"] = min(new_qty, stock)
             found = True
             break
     if not found:
         items.append({
             "product_id": product_id,
             "product_name": product_name,
-            "quantity": quantity,
+            "quantity": min(quantity, stock),
             "unit_price": str(unit_price),
         })
     now = now_iso()

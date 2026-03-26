@@ -80,7 +80,24 @@
     "reorderSuggestions": "Sugerencias de pedido",
     "spendingTrends": "Tendencias de gasto",
     "revenueByDay": "Ingresos por día de la semana",
-    "revenueInsights": "Informes de ingresos"
+    "revenueInsights": "Informes de ingresos",
+    "leadInsights": "Pipeline y clientes potenciales",
+    "leadPipeline": "Leads por estado",
+    "leadTiers": "Leads por nivel",
+    "topProducts": "Productos top por ingresos (30 días)",
+    "funnelSnapshot": "Embudo de leads (instantánea)",
+    "funnelDisclaimer": "Muestra cuántos contactos hay en cada etapa hoy. Los porcentajes comparan el tamaño actual de cada etapa, no la conversión de un mismo grupo en el tiempo.",
+    "funnelContacts": "Contactos",
+    "funnelNoPipeline": "Aún no hay contactos en prospecto, interesado o ganado.",
+    "funnelAbandoned": "{{count}} marcados como abandonados",
+    "funnelRatePI": "Prospecto → interesado: {{pct}}%",
+    "funnelRateIC": "Interesado → ganado: {{pct}}%",
+    "funnelRatePC": "Prospecto → ganado: {{pct}}%",
+    "funnelStage": {
+      "prospect": "Prospecto",
+      "interested": "Interesado",
+      "closed_won": "Ganado"
+    }
   },
   "landing": {
     "nav": {
@@ -293,6 +310,9 @@
     "failedToSend": "Error al enviar"
   },
   "shop": {
+    "pageTitle": "Pedir en línea",
+    "poweredBy": "Con tecnología de",
+    "poweredByAria": "Con tecnología de Clienta AI",
     "missingToken": "Falta el token de la tienda",
     "orderConfirmed": "Pedido confirmado",
     "total": "Total",
@@ -301,6 +321,7 @@
     "all": "Todos",
     "noImage": "Sin imagen",
     "add": "Agregar",
+    "notAvailable": "No disponible",
     "noProducts": "No hay productos disponibles.",
     "cart": "Carrito",
     "cartEmpty": "Tu carrito está vacío.",

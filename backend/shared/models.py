@@ -201,6 +201,7 @@ class AIInsight(_BaseModel):
     reorder_suggestions: list | None = None
     spending_trends: list | None = None
     revenue_insights: list | None = None
+    lead_insights: list | None = None
 
 
 @dataclass

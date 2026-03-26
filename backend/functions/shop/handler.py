@@ -111,6 +111,16 @@ def _generate_token(event: dict[str, Any]) -> dict[str, Any]:
     return success(body={"token": token})
 
 
+def _product_stock_qty(product_item: dict[str, Any]) -> int:
+    q = product_item.get("quantity", 0)
+    if isinstance(q, Decimal):
+        return max(int(q), 0)
+    try:
+        return max(int(q or 0), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _list_products(tenant_id: str) -> dict[str, Any]:
     """GET /shop/products — public product list for this tenant."""
     pk = build_pk(tenant_id)
@@ -126,6 +136,7 @@ def _list_products(tenant_id: str) -> dict[str, Any]:
                 "unit_cost": str(item.get("unit_cost") or "0"),
                 "image_url": item.get("image_url") or "",
                 "unit": item.get("unit") or "each",
+                "quantity": _product_stock_qty(item),
             })
         if not last_key:
             break
@@ -161,6 +172,7 @@ def _update_cart(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> 
         return error("Product not found", 404)
     product_name = product_item.get("name") or product_item.get("product_name") or "Item"
     unit_price = product_item.get("unit_cost") or Decimal("0")
+    stock = _product_stock_qty(product_item)
 
     cart_sk = _cart_sk(customer_phone)
     cart_item = get_item(pk, cart_sk, consistent_read=True)
@@ -175,20 +187,30 @@ def _update_cart(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> 
                 if quantity <= 0:
                     items = [x for x in items if x.get("product_id") != product_id]
                 else:
-                    i["quantity"] = quantity
+                    capped = min(quantity, stock) if stock > 0 else 0
+                    if capped <= 0:
+                        items = [x for x in items if x.get("product_id") != product_id]
+                    else:
+                        i["quantity"] = capped
                 found = True
                 break
         if not found and quantity > 0:
-            items.append({"product_id": product_id, "product_name": product_name, "quantity": quantity, "unit_price": str(unit_price)})
+            if stock <= 0:
+                return error("Product is out of stock", 400)
+            capped = min(quantity, stock)
+            items.append({"product_id": product_id, "product_name": product_name, "quantity": capped, "unit_price": str(unit_price)})
     else:
+        if stock <= 0:
+            return error("Product is out of stock", 400)
         found = False
         for i in items:
             if i.get("product_id") == product_id:
-                i["quantity"] = int(i.get("quantity", 0)) + quantity
+                new_qty = int(i.get("quantity", 0)) + quantity
+                i["quantity"] = min(new_qty, stock)
                 found = True
                 break
         if not found:
-            items.append({"product_id": product_id, "product_name": product_name, "quantity": quantity, "unit_price": str(unit_price)})
+            items.append({"product_id": product_id, "product_name": product_name, "quantity": min(quantity, stock), "unit_price": str(unit_price)})
 
     now = now_iso()
     put_item({"pk": pk, "sk": cart_sk, "items": items, "updated_at": now})
@@ -258,6 +280,16 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
     lines: list[str] = []
     for i in items_raw:
         qty = int(i.get("quantity", 1))
+        pid = (i.get("product_id") or "").strip()
+        if pid:
+            prod_chk = get_item(pk, build_sk("PRODUCT", pid), consistent_read=True)
+            if prod_chk:
+                avail = _product_stock_qty(prod_chk)
+                if qty > avail:
+                    return error(
+                        f"Insufficient stock for {i.get('product_name', 'item')}: only {avail} available",
+                        400,
+                    )
         price = Decimal(str(i.get("unit_price", "0")))
         txn_items.append(TransactionItem(product_id=i["product_id"], product_name=i.get("product_name", ""), quantity=qty, unit_price=price))
         total += price * qty

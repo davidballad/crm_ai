@@ -20,6 +20,28 @@ async function shopFetch(path, token, options = {}) {
   return res.json();
 }
 
+function PoweredByClienta({ liftForCartBar = false }) {
+  const { t } = useTranslation();
+  return (
+    <footer
+      className={`pointer-events-none fixed right-3 z-20 max-w-[calc(100vw-1.5rem)] sm:right-4 ${liftForCartBar ? 'bottom-20' : 'bottom-4'}`}
+      aria-label={t('shop.poweredByAria')}
+    >
+      <div className="flex justify-end">
+        <a
+          href="https://www.clientaai.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="pointer-events-auto inline-flex max-w-full items-center gap-2 rounded-lg border border-gray-200/90 bg-white/95 px-2.5 py-1.5 text-[11px] text-gray-500 shadow-md backdrop-blur-sm transition-colors hover:border-gray-300 hover:text-gray-800"
+        >
+          <span className="whitespace-nowrap tracking-tight">{t('shop.poweredBy')}</span>
+          <img src="/mainLogo.png" alt="Clienta AI" className="h-5 w-auto shrink-0" />
+        </a>
+      </div>
+    </footer>
+  );
+}
+
 export default function Shop() {
   const { t } = useTranslation();
   const [params] = useSearchParams();
@@ -116,30 +138,33 @@ export default function Shop() {
 
   if (orderResult) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-6 text-center">
-        <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm max-w-md w-full">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-green-700">
-            <ShoppingCart className="h-7 w-7" />
+      <div className="flex min-h-screen flex-col bg-gray-50">
+        <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm max-w-md w-full">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-green-700">
+              <ShoppingCart className="h-7 w-7" />
+            </div>
+            <h1 className="text-xl font-bold text-gray-900">{t('shop.orderConfirmed')}</h1>
+            <p className="mt-2 text-gray-600">
+              {t('shop.total')}: <span className="font-semibold">${Number(orderResult.total).toFixed(2)}</span>
+            </p>
+            <p className="mt-4 text-sm text-gray-600">
+              {t('shop.orderSentToWhatsapp')}
+            </p>
+            {orderResult.wa_link && (
+              <a
+                href={orderResult.wa_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-sm font-medium text-white hover:bg-green-700 transition-colors"
+              >
+                <img src="/whatsapp-glyph.svg" alt="" className="h-5 w-5 brightness-0 invert" />
+                {t('shop.openWhatsapp')}
+              </a>
+            )}
           </div>
-          <h1 className="text-xl font-bold text-gray-900">{t('shop.orderConfirmed')}</h1>
-          <p className="mt-2 text-gray-600">
-            {t('shop.total')}: <span className="font-semibold">${Number(orderResult.total).toFixed(2)}</span>
-          </p>
-          <p className="mt-4 text-sm text-gray-600">
-            {t('shop.orderSentToWhatsapp')}
-          </p>
-          {orderResult.wa_link && (
-            <a
-              href={orderResult.wa_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-6 inline-flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-sm font-medium text-white hover:bg-green-700 transition-colors"
-            >
-              <img src="/whatsapp-glyph.svg" alt="" className="h-5 w-5 brightness-0 invert" />
-              {t('shop.openWhatsapp')}
-            </a>
-          )}
         </div>
+        <PoweredByClienta liftForCartBar={false} />
       </div>
     );
   }
@@ -148,8 +173,8 @@ export default function Shop() {
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
-        <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
-          <img src="/mainLogo.png" alt="Clienta AI" className="h-8 w-auto" />
+        <div className="mx-auto flex h-14 max-w-2xl items-center justify-between gap-3 px-4">
+          <h1 className="truncate text-base font-semibold text-gray-900">{t('shop.pageTitle')}</h1>
           <button
             type="button"
             onClick={() => setCartOpen(!cartOpen)}
@@ -189,8 +214,13 @@ export default function Shop() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {filtered.map(p => {
             const qty = cartQtyMap[p.id] || 0;
+            const stock = p.quantity != null ? Number(p.quantity) : 0;
+            const unavailable = stock <= 0;
             return (
-              <div key={p.id} className="flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+              <div
+                key={p.id}
+                className={`flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm ${unavailable ? 'opacity-90' : ''}`}
+              >
                 {p.image_url ? (
                   <img src={p.image_url} alt={p.name} className="h-32 w-full object-cover" />
                 ) : (
@@ -200,7 +230,15 @@ export default function Shop() {
                   <h3 className="text-sm font-medium text-gray-900 leading-tight">{p.name}</h3>
                   <p className="mt-1 text-sm font-semibold text-brand-600">${Number(p.unit_cost).toFixed(2)}</p>
                   <div className="mt-auto pt-2">
-                    {qty === 0 ? (
+                    {unavailable ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="flex w-full cursor-not-allowed items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-100 py-2 text-xs font-medium text-gray-500"
+                      >
+                        {t('shop.notAvailable')}
+                      </button>
+                    ) : qty === 0 ? (
                       <button
                         type="button"
                         onClick={() => updateCart(p.id, 'add')}
@@ -317,6 +355,8 @@ export default function Shop() {
           </div>
         </div>
       )}
+
+      <PoweredByClienta liftForCartBar={cartCount > 0 && !cartOpen} />
     </div>
   );
 }

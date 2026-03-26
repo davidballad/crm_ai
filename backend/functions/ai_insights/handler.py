@@ -10,7 +10,7 @@ import sys
 import os
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from shared.db import get_item, put_item, query_items, get_table
 from shared.auth import require_auth
 from shared.response import success, error, server_error, not_found, created
-from shared.models import AIInsight, Product, Transaction
+from shared.models import Contact, Product, Transaction
 from shared.utils import now_iso, today_str, build_pk, build_sk, parse_body
 
 from boto3.dynamodb.conditions import Key
@@ -52,6 +52,23 @@ def _to_json_serializable(obj: Any) -> Any:
         return {k: _to_json_serializable(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_to_json_serializable(i) for i in obj]
+    return obj
+
+
+def _floats_to_decimal(obj: Any) -> Any:
+    """Recursively convert float to Decimal for DynamoDB (boto3 rejects Python float)."""
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    if isinstance(obj, int):
+        return obj
+    if isinstance(obj, Decimal):
+        return obj
+    if isinstance(obj, dict):
+        return {k: _floats_to_decimal(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_floats_to_decimal(i) for i in obj]
     return obj
 
 
@@ -186,12 +203,73 @@ def _build_transaction_summary(transaction_items: list[dict[str, Any]]) -> dict[
     }
 
 
+def _gather_contacts(tenant_id: str) -> list[dict[str, Any]]:
+    """Query all contacts (leads) for the tenant."""
+    pk = build_pk(tenant_id)
+    all_items: list[dict[str, Any]] = []
+    last_key = None
+    while True:
+        items, last_key = query_items(
+            pk=pk,
+            sk_prefix="CONTACT#",
+            limit=200,
+            last_key=last_key,
+        )
+        all_items.extend(items)
+        if last_key is None:
+            break
+    return all_items
+
+
+def _build_leads_summary(contact_items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate contacts for prompts and dashboard charts (pipeline, tier, recency)."""
+    by_status: dict[str, int] = {}
+    by_tier: dict[str, int] = {}
+    by_source: dict[str, int] = {}
+    new_last_30 = 0
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+
+    for raw in contact_items:
+        try:
+            c = Contact.from_dynamo(raw)
+        except Exception:
+            continue
+        st = (c.lead_status or "prospect").strip() or "prospect"
+        by_status[st] = by_status.get(st, 0) + 1
+        tier = (c.tier or "bronze").strip() or "bronze"
+        by_tier[tier] = by_tier.get(tier, 0) + 1
+        src = (c.source_channel or "unknown").strip() or "unknown"
+        by_source[src] = by_source.get(src, 0) + 1
+        ts = c.created_ts
+        if ts:
+            try:
+                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                if dt >= cutoff:
+                    new_last_30 += 1
+            except (ValueError, TypeError):
+                pass
+
+    total = len(contact_items)
+    top_sources = sorted(by_source.items(), key=lambda x: x[1], reverse=True)[:6]
+
+    return {
+        "total": total,
+        "new_last_30_days": new_last_30,
+        "by_lead_status": by_status,
+        "by_tier": by_tier,
+        "top_source_channels": [{"source": k, "count": v} for k, v in top_sources],
+    }
+
+
 def _build_insights_prompt(
     product_count: int,
     total_inventory_value: Decimal,
     low_stock_count: int,
     low_stock_items: list[dict[str, Any]],
     transaction_summary: dict[str, Any],
+    leads_summary: dict[str, Any],
     language: str = "en",
 ) -> str:
     """Build a structured prompt for the AI model to generate insights."""
@@ -201,12 +279,20 @@ def _build_insights_prompt(
     )
 
     lang_instruction = (
-        "You must write the entire JSON response in Spanish (summary, forecasts, reorder_suggestions, spending_trends, revenue_insights — all text in Spanish)."
+        "You must write the entire JSON response in Spanish (summary, forecasts, reorder_suggestions, spending_trends, revenue_insights, lead_insights — all text in Spanish)."
         if (language or "").strip().lower().startswith("es")
         else "You must write the entire JSON response in English."
     )
 
-    return f"""You are a business analyst for a small business CRM. {lang_instruction}
+    ls = leads_summary
+    leads_block = f"""## Leads & Contacts (CRM)
+- Total contacts: {ls.get('total', 0)}
+- New contacts (approx. last 30 days, by created_ts): {ls.get('new_last_30_days', 0)}
+- Count by lead_status: {json.dumps(ls.get('by_lead_status', {}), default=str)}
+- Count by tier: {json.dumps(ls.get('by_tier', {}), default=str)}
+- Top source channels: {json.dumps(ls.get('top_source_channels', []), default=str)}"""
+
+    return f"""You are a senior business analyst and growth advisor for a small business CRM. Be specific, actionable, and tie inventory, sales, and pipeline together. {lang_instruction}
 
 Based on the following data, generate a JSON object with the specified fields.
 
@@ -224,32 +310,79 @@ Low-stock items (first 20):
 - Top selling products: {json.dumps(transaction_summary.get('top_selling_products', [])[:5], default=str)}
 - Revenue by day of week: {json.dumps(transaction_summary.get('revenue_by_day_of_week', {}), default=str)}
 
+{leads_block}
+
 ## Your Task
 Generate a JSON object with exactly these keys (no extra keys):
 
-1. "summary" (string): A natural language business summary in 2-3 sentences about the current state (inventory, sales, trends).
+1. "summary" (string): A concise executive-style summary in 3-5 sentences: inventory health, sales momentum, and (if contacts exist) pipeline/leads. Mention trade-offs and priorities.
 
-2. "forecasts" (array of objects): Top 5 products likely to need restocking soon. Each object: {{"product_name": str, "product_id": str or null, "estimated_restock_date": str (YYYY-MM-DD or "ASAP"), "reason": str}}
+2. "forecasts" (array of objects): Up to 5 products likely to need restocking soon. Each object: {{"product_name": str, "product_id": str or null, "estimated_restock_date": str (YYYY-MM-DD or "ASAP"), "reason": str}}
 
 3. "reorder_suggestions" (array of objects): Products below threshold with suggested order quantities. Each: {{"product_name": str, "product_id": str or null, "current_quantity": int, "reorder_threshold": int, "suggested_order_quantity": int, "reason": str}}
 
-4. "spending_trends" (array of strings): 2-4 brief bullet points about spending/cost trends and recommendations.
+4. "spending_trends" (array of strings): 2-4 bullet points on cost/inventory spend patterns and what to watch.
 
-5. "revenue_insights" (array of strings): 2-4 brief bullet points about revenue (best days, trends, growth opportunities).
+5. "revenue_insights" (array of strings): 2-4 bullet points on revenue (best days, mix, growth opportunities).
+
+6. "lead_insights" (array of strings): 2-4 expert bullet points on the sales pipeline — lead_status mix, tier concentration, sources, follow-up priorities, and how leads relate to revenue. If there are zero contacts, use an empty array [].
 
 Return ONLY valid JSON. No markdown, no explanation outside the JSON."""
 
 
 def _extract_json_from_response(response_text: str) -> dict[str, Any]:
-    """Parse JSON from the AI response, handling markdown code blocks if present."""
-    text = response_text.strip()
+    """Parse JSON from the AI response, handling markdown fences and leading prose."""
+    original = (response_text or "").strip()
+    if not original:
+        raise ValueError("AI returned empty response")
 
-    # Try to extract from ```json ... ``` block
-    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
+    candidates: list[str] = []
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", original)
     if match:
-        text = match.group(1).strip()
+        inner = match.group(1).strip()
+        if inner:
+            candidates.append(inner)
+    candidates.append(original)
 
-    return json.loads(text)
+    decoder = json.JSONDecoder()
+    for s in candidates:
+        s = s.strip()
+        if not s:
+            continue
+        try:
+            parsed = json.loads(s)
+        except json.JSONDecodeError:
+            start = s.find("{")
+            if start == -1:
+                continue
+            try:
+                parsed, _ = decoder.raw_decode(s, start)
+            except json.JSONDecodeError:
+                continue
+        if isinstance(parsed, dict):
+            return parsed
+
+    raise ValueError("AI did not return a JSON object; try again.")
+
+
+def _gemini_response_text(response: Any) -> str:
+    """Best-effort text from google-genai response (`.text` or concatenated parts)."""
+    t = getattr(response, "text", None)
+    if isinstance(t, str) and t.strip():
+        return t
+    candidates = getattr(response, "candidates", None) or []
+    if not candidates:
+        return ""
+    content = getattr(candidates[0], "content", None)
+    parts = getattr(content, "parts", None) if content else None
+    if not parts:
+        return ""
+    chunks: list[str] = []
+    for p in parts:
+        pt = getattr(p, "text", None)
+        if isinstance(pt, str) and pt:
+            chunks.append(pt)
+    return "".join(chunks).strip()
 
 
 def _invoke_gemini(prompt: str) -> dict[str, Any]:
@@ -272,14 +405,14 @@ def _invoke_gemini(prompt: str) -> dict[str, Any]:
         response = client.models.generate_content(
             model=model_id,
             contents=prompt,
-            config={"max_output_tokens": 2048, "temperature": 0.2},
+            config={"max_output_tokens": 4096, "temperature": 0.2},
         )
     except Exception as e:
         raise RuntimeError(f"Gemini API error: {e}") from e
 
-    text = getattr(response, "text", None) if response else None
-    if not text or not (isinstance(text, str) and text.strip()):
-        raise ValueError("Gemini response had no text")
+    text = _gemini_response_text(response) if response else ""
+    if not text:
+        raise ValueError("Gemini response had no text (check finish_reason / safety blocks in logs)")
 
     return _extract_json_from_response(text)
 
@@ -348,6 +481,8 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         transaction_items = _gather_transactions(tenant_id)
         transaction_summary = _build_transaction_summary(transaction_items)
         low_stock_items = _safe_low_stock_items(products)
+        contact_items = _gather_contacts(tenant_id)
+        leads_summary = _build_leads_summary(contact_items)
 
         # Step 2 & 3: Build prompt and call Gemini
         prompt = _build_insights_prompt(
@@ -356,6 +491,7 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             low_stock_count=low_stock_count,
             low_stock_items=low_stock_items,
             transaction_summary=transaction_summary,
+            leads_summary=leads_summary,
             language=language,
         )
 
@@ -383,7 +519,13 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             "reorder_suggestions": ai_result.get("reorder_suggestions", []),
             "spending_trends": ai_result.get("spending_trends", []),
             "revenue_insights": ai_result.get("revenue_insights", []),
+            "lead_insights": ai_result.get("lead_insights", []),
             "revenue_by_day_of_week": transaction_summary.get("revenue_by_day_of_week", {}),
+            "top_selling_products": (transaction_summary.get("top_selling_products") or [])[:10],
+            "leads_by_status": leads_summary.get("by_lead_status", {}),
+            "leads_by_tier": leads_summary.get("by_tier", {}),
+            "contacts_total": leads_summary.get("total", 0),
+            "contacts_new_30d": leads_summary.get("new_last_30_days", 0),
             "generated_at": generated_at,
         }
 
@@ -391,10 +533,11 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         ttl_seconds = int(datetime.now().timestamp()) + (ttl_days * 24 * 60 * 60)
         insight_record["ttl"] = ttl_seconds
 
-        put_item(insight_record)
+        ddb_item = _floats_to_decimal(insight_record)
+        put_item(ddb_item)
 
         # Step 6: Return the insight (convert Decimals for JSON)
-        body = _to_json_serializable(insight_record)
+        body = _to_json_serializable(ddb_item)
         return created(body)
 
     except Exception as e:
