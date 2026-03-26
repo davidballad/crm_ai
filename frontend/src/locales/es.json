@@ -1,4 +1,10 @@
 {
+  "upgrade": {
+    "title": "Plan Pro requerido",
+    "cta": "Contáctanos para actualizar",
+    "aiInsightsDesc": "Los Informes IA —previsiones de demanda, sugerencias de pedido, análisis de ingresos y embudo de leads— están disponibles en el plan Pro.",
+    "leadsDesc": "Los Leads y contactos —el tablero de pipeline, perfiles de contacto e historial de WhatsApp— están disponibles en el plan Pro."
+  },
   "common": {
     "signIn": "Iniciar sesión",
     "signOut": "Cerrar sesión",

@@ -23,6 +23,8 @@ GRAPH_API_VERSION = "v21.0"
 TOKEN_TTL_SECONDS = 86400  # 24 h
 PAYMENT_STATUS_AWAITING = "awaiting_verification"
 ORDER_NOTES_MAX_LEN = 300
+TIER_BRONZE_MAX = Decimal("30")
+TIER_SILVER_MAX = Decimal("100")
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +89,15 @@ def _cart_sk(customer_id: str) -> str:
 def _normalize_phone(s: str | None) -> str:
     raw = (s or "").strip()
     return "".join(ch for ch in raw if ch.isdigit())
+
+
+def _tier_from_total_spent(total_spent: Decimal) -> str:
+    """Auto-tier thresholds: bronze < 30, silver 30-99.99, gold >= 100."""
+    if total_spent < TIER_BRONZE_MAX:
+        return "bronze"
+    if total_spent < TIER_SILVER_MAX:
+        return "silver"
+    return "gold"
 
 
 def _looks_like_phone(s: str | None) -> bool:
@@ -302,14 +313,39 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         existing_total = contact_item.get("total_spent")
         current = Decimal(str(existing_total)) if existing_total is not None else Decimal("0")
         try:
-            update_item(pk=pk, sk=contact_item["sk"], updates={"total_spent": current + total, "last_activity_ts": now, "lead_status": "closed_won"})
+            new_total = current + total
+            update_item(
+                pk=pk,
+                sk=contact_item["sk"],
+                updates={
+                    "total_spent": new_total,
+                    "tier": _tier_from_total_spent(new_total),
+                    "last_activity_ts": now,
+                    "lead_status": "closed_won",
+                },
+            )
         except DynamoDBError as e:
             return server_error(str(e))
         contact_id = contact_item.get("contact_id") or contact_item.get("sk", "").split("#")[-1]
     else:
         contact_id = generate_id()
         try:
-            put_item({"pk": pk, "sk": build_sk("CONTACT", contact_id), "tenant_id": tenant_id, "contact_id": contact_id, "name": customer_name, "phone": customer_phone, "source_channel": "whatsapp", "lead_status": "closed_won", "tier": "bronze", "total_spent": total, "conversation_mode": "bot", "created_ts": now})
+            put_item(
+                {
+                    "pk": pk,
+                    "sk": build_sk("CONTACT", contact_id),
+                    "tenant_id": tenant_id,
+                    "contact_id": contact_id,
+                    "name": customer_name,
+                    "phone": customer_phone,
+                    "source_channel": "whatsapp",
+                    "lead_status": "closed_won",
+                    "tier": _tier_from_total_spent(total),
+                    "total_spent": total,
+                    "conversation_mode": "bot",
+                    "created_ts": now,
+                }
+            )
         except DynamoDBError as e:
             return server_error(str(e))
 

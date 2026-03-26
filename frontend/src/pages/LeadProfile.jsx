@@ -1,6 +1,8 @@
 import { Link, useParams } from 'react-router-dom';
 import { useContact, usePatchContact } from '../hooks/useContacts';
 import { useContactMessages } from '../hooks/useContactMessages';
+import { usePlan } from '../hooks/useTenantConfig';
+import UpgradeWall from '../components/UpgradeWall';
 import { ArrowLeft, MessageSquare } from 'lucide-react';
 
 const LEAD_STATUS_OPTIONS = [
@@ -55,9 +57,20 @@ function TierBadge({ tier }) {
 
 export default function LeadProfile() {
   const { id } = useParams();
+  const { isPro, isLoading: planLoading } = usePlan();
   const { data: contact, isLoading, error } = useContact(id);
   const { data: messagesData } = useContactMessages(id);
   const patchContact = usePatchContact();
+
+  if (planLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!isPro) return <UpgradeWall featureKey="leads" />;
 
   const messages = messagesData?.messages || [];
   const PREVIEW_COUNT = 8;

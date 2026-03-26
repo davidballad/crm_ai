@@ -73,6 +73,29 @@ def _floats_to_decimal(obj: Any) -> Any:
 
 
 # ---------------------------------------------------------------------------
+# Plan helpers
+# ---------------------------------------------------------------------------
+
+PRO_PLANS = frozenset({"pro"})
+
+
+def _get_tenant_plan(tenant_id: str) -> str:
+    """Read tenant plan from DynamoDB. Returns 'free' on any error."""
+    try:
+        item = get_item(pk=build_pk(tenant_id), sk=build_sk("TENANT", tenant_id))
+        return (item or {}).get("plan", "free") or "free"
+    except Exception:
+        return "free"
+
+
+def _require_pro(tenant_id: str) -> dict[str, Any] | None:
+    """Return a 403 error dict if the tenant is not on a Pro plan, else None."""
+    if _get_tenant_plan(tenant_id) not in PRO_PLANS:
+        return error("AI insights require a Pro plan. Please upgrade your account.", 403)
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Data gathering helpers for generate_insights
 # ---------------------------------------------------------------------------
 
@@ -423,7 +446,10 @@ def _invoke_gemini(prompt: str) -> dict[str, Any]:
 
 
 def get_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """GET /insights - return cached insight for the given date."""
+    """GET /insights - return cached insight for the given date (Pro only)."""
+    gate = _require_pro(tenant_id)
+    if gate:
+        return gate
     query_params = _get_query_params(event)
     date_str = query_params.get("date", today_str())
 
@@ -467,7 +493,10 @@ def _safe_low_stock_items(products: list[dict[str, Any]]) -> list[dict[str, Any]
 
 
 def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """POST /insights/generate - gather data, call Gemini, store and return insight."""
+    """POST /insights/generate - gather data, call Gemini, store and return insight (Pro only)."""
+    gate = _require_pro(tenant_id)
+    if gate:
+        return gate
     date_str = today_str()
     pk = build_pk(tenant_id)
     sk = build_sk("INSIGHT", date_str)

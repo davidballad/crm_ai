@@ -42,9 +42,11 @@ export default function Login() {
       </div>
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
+          <Link to="/" className="inline-flex">
+            <img src="/mainLogo.png" alt="Clienta AI" className="mx-auto mb-4 h-16 w-auto" />
+          </Link>
           <h1 className="text-2xl font-bold text-gray-900">{t('login.title')}</h1>
           <p className="mt-2 text-sm text-gray-500">{t('login.tagline')}</p>
-          <img src="/mainLogo.png" alt="Clienta AI" className="mx-auto mb-4 h-16 w-auto" />        
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-5">

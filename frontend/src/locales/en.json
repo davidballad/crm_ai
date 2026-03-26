@@ -1,4 +1,10 @@
 {
+  "upgrade": {
+    "title": "Pro plan required",
+    "cta": "Contact us to upgrade",
+    "aiInsightsDesc": "AI Insights — including demand forecasts, reorder suggestions, revenue analysis, and the lead funnel — are available on the Pro plan.",
+    "leadsDesc": "Leads & contacts — the pipeline board, contact profiles, and WhatsApp conversation history — are available on the Pro plan."
+  },
   "common": {
     "signIn": "Sign in",
     "signOut": "Sign out",

@@ -171,6 +171,11 @@ export const mockHandlers = {
     return newTxn;
   },
 
+  async 'GET /onboarding/config'() {
+    await delay();
+    return { plan: 'pro', business_name: 'Demo Store', business_type: 'retail' };
+  },
+
   async 'GET /insights'() {
     await delay(400);
     return INSIGHTS;

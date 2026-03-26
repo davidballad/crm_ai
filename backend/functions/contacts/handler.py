@@ -6,6 +6,7 @@ import base64
 import json
 import os
 import sys
+from decimal import Decimal
 from typing import Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -23,6 +24,40 @@ LIMIT_MAX = 100
 VALID_LEAD_STATUSES = {"prospect", "interested", "closed_won", "abandoned"}
 VALID_TIERS = {"bronze", "silver", "gold"}
 VALID_CONVERSATION_MODES = {"bot", "human"}
+TIER_BRONZE_MAX = Decimal("30")
+TIER_SILVER_MAX = Decimal("100")
+
+PRO_PLANS = frozenset({"pro"})
+
+
+def _get_tenant_plan(tenant_id: str) -> str:
+    """Read tenant plan from DynamoDB. Returns 'free' on any error."""
+    try:
+        item = get_item(pk=build_pk(tenant_id), sk=build_sk("TENANT", tenant_id))
+        return (item or {}).get("plan", "free") or "free"
+    except Exception:
+        return "free"
+
+
+def _to_decimal_amount(value: Any) -> Decimal | None:
+    """Best-effort conversion for total_spent-like numeric values."""
+    if value is None:
+        return None
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return None
+
+
+def _tier_from_total_spent(total_spent: Decimal) -> str:
+    """Auto-tier thresholds: bronze < 30, silver 30-99.99, gold >= 100."""
+    if total_spent < TIER_BRONZE_MAX:
+        return "bronze"
+    if total_spent < TIER_SILVER_MAX:
+        return "silver"
+    return "gold"
 
 # When filtering by phone, paginate until match (contacts may not be on first page).
 _PHONE_LOOKUP_MAX_PAGES = 40
@@ -108,6 +143,18 @@ def create_contact(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
     if not contact_data.name:
         return error("name is required", 400)
+    if contact_data.lead_status not in VALID_LEAD_STATUSES:
+        return error(f"lead_status must be one of: {', '.join(sorted(VALID_LEAD_STATUSES))}", 400)
+    if contact_data.tier not in VALID_TIERS:
+        return error(f"tier must be one of: {', '.join(sorted(VALID_TIERS))}", 400)
+    if contact_data.conversation_mode not in VALID_CONVERSATION_MODES:
+        return error(
+            f"conversation_mode must be one of: {', '.join(sorted(VALID_CONVERSATION_MODES))}",
+            400,
+        )
+    if contact_data.total_spent is not None:
+        # Keep tier consistent with spend when creating contact with historical spend.
+        contact_data.tier = _tier_from_total_spent(contact_data.total_spent)
 
     contact_id = generate_id()
     created_ts = now_iso()
@@ -203,6 +250,10 @@ def patch_contact(
         )
     if "name" in updates and not updates["name"]:
         return error("name cannot be empty", 400)
+    if "total_spent" in updates and "tier" not in updates:
+        amount = _to_decimal_amount(updates.get("total_spent"))
+        if amount is not None:
+            updates["tier"] = _tier_from_total_spent(amount)
 
     try:
         updated_item = update_item(pk=pk, sk=sk, updates=updates)
@@ -238,6 +289,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         path_params = event.get("pathParameters") or {}
         contact_id = path_params.get("id")
         tenant_id = event.get("tenant_id", "")
+
+        if _get_tenant_plan(tenant_id) not in PRO_PLANS:
+            return error("Leads & contacts require a Pro plan. Please upgrade your account.", 403)
 
         if method == "GET" and not contact_id:
             return list_contacts(tenant_id, event)

@@ -21,7 +21,7 @@ GRAPH_API_VERSION = "v21.0"
 MESSAGE_SK_PREFIX = "MESSAGE#"
 LIMIT_DEFAULT = 50
 LIMIT_MAX = 100
-VALID_CATEGORIES = {"active", "incomplete", "closed"}
+VALID_CATEGORIES = {"active", "incomplete", "abandoned", "closed"}
 
 
 def _normalize_phone(s: str | None) -> str:
@@ -271,7 +271,7 @@ def _find_latest_message_for_phone(pk: str, customer_phone: str) -> dict[str, An
 
 
 def mark_conversation(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """POST /messages/mark-conversation — set latest message category to incomplete or closed. For n8n 20h/24h flow."""
+    """POST /messages/mark-conversation — set latest message category to incomplete, abandoned, or closed."""
     try:
         body = parse_body(event)
     except (ValueError, json.JSONDecodeError):
@@ -374,7 +374,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             if contact_id:
                 return list_contact_messages(tenant_id, contact_id, event)
 
-        # POST /messages/mark-conversation (20h/24h n8n flow: category = incomplete | closed)
+        # POST /messages/mark-conversation (n8n reminder flow: category = incomplete | abandoned | closed)
         if method == "POST" and path.strip("/") == "messages/mark-conversation":
             return mark_conversation(tenant_id, event)
 

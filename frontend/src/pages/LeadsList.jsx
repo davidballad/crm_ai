@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useContacts, usePatchContact } from '../hooks/useContacts';
+import { usePlan } from '../hooks/useTenantConfig';
+import UpgradeWall from '../components/UpgradeWall';
 import { Users } from 'lucide-react';
 
 const STATUSES = [
@@ -24,8 +26,19 @@ function TierBadge({ tier }) {
 }
 
 export default function LeadsList() {
+  const { isPro, isLoading: planLoading } = usePlan();
   const { data, isLoading, error } = useContacts();
   const patchContact = usePatchContact();
+
+  if (planLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!isPro) return <UpgradeWall featureKey="leads" />;
 
   const contacts = data?.contacts || [];
 

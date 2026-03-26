@@ -28,6 +28,8 @@ GRAPH_API_VERSION = "v21.0"
 PAYMENT_STATUS_AWAITING = "awaiting_verification"
 PAYMENT_STATUS_VERIFIED = "verified"
 ORDER_NOTES_MAX_LEN = 300
+TIER_BRONZE_MAX = Decimal("30")
+TIER_SILVER_MAX = Decimal("100")
 
 _s3_client = boto3.client("s3")
 
@@ -40,6 +42,15 @@ def _inventory_stock_qty(product_item: dict[str, Any]) -> int:
         return max(int(q or 0), 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _tier_from_total_spent(total_spent: Decimal) -> str:
+    """Auto-tier thresholds: bronze < 30, silver 30-99.99, gold >= 100."""
+    if total_spent < TIER_BRONZE_MAX:
+        return "bronze"
+    if total_spent < TIER_SILVER_MAX:
+        return "silver"
+    return "gold"
 
 
 def _get_method(event: dict[str, Any]) -> str:
@@ -286,8 +297,16 @@ def record_sale(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     ]
 
     for item in transaction.items:
+        product_id = item.get("product_id") if isinstance(item, dict) else getattr(item, "product_id", None)
+        quantity_raw = item.get("quantity") if isinstance(item, dict) else getattr(item, "quantity", None)
+        try:
+            quantity = int(quantity_raw)
+        except (TypeError, ValueError):
+            quantity = 0
+        if not product_id or quantity <= 0:
+            return error("Each transaction item must include product_id and quantity > 0", 400)
         product_pk = pk
-        product_sk = build_sk("PRODUCT", item.product_id)
+        product_sk = build_sk("PRODUCT", str(product_id))
         transact_items.append(
             {
                 "Update": {
@@ -297,7 +316,7 @@ def record_sale(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                     "ConditionExpression": "#qty >= :qty_val",
                     "ExpressionAttributeNames": {"#qty": "quantity"},
                     "ExpressionAttributeValues": {
-                        ":qty_val": item.quantity,
+                        ":qty_val": quantity,
                         ":now": created_at,
                     },
                 }
@@ -745,6 +764,7 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                 sk=contact_item["sk"],
                 updates={
                     "total_spent": new_total,
+                    "tier": _tier_from_total_spent(new_total),
                     "last_activity_ts": now,
                     "lead_status": "closed_won",
                 },
@@ -765,7 +785,7 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                 "phone": effective_phone,
                 "source_channel": "whatsapp",
                 "lead_status": "closed_won",
-                "tier": "bronze",
+                "tier": _tier_from_total_spent(total),
                 "total_spent": total,
                 "created_ts": now,
             })

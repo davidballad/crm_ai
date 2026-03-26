@@ -24,6 +24,7 @@ const FEATURE_ICONS = [Package, MessageSquare, BarChart3, Users, ShoppingCart];
 const SUBJECT_COLLABORATION = 'Collaboration';
 const SUBJECT_PRICING = 'Pricing inquiry';
 const SUBJECT_CUSTOM_DEV = 'Web & app development';
+const BUSINESS_WHATSAPP_URL = 'https://wa.me/593997848591';
 
 /** Lightweight WhatsApp glyph from /public only (~2KB SVG). */
 function WhatsAppGlyph({ className }) {
@@ -306,6 +307,15 @@ export default function Landing() {
             <p className="mx-auto mt-4 max-w-2xl text-gray-600">{t('landing.collaborate.subtitle')}</p>
           </div>
           <div className="landing-reveal mx-auto mt-10 max-w-lg">
+            <a
+              href={BUSINESS_WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mb-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1fa851]"
+            >
+              <WhatsAppGlyph className="h-5 w-5" />
+              Contactar por WhatsApp
+            </a>
             {sent ? (
               <p className="text-center font-medium text-green-700">{t('landing.collaborate.formSuccess')}</p>
             ) : (

@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useInsights, useGenerateInsights } from '../hooks/useInsights';
+import { usePlan } from '../hooks/useTenantConfig';
 import InsightCard from '../components/InsightCard';
+import UpgradeWall from '../components/UpgradeWall';
 import {
   BrainCircuit,
   TrendingUp,
@@ -92,6 +94,7 @@ function chartEntriesFromMap(obj) {
 
 export default function Insights() {
   const { t, i18n } = useTranslation();
+  const { isPro, isLoading: planLoading } = usePlan();
   const { data, isLoading, error } = useInsights();
   const generate = useGenerateInsights();
 
@@ -120,6 +123,18 @@ export default function Insights() {
     document.title = `${t('insights.title')} | Clienta AI`;
     return () => { document.title = 'Clienta AI'; };
   }, [t, i18n.language]);
+
+  if (planLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!isPro) {
+    return <UpgradeWall featureKey="aiInsights" />;
+  }
 
   return (
     <div>

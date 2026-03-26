@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePlan } from '../hooks/useTenantConfig';
 import {
   LayoutDashboard,
   Package,
@@ -13,19 +14,20 @@ import {
   Users,
   MessageSquare,
   Settings,
+  Lock,
 } from 'lucide-react';
 
 const NAV_KEYS = [
-  { to: '/app', icon: LayoutDashboard, labelKey: 'layout.dashboard' },
-  { to: '/app/messages', icon: MessageSquare, labelKey: 'layout.messages' },
-  { to: '/app/leads', icon: Users, labelKey: 'layout.leads' },
-  { to: '/app/inventory', icon: Package, labelKey: 'layout.inventory' },
-  { to: '/app/transactions', icon: ShoppingCart, labelKey: 'layout.transactions' },
-  { to: '/app/insights', icon: BrainCircuit, labelKey: 'layout.aiInsights' },
-  { to: '/app/settings/whatsapp', icon: Settings, labelKey: 'layout.connectWhatsApp' },
+  { to: '/app', icon: LayoutDashboard, labelKey: 'layout.dashboard', pro: false },
+  { to: '/app/messages', icon: MessageSquare, labelKey: 'layout.messages', pro: false },
+  { to: '/app/leads', icon: Users, labelKey: 'layout.leads', pro: true },
+  { to: '/app/inventory', icon: Package, labelKey: 'layout.inventory', pro: false },
+  { to: '/app/transactions', icon: ShoppingCart, labelKey: 'layout.transactions', pro: false },
+  { to: '/app/insights', icon: BrainCircuit, labelKey: 'layout.aiInsights', pro: true },
+  { to: '/app/settings/whatsapp', icon: Settings, labelKey: 'layout.connectWhatsApp', pro: false },
 ];
 
-function SidebarLink({ to, icon: Icon, labelKey, t, onClick }) {
+function SidebarLink({ to, icon: Icon, labelKey, t, onClick, locked }) {
   return (
     <NavLink
       to={to}
@@ -40,7 +42,8 @@ function SidebarLink({ to, icon: Icon, labelKey, t, onClick }) {
       }
     >
       <Icon className="h-5 w-5 shrink-0" />
-      {labelKey === 'layout.leads' ? 'Leads' : t(labelKey)}
+      <span className="flex-1">{labelKey === 'layout.leads' ? 'Leads' : t(labelKey)}</span>
+      {locked && <Lock className="h-3.5 w-3.5 shrink-0 text-gray-400" />}
     </NavLink>
   );
 }
@@ -50,6 +53,7 @@ export default function Layout() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isPro } = usePlan();
 
   const handleSignOut = () => {
     signOut();
@@ -64,7 +68,15 @@ export default function Layout() {
 
       <nav className="flex-1 space-y-1 px-3 py-4">
         {NAV_KEYS.map((item) => (
-          <SidebarLink key={item.to} to={item.to} icon={item.icon} labelKey={item.labelKey} t={t} onClick={() => setMobileOpen(false)} />
+          <SidebarLink
+            key={item.to}
+            to={item.to}
+            icon={item.icon}
+            labelKey={item.labelKey}
+            t={t}
+            onClick={() => setMobileOpen(false)}
+            locked={item.pro && !isPro}
+          />
         ))}
       </nav>
 
