@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMessages } from '../hooks/useMessages';
+import { useConversationMessages, useConversations } from '../hooks/useMessages';
 import { useContacts } from '../hooks/useContacts';
 import { sendMessage } from '../api/messages';
 import { MessageSquare, Send, ArrowLeft } from 'lucide-react';
@@ -10,15 +10,28 @@ import { MessageSquare, Send, ArrowLeft } from 'lucide-react';
 const CATEGORY_IDS = [
   { id: 'active', color: 'border-green-400', dot: 'bg-green-500' },
   { id: 'incomplete', color: 'border-yellow-400', dot: 'bg-yellow-500' },
+  { id: 'ventas', color: 'border-blue-400', dot: 'bg-blue-500' },
   { id: 'closed', color: 'border-gray-300', dot: 'bg-gray-400' },
 ];
 
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '');
 
+/** True = customer / left bubble; false = business / right. Uses API direction + phone fallback (no business number variable). */
+function messageIsInboundForThread(m, customerDigits) {
+  const dir = (m.direction || '').toLowerCase();
+  if (dir === 'inbound') return true;
+  if (dir === 'outbound') return false;
+  const from = normalizePhone(m.from_number);
+  const to = normalizePhone(m.to_number);
+  if (from === customerDigits) return true;
+  if (to === customerDigits) return false;
+  return true;
+}
+
 export default function MessagesInbox() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data, isLoading, error } = useMessages();
+  const { data, isLoading, error } = useConversations();
   const { data: contactsData } = useContacts();
   const [selectedConv, setSelectedConv] = useState(null);
   const [replyText, setReplyText] = useState('');
@@ -28,7 +41,7 @@ export default function MessagesInbox() {
   const stickToBottomRef = useRef(true);
   const previousConversationRef = useRef('');
 
-  const messages = data?.messages || [];
+  const conversations = data?.conversations || [];
   const contacts = contactsData?.contacts || [];
   const contactsMap = contacts.reduce((acc, c) => {
     acc[c.contact_id] = c;
@@ -40,20 +53,33 @@ export default function MessagesInbox() {
     return acc;
   }, {});
 
-  // Detect business phone: the to_number seen most often (destination of inbound messages)
-  const toNumberCounts = {};
-  messages.forEach((m) => {
-    const to = normalizePhone(m.to_number);
-    if (to) toNumberCounts[to] = (toNumberCounts[to] || 0) + 1;
-  });
-  const businessPhone = Object.entries(toNumberCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  const normalizedConversations = conversations
+    .map((c) => {
+      const num = normalizePhone(c.customer_phone);
+      const contact = contactByPhone[num] || null;
+      return {
+        from_number: num,
+        contact_id: contact?.contact_id || null,
+        contact_name: contact?.name,
+        category: c.category || 'active',
+        latest_ts: c.last_message_ts,
+        latest_text: c.last_text || '',
+      };
+    })
+    .filter((c) => c.from_number);
 
-  const getCustomerPhone = (m) => {
-    const from = normalizePhone(m.from_number);
-    const to = normalizePhone(m.to_number);
-    if (from === businessPhone) return to || from;
-    return from || to;
-  };
+  const byCategory = CATEGORY_IDS.reduce((acc, cat) => {
+    acc[cat.id] = normalizedConversations
+      .filter((c) => c.category === cat.id)
+      .sort((a, b) => new Date(b.latest_ts || 0) - new Date(a.latest_ts || 0));
+    return acc;
+  }, {});
+
+  const selectedCustomerPhone = normalizePhone(selectedConv?.from_number);
+  const { data: threadData } = useConversationMessages(selectedCustomerPhone);
+  const threadMessages = (threadData?.messages || []).sort(
+    (a, b) => new Date(a.created_ts || 0) - new Date(b.created_ts || 0),
+  );
 
   const getMessageText = (m) => {
     const t =
@@ -69,43 +95,6 @@ export default function MessagesInbox() {
     if (t === null || t === undefined) return '';
     return typeof t === 'string' ? t : String(t);
   };
-
-  // One chat per customer number: group by customer phone, keep latest message per conversation
-  const byNumber = messages.reduce((acc, m) => {
-    const num = getCustomerPhone(m) || '_unknown';
-    if (num === businessPhone) return acc;
-    if (!acc[num]) acc[num] = [];
-    acc[num].push(m);
-    return acc;
-  }, {});
-  const conversations = Object.entries(byNumber).map(([num, msgs]) => {
-    const sorted = [...msgs].sort((a, b) => new Date(b.created_ts || 0) - new Date(a.created_ts || 0));
-    const latest = sorted[0];
-    const contact = contactByPhone[num] || (latest?.contact_id ? contactsMap[latest.contact_id] : null);
-    return {
-      from_number: num,
-      contact_id: contact?.contact_id || latest?.contact_id,
-      contact_name: contact?.name,
-      category: latest.category || 'active',
-      latest_ts: latest.created_ts,
-      latest_text: getMessageText(latest),
-      message_id: latest.message_id,
-    };
-  });
-
-  const byCategory = CATEGORY_IDS.reduce((acc, cat) => {
-    acc[cat.id] = conversations
-      .filter((c) => c.category === cat.id)
-      .sort((a, b) => new Date(b.latest_ts || 0) - new Date(a.latest_ts || 0));
-    return acc;
-  }, {});
-
-  const selectedCustomerPhone = normalizePhone(selectedConv?.from_number);
-  const threadMessages = selectedCustomerPhone
-    ? messages
-        .filter((m) => getCustomerPhone(m) === selectedCustomerPhone)
-        .sort((a, b) => new Date(a.created_ts || 0) - new Date(b.created_ts || 0))
-    : [];
 
   const scrollThreadToBottom = () => {
     const el = threadContainerRef.current;
@@ -220,7 +209,7 @@ export default function MessagesInbox() {
         <p className="text-sm text-gray-500">{t('messages.subtitle')}</p>
       </div>
 
-      {conversations.length === 0 ? (
+      {normalizedConversations.length === 0 ? (
         <div className="card flex flex-1 flex-col items-center justify-center py-12 text-center">
           <MessageSquare className="mb-3 h-10 w-10 text-gray-300" />
           <p className="font-medium text-gray-600">{t('messages.noConversations')}</p>
@@ -312,7 +301,7 @@ export default function MessagesInbox() {
                 className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-contain p-4 [scrollbar-gutter:stable]"
               >
                 {threadMessages.map((m) => {
-                  const isThem = normalizePhone(m.from_number) !== businessPhone;
+                  const isThem = messageIsInboundForThread(m, selectedCustomerPhone);
                   return (
                     <div key={m.message_id} className={`flex ${isThem ? 'justify-start' : 'justify-end'}`}>
                       <div

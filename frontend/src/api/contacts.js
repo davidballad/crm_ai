@@ -1,4 +1,6 @@
-import { api } from './client';
+import { api, getTokenGetter } from './client';
+
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 export function fetchContacts({ nextToken, phone } = {}) {
   const params = new URLSearchParams();
@@ -26,4 +28,21 @@ export function patchContact(id, data) {
 
 export function deleteContact(id) {
   return api.delete(`/contacts/${id}`);
+}
+
+/** Download leads export CSV (Google Sheets-friendly). */
+export async function downloadLeadsExport() {
+  if (!API_URL) throw new Error('API URL is not configured');
+  const getToken = getTokenGetter();
+  const token = getToken?.();
+  const res = await fetch(`${API_URL}/contacts/export`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error('Failed to download leads export');
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'leads_export.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }

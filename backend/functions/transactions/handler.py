@@ -30,6 +30,15 @@ PAYMENT_STATUS_VERIFIED = "verified"
 ORDER_NOTES_MAX_LEN = 300
 TIER_BRONZE_MAX = Decimal("30")
 TIER_SILVER_MAX = Decimal("100")
+DELIVERY_STATUS_VALUES = {
+    "awaiting_customer_choice",
+    "awaiting_location_window",
+    "pending_owner_approval",
+    "owner_approved",
+    "owner_rejected",
+    "pickup_pending",
+    "pickup_confirmed",
+}
 
 _s3_client = boto3.client("s3")
 
@@ -387,7 +396,17 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
     except (ValueError, json.JSONDecodeError):
         return error("Invalid JSON body", 400)
 
-    allowed = {"status", "payment_method", "delivery_method", "delivery_location", "payment_verification_status"}
+    allowed = {
+        "status",
+        "payment_method",
+        "delivery_method",
+        "delivery_location",
+        "delivery_status",
+        "delivery_window_requested",
+        "delivery_window_approved",
+        "delivery_decision_note",
+        "payment_verification_status",
+    }
     updates: dict[str, Any] = {}
     for key, value in body.items():
         if key in allowed and value is not None:
@@ -400,6 +419,10 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
         PAYMENT_STATUS_VERIFIED,
     ):
         return error("payment_verification_status must be 'awaiting_verification' or 'verified'", 400)
+    if "delivery_method" in updates and updates["delivery_method"] not in ("delivery", "pickup"):
+        return error("delivery_method must be 'delivery' or 'pickup'", 400)
+    if "delivery_status" in updates and updates["delivery_status"] not in DELIVERY_STATUS_VALUES:
+        return error("delivery_status has an invalid value", 400)
 
     if not updates:
         return error("Nothing to update", 400)
@@ -408,6 +431,30 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
         updated_item = update_item(pk=pk, sk=target_sk, updates=updates)
     except DynamoDBError as e:
         return server_error(str(e))
+
+    if updates.get("delivery_status") == "owner_rejected":
+        _send_whatsapp_text(
+            tenant_id=tenant_id,
+            to_phone=updated_item.get("customer_phone"),
+            message=(
+                "Hemos revisado tu solicitud y no fue posible aprobar la entrega para este pedido. "
+                "Por favor, realiza un nuevo pedido o escríbenos para ayudarte con una alternativa."
+            ),
+        )
+    elif updates.get("delivery_status") == "pickup_confirmed":
+        # Move conversation to the Sales/Ventas kanban column once pickup is confirmed.
+        _mark_conversation_category(pk, updated_item.get("customer_phone") or "", "ventas")
+        _send_whatsapp_text(
+            tenant_id=tenant_id,
+            to_phone=updated_item.get("customer_phone"),
+            message="Tu pedido ya está listo para retiro. Te esperamos, gracias por tu compra.",
+        )
+    elif updates.get("delivery_status") == "owner_approved":
+        _send_whatsapp_text(
+            tenant_id=tenant_id,
+            to_phone=updated_item.get("customer_phone"),
+            message="Tu pedido ya está en camino. Gracias por tu compra.",
+        )
 
     return success(body=_transaction_response(updated_item, include_proof_url=True))
 
@@ -481,6 +528,15 @@ def cancel_transaction(tenant_id: str, transaction_id: str) -> dict[str, Any]:
         delete_item(pk=transaction_item["pk"], sk=transaction_item["sk"])
     except DynamoDBError as e:
         return server_error(f"Failed to delete transaction: {e}")
+
+    _send_whatsapp_text(
+        tenant_id=tenant_id,
+        to_phone=transaction_item.get("customer_phone"),
+        message=(
+            "Hemos tenido que cancelar tu pedido en este momento. "
+            "Te pedimos disculpas por la molestia. Por favor, intenta nuevamente y con gusto te ayudamos."
+        ),
+    )
 
     return success({"message": "Transaction canceled", "transaction_id": transaction_id})
 
@@ -670,10 +726,10 @@ def _find_contact_by_phone(tenant_id: str, phone: str) -> tuple[dict[str, Any] |
     return None, None
 
 
-def _mark_conversation_closed(pk: str, customer_phone: str) -> None:
-    """Find the latest message for a customer phone and set its category to closed."""
+def _mark_conversation_category(pk: str, customer_phone: str, category: str) -> None:
+    """Find the latest message for a customer phone and set its category."""
     normalized = _normalize_phone(customer_phone)
-    if not normalized:
+    if not normalized or not category:
         return
     try:
         latest_msg: dict[str, Any] | None = None
@@ -689,7 +745,13 @@ def _mark_conversation_closed(pk: str, customer_phone: str) -> None:
             if not last_key:
                 break
         if latest_msg:
-            update_item(pk=pk, sk=latest_msg["sk"], updates={"category": "closed"})
+            update_item(pk=pk, sk=latest_msg["sk"], updates={"category": category})
+
+            # Keep conversation summary in sync with the latest message category.
+            convo_sk = f"CONVO#{normalized}"
+            convo_item = get_item(pk=pk, sk=convo_sk)
+            if convo_item:
+                update_item(pk=pk, sk=convo_sk, updates={"category": category, "updated_at": now_iso()})
     except DynamoDBError:
         pass  # Non-fatal: message update failure shouldn't block checkout
 
@@ -797,6 +859,7 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         total=total,
         payment_method="whatsapp",
         contact_id=contact_id,
+        delivery_status="awaiting_customer_choice",
         customer_phone=effective_phone,
         order_notes=order_notes or None,
         payment_verification_status=PAYMENT_STATUS_AWAITING,
@@ -829,7 +892,7 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             pass  # Non-fatal: inventory update failure shouldn't block checkout
 
     # Mark conversation closed: find the latest message for this customer and set category to closed
-    _mark_conversation_closed(pk, effective_phone)
+    _mark_conversation_category(pk, effective_phone, "closed")
 
     return created(transaction.to_dict())
 
@@ -877,6 +940,37 @@ def _fetch_whatsapp_media(tenant_access_token: str, media_id: str) -> tuple[byte
         data = resp.read()
         content_type = resp.headers.get("Content-Type") or mime_type
     return data, content_type, mime_type
+
+
+def _send_whatsapp_text(tenant_id: str, to_phone: str | None, message: str) -> bool:
+    """Best-effort WhatsApp outbound text for transactional updates."""
+    if not to_phone or not message:
+        return False
+    tenant = get_item(build_pk(tenant_id), build_sk("TENANT", tenant_id)) or {}
+    access_token = tenant.get("meta_access_token")
+    phone_number_id = tenant.get("meta_phone_number_id")
+    if not access_token or not phone_number_id:
+        return False
+    payload = json.dumps(
+        {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": str(to_phone).lstrip("+").strip(),
+            "type": "text",
+            "text": {"body": message},
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        f"https://graph.facebook.com/{GRAPH_API_VERSION}/{phone_number_id}/messages",
+        data=payload,
+        headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        urllib.request.urlopen(req, timeout=15)
+        return True
+    except Exception:
+        return False
 
 
 def attach_payment_proof(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:

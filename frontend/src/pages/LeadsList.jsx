@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useContacts, usePatchContact } from '../hooks/useContacts';
+import { downloadLeadsExport } from '../api/contacts';
 import { usePlan } from '../hooks/useTenantConfig';
 import UpgradeWall from '../components/UpgradeWall';
-import { Users } from 'lucide-react';
+import { Users, Download } from 'lucide-react';
 
 const STATUSES = [
   { id: 'prospect', label: 'Prospect', color: 'border-gray-400', dot: 'bg-gray-500' },
@@ -42,6 +43,15 @@ export default function LeadsList() {
 
   const contacts = data?.contacts || [];
 
+  const handleDownloadLeads = async () => {
+    try {
+      await downloadLeadsExport();
+    } catch (err) {
+      // Keep lightweight for now; page-level error state is used for load failures.
+      window.alert(err.message || 'No se pudo descargar el archivo de leads');
+    }
+  };
+
   const handleStatusChange = (contactId, e) => {
     const lead_status = e.target.value;
     if (!contactId || !lead_status) return;
@@ -67,9 +77,19 @@ export default function LeadsList() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Leads</h1>
-        <p className="text-sm text-gray-500">{contacts.length} total</p>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Leads</h1>
+          <p className="text-sm text-gray-500">{contacts.length} total</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleDownloadLeads}
+          className="btn-secondary inline-flex items-center gap-2"
+        >
+          <Download className="h-4 w-4" />
+          Exportar leads
+        </button>
       </div>
 
       {contacts.length === 0 ? (

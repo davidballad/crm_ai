@@ -9,11 +9,21 @@ import StatsCard from '../components/StatsCard';
 import { ShoppingCart, DollarSign, Receipt, CreditCard, Plus, X } from 'lucide-react';
 
 function todayStr() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+  // Backend transaction SKs are date-prefixed using UTC timestamps.
+  // Keep "Today" filter in UTC so entries don't disappear around local midnight offsets.
+  return new Date().toISOString().slice(0, 10);
+}
+
+function googleMapsLinkFromLocation(rawLocation) {
+  const value = String(rawLocation || '').trim();
+  const match = value.match(
+    /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/
+  );
+  if (!match) return null;
+  const lat = Number(match[1]);
+  const lng = Number(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return `https://www.google.com/maps?q=${lat},${lng}`;
 }
 
 export default function TransactionList() {
@@ -33,6 +43,9 @@ export default function TransactionList() {
   const [verifyError, setVerifyError] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState('');
+  const [deliveryLoading, setDeliveryLoading] = useState(false);
+  const [deliveryError, setDeliveryError] = useState('');
+  const [proofPreviewOpen, setProofPreviewOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [createError, setCreateError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -149,6 +162,8 @@ export default function TransactionList() {
     setDetailsError('');
     setVerifyError('');
     setCancelError('');
+    setDeliveryError('');
+    setProofPreviewOpen(false);
   };
 
   const handleVerify = async () => {
@@ -193,6 +208,21 @@ export default function TransactionList() {
     }
   };
 
+  const handleDeliveryDecision = async (updates) => {
+    if (!selectedTx?.id) return;
+    setDeliveryError('');
+    setDeliveryLoading(true);
+    try {
+      const updated = await patchTransaction(selectedTx.id, updates);
+      setSelectedTx(updated);
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    } catch (err) {
+      setDeliveryError(err.message || 'No se pudo actualizar el estado de entrega');
+    } finally {
+      setDeliveryLoading(false);
+    }
+  };
+
   const handleCancelFromRow = async (tx) => {
     if (!tx?.id) return;
     const confirmed = window.confirm(
@@ -215,6 +245,22 @@ export default function TransactionList() {
       return <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">Verified</span>;
     }
     return <span className="inline-flex rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Waiting for verification</span>;
+  };
+
+  const pickupTag = (tx) => {
+    if ((tx.delivery_method || '').toLowerCase() !== 'pickup') return null;
+    if ((tx.delivery_status || '').toLowerCase() === 'pickup_confirmed') {
+      return (
+        <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+          Enviado
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+        Pickup pendiente
+      </span>
+    );
   };
 
   const addSaleItem = () => setSaleItems((prev) => [...prev, { productId: '', quantity: 1 }]);
@@ -636,6 +682,7 @@ export default function TransactionList() {
                       >
                         {verificationTag(tx)}
                       </button>
+                      {pickupTag(tx)}
                       {tx.payment_verification_status !== 'verified' && (
                         <button
                           type="button"
@@ -656,14 +703,14 @@ export default function TransactionList() {
 
       {selectedTx && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
+          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
               <h3 className="text-base font-semibold text-gray-900">Payment verification</h3>
               <button type="button" onClick={closeVerification} className="text-sm text-gray-500 hover:text-gray-700">
                 Close
               </button>
             </div>
-            <div className="space-y-3 px-4 py-4">
+            <div className="space-y-3 overflow-y-auto px-4 py-4">
               {detailsLoading && <p className="text-sm text-gray-500">Loading transaction details...</p>}
               {detailsError && <p className="text-sm text-red-600">{detailsError}</p>}
               <div className="text-sm text-gray-700">
@@ -674,7 +721,14 @@ export default function TransactionList() {
               </div>
               {selectedTx.payment_proof_url ? (
                 <div className="overflow-hidden rounded-lg border border-gray-200">
-                  <img src={selectedTx.payment_proof_url} alt="Payment proof" className="max-h-[420px] w-full object-contain bg-gray-50" />
+                  <button
+                    type="button"
+                    className="w-full"
+                    onClick={() => setProofPreviewOpen(true)}
+                    title="Abrir imagen completa"
+                  >
+                    <img src={selectedTx.payment_proof_url} alt="Payment proof" className="max-h-[320px] w-full object-contain bg-gray-50" />
+                  </button>
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
@@ -683,13 +737,73 @@ export default function TransactionList() {
               )}
               {verifyError && <p className="text-sm text-red-600">{verifyError}</p>}
               {cancelError && <p className="text-sm text-red-600">{cancelError}</p>}
+              {deliveryError && <p className="text-sm text-red-600">{deliveryError}</p>}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                <p><span className="font-medium">Metodo entrega:</span> {selectedTx.delivery_method || 'Sin definir'}</p>
+                <p><span className="font-medium">Estado entrega:</span> {selectedTx.delivery_status || 'Sin definir'}</p>
+                <p><span className="font-medium">Ventana solicitada:</span> {selectedTx.delivery_window_requested || '—'}</p>
+                <p>
+                  <span className="font-medium">Ubicacion:</span>{' '}
+                  {(() => {
+                    const location = selectedTx.delivery_location || '';
+                    const mapsUrl = googleMapsLinkFromLocation(location);
+                    if (!location) return '—';
+                    if (!mapsUrl) return location;
+                    return (
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-brand-600 underline hover:text-brand-700"
+                      >
+                        Ver en Google Maps
+                      </a>
+                    );
+                  })()}
+                </p>
+              </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-gray-200 px-4 py-3">
+              {(() => {
+                const isPickup = (selectedTx.delivery_method || '').toLowerCase() === 'pickup';
+                return (
+                  <>
+              <button
+                type="button"
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                onClick={() => handleDeliveryDecision({ delivery_method: 'pickup', delivery_status: 'pickup_confirmed' })}
+                disabled={verifyLoading || cancelLoading || deliveryLoading}
+              >
+                Confirmar pickup
+              </button>
+              {!isPickup && (
+                <>
+                  <button
+                    type="button"
+                    className="rounded-md border border-green-200 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50 disabled:opacity-50"
+                    onClick={() => handleDeliveryDecision({ delivery_method: 'delivery', delivery_status: 'owner_approved' })}
+                    disabled={verifyLoading || cancelLoading || deliveryLoading}
+                  >
+                    Aprobar delivery
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md border border-orange-200 px-3 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+                    onClick={() => handleDeliveryDecision({ delivery_method: 'delivery', delivery_status: 'owner_rejected' })}
+                    disabled={verifyLoading || cancelLoading || deliveryLoading}
+                  >
+                    Rechazar delivery
+                  </button>
+                </>
+              )}
+                  </>
+                );
+              })()}
               <button
                 type="button"
                 className="rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={handleCancelTransaction}
-                disabled={verifyLoading || cancelLoading}
+                disabled={verifyLoading || cancelLoading || deliveryLoading}
               >
                 {cancelLoading ? 'Canceling...' : 'Cancel transaction'}
               </button>
@@ -700,7 +814,7 @@ export default function TransactionList() {
                 type="button"
                 className="btn-primary"
                 onClick={handleVerify}
-                disabled={verifyLoading || selectedTx.payment_verification_status === 'verified'}
+                disabled={verifyLoading || cancelLoading || deliveryLoading || selectedTx.payment_verification_status === 'verified'}
               >
                 {selectedTx.payment_verification_status === 'verified'
                   ? 'Verified'
@@ -710,6 +824,20 @@ export default function TransactionList() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {proofPreviewOpen && selectedTx?.payment_proof_url && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setProofPreviewOpen(false)}
+        >
+          <img
+            src={selectedTx.payment_proof_url}
+            alt="Payment proof full size"
+            className="max-h-[95vh] max-w-[95vw] object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

@@ -271,6 +271,45 @@ def _send_whatsapp_message(tenant: dict[str, Any], to_phone: str, text: str) -> 
         return False
 
 
+def _send_delivery_choice_buttons(tenant: dict[str, Any], to_phone: str, transaction_id: str) -> bool:
+    """Ask customer whether order is delivery or pickup using reply buttons."""
+    token = tenant.get("meta_access_token")
+    phone_number_id = tenant.get("meta_phone_number_id")
+    if not token or not phone_number_id:
+        return False
+    to_clean = to_phone.lstrip("+").strip()
+    payload = json.dumps(
+        {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to_clean,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {"text": "Esta orden es delivery o pickup?"},
+                "footer": {"text": f"Ref: {transaction_id[:8]}"},
+                "action": {
+                    "buttons": [
+                        {"type": "reply", "reply": {"id": "delivery", "title": "Delivery"}},
+                        {"type": "reply", "reply": {"id": "pickup", "title": "Pickup"}},
+                    ]
+                },
+            },
+        }
+    )
+    req = urllib.request.Request(
+        f"https://graph.facebook.com/{GRAPH_API_VERSION}/{phone_number_id}/messages",
+        data=payload.encode(),
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        urllib.request.urlopen(req, timeout=15)
+        return True
+    except Exception:
+        return False
+
+
 def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dict[str, Any]:
     """POST /shop/checkout — creates transaction from cart, sends WhatsApp summary, clears cart."""
     body = parse_body(event)
@@ -354,6 +393,7 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         total=total,
         payment_method="whatsapp",
         contact_id=contact_id,
+        delivery_status="awaiting_customer_choice",
         customer_phone=customer_phone,
         order_notes=order_notes or None,
         payment_verification_status=PAYMENT_STATUS_AWAITING,
@@ -380,28 +420,10 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         except DynamoDBError:
             pass
 
-    # Send WhatsApp order summary
+    # Ask delivery vs pickup first (payment instructions are sent later by the WhatsApp workflow,
+    # after the customer chooses delivery/pickup and (for delivery) provides location/window).
     tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
-    summary = "\n".join(lines) + f"\n———\nTotal: ${total:.2f}"
-    notes_block = f"\nNotes: {order_notes}" if order_notes else ""
-    bank_lines: list[str] = []
-    if tenant.get("bank_name"):
-        bank_lines.append(f"Banco: {tenant.get('bank_name')}")
-    if tenant.get("person_name"):
-        bank_lines.append(f"Titular: {tenant.get('person_name')}")
-    if tenant.get("account_type"):
-        bank_lines.append(f"Tipo de cuenta: {tenant.get('account_type')}")
-    if tenant.get("account_id"):
-        bank_lines.append(f"Cuenta: {tenant.get('account_id')}")
-    if tenant.get("identification_number"):
-        bank_lines.append(f"Referencia: {tenant.get('identification_number')}")
-    bank_block = f"\n\nDatos bancarios:\n" + "\n".join(bank_lines) if bank_lines else ""
-
-    wa_text = (
-        f"Orden #{txn.id[:8]} confirmada.\n\n{summary}{notes_block}{bank_block}\n\n"
-        "Para completar el pago, responde aquí con una captura de tu transferencia."
-    )
-    _send_whatsapp_message(tenant, customer_phone, wa_text)
+    _send_delivery_choice_buttons(tenant, customer_phone, txn.id)
 
     # Build wa.me link for frontend
     business_phone = tenant.get("phone_number") or ""

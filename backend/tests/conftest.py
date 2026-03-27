@@ -5,8 +5,31 @@ import sys
 import json
 import pytest
 import boto3
-from moto import mock_aws
 from decimal import Decimal
+
+try:
+    from moto import mock_aws
+except ImportError:  # moto<5 compatibility (Python 3.7 environments)
+    from contextlib import ContextDecorator
+    from moto import mock_dynamodb, mock_s3
+
+    class _MockAwsCompat(ContextDecorator):
+        def __enter__(self):
+            self._mocks = [mock_dynamodb(), mock_s3()]
+            for m in self._mocks:
+                m.start()
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            for m in reversed(self._mocks):
+                m.stop()
+            return False
+
+    def mock_aws(func=None):
+        ctx = _MockAwsCompat()
+        if func is None:
+            return ctx
+        return ctx(func)
 
 # Ensure backend modules are importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

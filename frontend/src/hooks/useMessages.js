@@ -1,11 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchMessages } from '../api/messages';
+import { fetchConversations, fetchConversationMessages } from '../api/messages';
 
-export function useMessages(opts) {
+export function useConversations(opts) {
   return useQuery({
-    queryKey: ['messages', opts],
-    queryFn: () => fetchMessages(opts),
+    queryKey: ['conversations', opts],
+    queryFn: () => fetchConversations(opts),
     refetchOnWindowFocus: true,
     staleTime: 30_000,
+  });
+}
+
+export function useConversationMessages(phone, opts) {
+  return useQuery({
+    queryKey: ['conversationMessages', phone, opts],
+    queryFn: () => fetchConversationMessages(phone, opts),
+    enabled: Boolean(phone),
+    refetchOnWindowFocus: true,
+    staleTime: 15_000,
   });
 }

@@ -568,6 +568,73 @@ def get_csv_template(tenant_id: str) -> dict[str, Any]:
     }
 
 
+def export_inventory_csv(tenant_id: str) -> dict[str, Any]:
+    """Return all inventory rows as CSV (Google Sheets-compatible)."""
+    import csv
+    import io
+
+    pk = build_pk(tenant_id)
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(
+        [
+            "name",
+            "category",
+            "tags",
+            "quantity",
+            "unit_cost",
+            "reorder_threshold",
+            "unit",
+            "sku",
+            "image_url",
+            "notes",
+        ]
+    )
+
+    last_key: dict[str, Any] | None = None
+    try:
+        while True:
+            items, last_key = query_items(
+                pk=pk,
+                sk_prefix=PRODUCT_SK_PREFIX,
+                limit=200,
+                last_key=last_key,
+            )
+            for item in items:
+                p = Product.from_dynamo(item).to_dict()
+                tags = p.get("tags")
+                tags_csv = ",".join(tags) if isinstance(tags, list) else ""
+                writer.writerow(
+                    [
+                        p.get("name", ""),
+                        p.get("category", ""),
+                        tags_csv,
+                        p.get("quantity", 0),
+                        p.get("unit_cost", ""),
+                        p.get("reorder_threshold", 10),
+                        p.get("unit", "each"),
+                        p.get("sku", ""),
+                        p.get("image_url", ""),
+                        p.get("notes", ""),
+                    ]
+                )
+            if not last_key:
+                break
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": 'attachment; filename="inventory_export.csv"',
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type,Authorization",
+        },
+        "body": out.getvalue(),
+    }
+
+
 def import_csv(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """Bulk import products from CSV data.
 
@@ -725,6 +792,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         # GET /inventory/import/template - download CSV template
         if method == "GET" and path.endswith("/inventory/import/template"):
             return get_csv_template(tenant_id)
+
+        # GET /inventory/export - download CSV export
+        if method == "GET" and path.endswith("/inventory/export"):
+            return export_inventory_csv(tenant_id)
 
         # POST /inventory/import - bulk CSV import
         if method == "POST" and path.endswith("/inventory/import"):

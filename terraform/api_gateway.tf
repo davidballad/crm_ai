@@ -171,6 +171,12 @@ resource "aws_apigatewayv2_route" "inventory_import_template" {
   target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
 }
 
+resource "aws_apigatewayv2_route" "inventory_export" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /inventory/export"
+  target    = "integrations/${aws_apigatewayv2_integration.inventory.id}"
+}
+
 resource "aws_apigatewayv2_route" "inventory_upload_image_url" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "POST /inventory/upload-image-url"
@@ -217,6 +223,12 @@ resource "aws_apigatewayv2_route" "contacts_delete" {
 resource "aws_apigatewayv2_route" "contacts_patch" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "PATCH /contacts/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
+resource "aws_apigatewayv2_route" "contacts_export" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /contacts/export"
   target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
 }
 
@@ -430,6 +442,18 @@ resource "aws_apigatewayv2_route" "payments_webhook" {
 resource "aws_apigatewayv2_route" "messages_list" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "GET /messages"
+  target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
+}
+
+resource "aws_apigatewayv2_route" "conversations_list" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /conversations"
+  target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
+}
+
+resource "aws_apigatewayv2_route" "conversations_messages" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /conversations/{phone}/messages"
   target    = "integrations/${aws_apigatewayv2_integration.messages.id}"
 }
 

@@ -74,3 +74,20 @@ export async function downloadImportTemplate() {
     URL.revokeObjectURL(a.href);
   }
 }
+
+/** Download full inventory export CSV (Google Sheets-friendly). */
+export async function downloadInventoryExport() {
+  if (!API_URL) throw new Error('API URL is not configured');
+  const getToken = getTokenGetter();
+  const token = getToken?.();
+  const res = await fetch(`${API_URL}/inventory/export`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error('Failed to download inventory export');
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'inventory_export.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}

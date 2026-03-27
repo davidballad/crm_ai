@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-from shared.auth import require_auth
+from shared.auth import require_auth, validate_service_key
 from shared.db import delete_item, get_item, get_table, put_item, query_items, update_item
 from shared.db import DynamoDBError
 from shared.models import Contact
@@ -59,8 +59,38 @@ def _tier_from_total_spent(total_spent: Decimal) -> str:
         return "silver"
     return "gold"
 
+
+def _normalize_phone_digits(value: str | None) -> str:
+    """Digits only — matches WhatsApp `from_number` and avoids +/spaces mismatches."""
+    if value is None:
+        return ""
+    return "".join(ch for ch in str(value) if ch.isdigit())
+
+
 # When filtering by phone, paginate until match (contacts may not be on first page).
 _PHONE_LOOKUP_MAX_PAGES = 40
+
+
+def _find_contact_item_by_phone(tenant_id: str, phone_digits: str) -> dict[str, Any] | None:
+    """Find first existing contact item by normalized phone for this tenant."""
+    if not phone_digits:
+        return None
+    pk = build_pk(tenant_id)
+    last_key: dict[str, Any] | None = None
+    for _ in range(_PHONE_LOOKUP_MAX_PAGES):
+        items, last_eval = query_items(
+            pk=pk,
+            sk_prefix=CONTACT_SK_PREFIX,
+            limit=LIMIT_MAX,
+            last_key=last_key,
+        )
+        for item in items:
+            if _normalize_phone_digits(item.get("phone")) == phone_digits:
+                return item
+        if not last_eval:
+            return None
+        last_key = last_eval
+    return None
 
 
 def _decode_next_token(token: str | None) -> dict[str, Any] | None:
@@ -95,6 +125,9 @@ def list_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     try:
         if phone_filter:
             # Paginate until we find a matching phone (or exhaust pages).
+            want_digits = _normalize_phone_digits(phone_filter)
+            if not want_digits:
+                return success(body={"contacts": []})
             found: list[dict[str, Any]] = []
             last_key_loop = last_key
             for _ in range(_PHONE_LOOKUP_MAX_PAGES):
@@ -106,7 +139,7 @@ def list_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                 )
                 for item in items:
                     c = Contact.from_dynamo(item).to_dict()
-                    if c.get("phone") == phone_filter:
+                    if _normalize_phone_digits(c.get("phone")) == want_digits:
                         found.append(c)
                         break
                 if found:
@@ -133,6 +166,77 @@ def list_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         return server_error(str(e))
 
 
+def export_contacts_csv(tenant_id: str) -> dict[str, Any]:
+    """Return all contacts/leads as CSV (Google Sheets-compatible)."""
+    import csv
+    import io
+
+    pk = build_pk(tenant_id)
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(
+        [
+            "contact_id",
+            "name",
+            "phone",
+            "email",
+            "source_channel",
+            "lead_status",
+            "tier",
+            "total_spent",
+            "last_activity_ts",
+            "created_ts",
+            "conversation_mode",
+            "tags",
+        ]
+    )
+
+    last_key: dict[str, Any] | None = None
+    try:
+        while True:
+            items, last_key = query_items(
+                pk=pk,
+                sk_prefix=CONTACT_SK_PREFIX,
+                limit=200,
+                last_key=last_key,
+            )
+            for item in items:
+                c = Contact.from_dynamo(item).to_dict()
+                tags = c.get("tags")
+                tags_csv = ",".join(tags) if isinstance(tags, list) else ""
+                writer.writerow(
+                    [
+                        c.get("contact_id", ""),
+                        c.get("name", ""),
+                        c.get("phone", ""),
+                        c.get("email", ""),
+                        c.get("source_channel", ""),
+                        c.get("lead_status", "prospect"),
+                        c.get("tier", "bronze"),
+                        c.get("total_spent", ""),
+                        c.get("last_activity_ts", ""),
+                        c.get("created_ts", ""),
+                        c.get("conversation_mode", "bot"),
+                        tags_csv,
+                    ]
+                )
+            if not last_key:
+                break
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": 'attachment; filename="leads_export.csv"',
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type,Authorization",
+        },
+        "body": out.getvalue(),
+    }
+
+
 def create_contact(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """Create a new contact (defaults: lead_status=prospect, tier=bronze)."""
     try:
@@ -156,6 +260,17 @@ def create_contact(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         # Keep tier consistent with spend when creating contact with historical spend.
         contact_data.tier = _tier_from_total_spent(contact_data.total_spent)
 
+    phone_digits = _normalize_phone_digits(contact_data.phone)
+    if phone_digits:
+        # Idempotency guard: avoid duplicate leads for the same WhatsApp number.
+        try:
+            existing_item = _find_contact_item_by_phone(tenant_id, phone_digits)
+        except DynamoDBError as e:
+            return server_error(str(e))
+        if existing_item:
+            return success(body=Contact.from_dynamo(existing_item).to_dict())
+        contact_data.phone = phone_digits
+
     contact_id = generate_id()
     created_ts = now_iso()
 
@@ -173,7 +288,8 @@ def create_contact(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         "created_ts": created_ts,
     }
     if contact_data.phone is not None:
-        item["phone"] = contact_data.phone
+        nd = _normalize_phone_digits(contact_data.phone)
+        item["phone"] = nd if nd else str(contact_data.phone).strip()
     if contact_data.total_spent is not None:
         item["total_spent"] = contact_data.total_spent
     if contact_data.email is not None:
@@ -237,7 +353,11 @@ def patch_contact(
     updates: dict[str, Any] = {}
     for key, value in body.items():
         if key in allowed:
-            updates[key] = value
+            if key == "phone" and value is not None:
+                nd = _normalize_phone_digits(str(value))
+                updates[key] = nd if nd else str(value).strip()
+            else:
+                updates[key] = value
 
     if "lead_status" in updates and updates["lead_status"] not in VALID_LEAD_STATUSES:
         return error(f"lead_status must be one of: {', '.join(sorted(VALID_LEAD_STATUSES))}", 400)
@@ -286,12 +406,17 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Route requests by method and path."""
     try:
         method = event.get("requestContext", {}).get("http", {}).get("method", "")
+        path = event.get("path", "") or event.get("rawPath", "")
         path_params = event.get("pathParameters") or {}
         contact_id = path_params.get("id")
         tenant_id = event.get("tenant_id", "")
 
-        if _get_tenant_plan(tenant_id) not in PRO_PLANS:
+        # UI (JWT): Pro plan required. n8n / service key may upsert contacts for any plan.
+        if _get_tenant_plan(tenant_id) not in PRO_PLANS and not validate_service_key(event):
             return error("Leads & contacts require a Pro plan. Please upgrade your account.", 403)
+
+        if method == "GET" and path.endswith("/contacts/export"):
+            return export_contacts_csv(tenant_id)
 
         if method == "GET" and not contact_id:
             return list_contacts(tenant_id, event)

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useProducts, useDeleteProduct, useImportProducts } from '../hooks/useProducts';
-import { downloadImportTemplate, getUploadImageUrls, updateProduct } from '../api/inventory';
+import { downloadImportTemplate, downloadInventoryExport, getUploadImageUrls, updateProduct } from '../api/inventory';
 import LowStockBadge from '../components/LowStockBadge';
 import { Plus, Search, Pencil, Trash2, Package, Upload, Download, ImagePlus } from 'lucide-react';
 
@@ -32,6 +32,14 @@ export default function InventoryList() {
   const handleDownloadTemplate = async () => {
     try {
       await downloadImportTemplate();
+    } catch (e) {
+      setImportResult({ error: e.message });
+    }
+  };
+
+  const handleDownloadInventory = async () => {
+    try {
+      await downloadInventoryExport();
     } catch (e) {
       setImportResult({ error: e.message });
     }
@@ -93,6 +101,13 @@ export default function InventoryList() {
             className="btn-secondary gap-2"
           >
             <Download className="h-4 w-4" /> Template
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadInventory}
+            className="btn-secondary gap-2"
+          >
+            <Download className="h-4 w-4" /> Exportar inventario
           </button>
           <button
             type="button"

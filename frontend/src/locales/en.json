@@ -305,6 +305,7 @@
     "noConversationsHint": "WhatsApp chats will appear here (one per number)",
     "active": "Active",
     "incomplete": "Incomplete",
+    "ventas": "Sales",
     "closed": "Closed",
     "viewLead": "View lead",
     "conversationClosed": "This conversation is closed. Sending is disabled to comply with WhatsApp policies. If the customer messages again, it will reopen as Active.",

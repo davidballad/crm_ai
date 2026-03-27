@@ -305,6 +305,7 @@
     "noConversationsHint": "Los chats de WhatsApp aparecerán aquí (uno por número)",
     "active": "Activas",
     "incomplete": "Incompletas",
+    "ventas": "Ventas",
     "closed": "Cerradas",
     "viewLead": "Ver contacto",
     "conversationClosed": "Esta conversación está cerrada. No se puede enviar para cumplir con las políticas de WhatsApp. Si el cliente escribe de nuevo, se reabrirá como Activa.",

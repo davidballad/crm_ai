@@ -12,16 +12,19 @@ from typing import Any
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from shared.auth import extract_tenant_id
 from shared.db import DynamoDBError, get_item, put_item, query_items, update_item
-from shared.models import Message
+from shared.models import ConversationSummary, Message
 from shared.response import created, error, not_found, server_error, success
 from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
 
 GRAPH_API_VERSION = "v21.0"
 
 MESSAGE_SK_PREFIX = "MESSAGE#"
+CONVO_SK_PREFIX = "CONVO#"
 LIMIT_DEFAULT = 50
 LIMIT_MAX = 100
-VALID_CATEGORIES = {"active", "incomplete", "abandoned", "closed"}
+CONTACT_HISTORY_MAX_PAGES = 40
+VALID_CATEGORIES = {"active", "incomplete", "abandoned", "closed", "ventas"}
+VALID_DIRECTIONS = {"inbound", "outbound"}
 
 
 def _normalize_phone(s: str | None) -> str:
@@ -30,6 +33,65 @@ def _normalize_phone(s: str | None) -> str:
     if not raw:
         return ""
     return "".join(ch for ch in raw if ch.isdigit())
+
+
+def _customer_phone_for_message(direction: str | None, from_number: str | None, to_number: str | None) -> str:
+    """Pick the 'customer phone' for a message, used to key conversation summary."""
+    d = (direction or "").strip().lower()
+    if d == "inbound":
+        return _normalize_phone(from_number)
+    if d == "outbound":
+        return _normalize_phone(to_number)
+    # Fallback: prefer from_number
+    return _normalize_phone(from_number) or _normalize_phone(to_number)
+
+
+def _upsert_conversation_summary(
+    *,
+    tenant_id: str,
+    direction: str | None,
+    from_number: str | None,
+    to_number: str | None,
+    text: str | None,
+    category: str | None,
+    created_ts: str,
+) -> None:
+    pk = build_pk(tenant_id)
+    customer_phone = _customer_phone_for_message(direction, from_number, to_number)
+    if not customer_phone:
+        return
+    sk = f"{CONVO_SK_PREFIX}{customer_phone}"
+
+    updates: dict[str, Any] = {
+        "tenant_id": tenant_id,
+        "customer_phone": customer_phone,
+        "channel": "whatsapp",
+        "updated_at": now_iso(),
+        "last_message_ts": created_ts,
+        "last_direction": (direction or "").strip().lower() or None,
+        "last_text": (text or "").strip()[:4000] if isinstance(text, str) else None,
+    }
+    if category:
+        updates["category"] = category
+    if (direction or "").strip().lower() == "inbound":
+        updates["last_inbound_ts"] = created_ts
+    if (direction or "").strip().lower() == "outbound":
+        updates["last_outbound_ts"] = created_ts
+
+    existing = get_item(pk=pk, sk=sk)
+    if not existing:
+        item = {"pk": pk, "sk": sk, **ConversationSummary.from_dynamo(updates).to_dynamo()}
+        put_item(item)
+        return
+
+    # Only move timestamps forward if this message is newer.
+    if (existing.get("last_message_ts") or "") > created_ts:
+        # Still allow category update if provided.
+        if category:
+            update_item(pk=pk, sk=sk, updates={"category": category, "updated_at": now_iso()})
+        return
+
+    update_item(pk=pk, sk=sk, updates=updates)
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +149,75 @@ def list_messages(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         return server_error(str(e))
 
 
+def list_conversations(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """GET /conversations — fast list for inbox/reminders. Optional filters: category, phone."""
+    params = event.get("queryStringParameters") or {}
+    next_token = params.get("next_token")
+    category = (params.get("category") or "").strip().lower()
+    phone = _normalize_phone(params.get("phone"))
+    try:
+        limit = min(int(params.get("limit", LIMIT_DEFAULT)), LIMIT_MAX)
+    except (TypeError, ValueError):
+        limit = LIMIT_DEFAULT
+
+    pk = build_pk(tenant_id)
+    last_key = _decode_next_token(next_token)
+    try:
+        items, last_eval = query_items(pk=pk, sk_prefix=CONVO_SK_PREFIX, limit=limit, last_key=last_key)
+        convos = [ConversationSummary.from_dynamo(item).to_dict() for item in items]
+        if category:
+            convos = [c for c in convos if c.get("category") == category]
+        if phone:
+            convos = [c for c in convos if _normalize_phone(c.get("customer_phone")) == phone]
+        body: dict[str, Any] = {"conversations": convos}
+        if _encode_next_token(last_eval):
+            body["next_token"] = _encode_next_token(last_eval)
+        return success(body=body)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+
+def list_conversation_messages(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dict[str, Any]:
+    """GET /conversations/{phone}/messages — thread messages for a customer phone (fast UI, avoids fetching all messages)."""
+    params = event.get("queryStringParameters") or {}
+    next_token = params.get("next_token")
+    try:
+        limit = min(int(params.get("limit", LIMIT_DEFAULT)), LIMIT_MAX)
+    except (TypeError, ValueError):
+        limit = LIMIT_DEFAULT
+
+    phone_norm = _normalize_phone(customer_phone)
+    if not phone_norm:
+        return error("phone is required", 400)
+
+    pk = build_pk(tenant_id)
+    last_key = _decode_next_token(next_token)
+
+    out: list[dict[str, Any]] = []
+    try:
+        while len(out) < limit:
+            items, last_eval = query_items(pk=pk, sk_prefix=MESSAGE_SK_PREFIX, limit=LIMIT_MAX, last_key=last_key)
+            for item in items:
+                from_n = _normalize_phone(item.get("from_number"))
+                to_n = _normalize_phone(item.get("to_number"))
+                if from_n == phone_norm or to_n == phone_norm:
+                    out.append(Message.from_dynamo(item).to_dict())
+                    if len(out) >= limit:
+                        break
+            if not last_eval:
+                last_key = None
+                break
+            last_key = last_eval
+
+        out.sort(key=lambda m: (m.get("created_ts") or ""))
+        body: dict[str, Any] = {"messages": out}
+        if _encode_next_token(last_key):
+            body["next_token"] = _encode_next_token(last_key)
+        return success(body=body)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+
 def list_contact_messages(tenant_id: str, contact_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """GET /contacts/{id}/messages — conversation history. Includes messages linked by contact_id or by contact phone."""
     params = event.get("queryStringParameters") or {}
@@ -107,18 +238,32 @@ def list_contact_messages(tenant_id: str, contact_id: str, event: dict[str, Any]
 
     last_key = _decode_next_token(next_token)
     try:
-        # Fetch enough items to find messages for this contact (by contact_id or phone)
-        items, last_eval = query_items(pk=pk, sk_prefix=MESSAGE_SK_PREFIX, limit=LIMIT_MAX, last_key=last_key)
+        # Iterate pages until we collect enough matches for this contact.
         out: list[dict[str, Any]] = []
-        for item in items:
-            if item.get("contact_id") == contact_id:
-                out.append(Message.from_dynamo(item).to_dict())
-                continue
-            if contact_phone_norm:
-                from_n = _normalize_phone(item.get("from_number"))
-                to_n = _normalize_phone(item.get("to_number"))
-                if from_n == contact_phone_norm or to_n == contact_phone_norm:
+        page_key = last_key
+        last_eval: dict[str, Any] | None = None
+        for _ in range(CONTACT_HISTORY_MAX_PAGES):
+            items, last_eval = query_items(
+                pk=pk,
+                sk_prefix=MESSAGE_SK_PREFIX,
+                limit=LIMIT_MAX,
+                last_key=page_key,
+            )
+            for item in items:
+                if item.get("contact_id") == contact_id:
                     out.append(Message.from_dynamo(item).to_dict())
+                    continue
+                if contact_phone_norm:
+                    from_n = _normalize_phone(item.get("from_number"))
+                    to_n = _normalize_phone(item.get("to_number"))
+                    if from_n == contact_phone_norm or to_n == contact_phone_norm:
+                        out.append(Message.from_dynamo(item).to_dict())
+                if len(out) >= limit:
+                    break
+            if len(out) >= limit or not last_eval:
+                break
+            page_key = last_eval
+
         out.sort(key=lambda m: (m.get("created_ts") or ""))
         body = {"messages": out[:limit]}
         if _encode_next_token(last_eval):
@@ -149,12 +294,35 @@ def create_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         "category": body.get("category", "active"),
         "created_ts": created_ts,
     }
-    for field in ("channel_message_id", "from_number", "to_number", "text", "metadata", "contact_id", "processed_flags"):
+    direction = (body.get("direction") or "").strip().lower() or None
+    if direction and direction not in VALID_DIRECTIONS:
+        return error(f"direction must be one of: {', '.join(sorted(VALID_DIRECTIONS))}", 400)
+    if direction:
+        item["direction"] = direction
+
+    for field in (
+        "channel_message_id",
+        "from_number",
+        "to_number",
+        "text",
+        "metadata",
+        "contact_id",
+        "processed_flags",
+    ):
         if body.get(field) is not None:
             item[field] = body[field]
 
     try:
         put_item(item)
+        _upsert_conversation_summary(
+            tenant_id=tenant_id,
+            direction=item.get("direction"),
+            from_number=item.get("from_number"),
+            to_number=item.get("to_number"),
+            text=item.get("text"),
+            category=item.get("category"),
+            created_ts=created_ts,
+        )
     except DynamoDBError as e:
         return server_error(str(e))
 
@@ -234,6 +402,7 @@ def send_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         "message_id": message_id,
         "channel": "whatsapp",
         "channel_message_id": graph_body.get("messages", [{}])[0].get("id") if isinstance(graph_body.get("messages"), list) else None,
+        "direction": "outbound",
         "from_number": business_phone,
         "to_number": to_number,
         "text": text,
@@ -242,6 +411,15 @@ def send_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     }
     try:
         put_item(item)
+        _upsert_conversation_summary(
+            tenant_id=tenant_id,
+            direction="outbound",
+            from_number=item.get("from_number"),
+            to_number=item.get("to_number"),
+            text=item.get("text"),
+            category=item.get("category"),
+            created_ts=created_ts,
+        )
     except DynamoDBError:
         return server_error("Failed to store message")
 
@@ -286,6 +464,12 @@ def mark_conversation(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
     pk = build_pk(tenant_id)
     try:
+        # Update summary first (cheap), even if messages are very large.
+        convo_sk = f"{CONVO_SK_PREFIX}{_normalize_phone(from_number)}"
+        existing_convo = get_item(pk=pk, sk=convo_sk)
+        if existing_convo:
+            update_item(pk=pk, sk=convo_sk, updates={"category": category, "updated_at": now_iso()})
+
         latest_msg = _find_latest_message_for_phone(pk, from_number)
         if not latest_msg:
             return success(body={"message": "No conversation found", "updated": False})
@@ -308,6 +492,11 @@ def mark_conversation_closed(tenant_id: str, event: dict[str, Any]) -> dict[str,
 
     pk = build_pk(tenant_id)
     try:
+        convo_sk = f"{CONVO_SK_PREFIX}{_normalize_phone(from_number)}"
+        existing_convo = get_item(pk=pk, sk=convo_sk)
+        if existing_convo:
+            update_item(pk=pk, sk=convo_sk, updates={"category": "closed", "updated_at": now_iso()})
+
         latest_msg = _find_latest_message_for_phone(pk, from_number)
         if not latest_msg:
             return success(body={"message": "No conversation found", "closed": False})
@@ -349,6 +538,19 @@ def patch_message_flags(tenant_id: str, message_id: str, event: dict[str, Any]) 
         updated_item = update_item(pk=pk, sk=sk, updates=updates)
     except DynamoDBError as e:
         return server_error(str(e))
+
+    # Best-effort: if category changed, mirror to conversation summary.
+    try:
+        if "category" in updates:
+            direction = updated_item.get("direction")
+            convo_phone = _customer_phone_for_message(direction, updated_item.get("from_number"), updated_item.get("to_number"))
+            if convo_phone:
+                convo_sk = f"{CONVO_SK_PREFIX}{convo_phone}"
+                existing_convo = get_item(pk=pk, sk=convo_sk)
+                if existing_convo:
+                    update_item(pk=pk, sk=convo_sk, updates={"category": updates["category"], "updated_at": now_iso()})
+    except DynamoDBError:
+        pass
 
     return success(body=Message.from_dynamo(updated_item).to_dict())
 
@@ -399,6 +601,16 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         # GET /messages
         if method == "GET" and path.strip("/") == "messages":
             return list_messages(tenant_id, event)
+
+        # GET /conversations
+        if method == "GET" and path.strip("/") == "conversations":
+            return list_conversations(tenant_id, event)
+
+        # GET /conversations/{phone}/messages
+        if method == "GET" and path.endswith("/messages") and "conversations" in path:
+            phone = path_params.get("phone")
+            if phone:
+                return list_conversation_messages(tenant_id, phone, event)
 
         return error("Method not allowed", 405)
     except Exception as e:

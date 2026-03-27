@@ -77,6 +77,10 @@ class Transaction(_BaseModel):
     contact_id: str | None = None
     delivery_method: str | None = None
     delivery_location: str | None = None
+    delivery_status: str | None = None
+    delivery_window_requested: str | None = None
+    delivery_window_approved: str | None = None
+    delivery_decision_note: str | None = None
     status: str = "pending"
     idempotency_key: str | None = None
     square_payment_id: str | None = None
@@ -228,6 +232,7 @@ class Message(_BaseModel):
     message_id: str | None = None
     channel: str = "whatsapp"
     channel_message_id: str | None = None
+    direction: str | None = None  # inbound | outbound
     from_number: str | None = None
     to_number: str | None = None
     text: str | None = None
@@ -236,3 +241,19 @@ class Message(_BaseModel):
     category: str = "active"
     processed_flags: list[str] | None = None
     created_ts: str | None = None
+
+
+@dataclass
+class ConversationSummary(_BaseModel):
+    """Fast inbox/reminder view per customer conversation."""
+
+    tenant_id: str
+    customer_phone: str
+    channel: str = "whatsapp"
+    category: str = "active"
+    last_message_ts: str | None = None
+    last_inbound_ts: str | None = None
+    last_outbound_ts: str | None = None
+    last_direction: str | None = None
+    last_text: str | None = None
+    updated_at: str | None = None
