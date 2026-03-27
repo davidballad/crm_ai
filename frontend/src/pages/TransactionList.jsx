@@ -250,19 +250,21 @@ export default function TransactionList() {
   const pickupTag = (tx) => {
     const method = (tx.delivery_method || '').toLowerCase();
     const status = (tx.delivery_status || '').toLowerCase();
-    const isPickupFlow = method === 'pickup' || status.startsWith('pickup_');
-    if (!isPickupFlow) return null;
+    const verification = (tx.payment_verification_status || '').toLowerCase();
+    const isDispatchFlow = method === 'pickup' || method === 'delivery' || status.startsWith('pickup_');
+    if (!isDispatchFlow) return null;
+    if (verification !== 'verified') return null;
 
-    if (status === 'pickup_confirmed') {
+    if (status === 'pickup_confirmed' || status === 'owner_approved') {
       return (
         <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-          Pickup confirmado
+          {method === 'delivery' ? 'En camino' : 'Entregado'}
         </span>
       );
     }
     return (
       <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-        Esperando pickup
+        Esperando por pickup
       </span>
     );
   };
@@ -769,20 +771,35 @@ export default function TransactionList() {
             </div>
             <div className="flex justify-end gap-2 border-t border-gray-200 px-4 py-3">
               {(() => {
-                const isPickup = (selectedTx.delivery_method || '').toLowerCase() === 'pickup';
+                const deliveryMethod = (selectedTx.delivery_method || '').toLowerCase().trim();
+                const deliveryStatus = (selectedTx.delivery_status || '').toLowerCase().trim();
+                const isPickupFlow = deliveryMethod === 'pickup' || deliveryStatus.startsWith('pickup_');
+                const isVerified = (selectedTx.payment_verification_status || '').toLowerCase() === 'verified';
+                const isDeliveryFlow = deliveryMethod === 'delivery';
+                // Backward-compatible: some older verified pickup orders may not have pickup_* status yet.
+                const isLegacyPendingPickup = isVerified && !deliveryMethod && !deliveryStatus;
+                const canConfirmPickup =
+                  (isPickupFlow || isDeliveryFlow || isLegacyPendingPickup) &&
+                  isVerified &&
+                  deliveryStatus !== 'pickup_confirmed' &&
+                  deliveryStatus !== 'owner_approved';
+                const confirmPickupUpdates =
+                  deliveryMethod === 'delivery'
+                    ? { delivery_method: 'delivery', delivery_status: 'pickup_confirmed' }
+                    : { delivery_method: 'pickup', delivery_status: 'pickup_confirmed' };
                 return (
                   <>
-              {isPickup && (
+              {canConfirmPickup && (
                 <button
                   type="button"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  onClick={() => handleDeliveryDecision({ delivery_method: 'pickup', delivery_status: 'pickup_confirmed' })}
+                  onClick={() => handleDeliveryDecision(confirmPickupUpdates)}
                   disabled={verifyLoading || cancelLoading || deliveryLoading}
                 >
                   Confirmar pickup
                 </button>
               )}
-              {!isPickup && (
+              {!isPickupFlow && (
                 <>
                   <button
                     type="button"
