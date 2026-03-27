@@ -23,12 +23,14 @@ export async function fetchConversations(opts = {}) {
   return { conversations: all };
 }
 
-export function fetchConversationMessages(phone, { nextToken, limit } = {}) {
+const CONVERSATION_PAGE_LIMIT = 100;
+
+export async function fetchConversationMessages(phone, { nextToken, limit } = {}) {
   const params = new URLSearchParams();
   if (nextToken) params.set('next_token', nextToken);
-  if (limit) params.set('limit', String(limit));
+  params.set('limit', String(limit ?? CONVERSATION_PAGE_LIMIT));
   const qs = params.toString();
-  return api.get(`/conversations/${encodeURIComponent(phone)}/messages${qs ? `?${qs}` : ''}`);
+  return api.get(`/conversations/${encodeURIComponent(phone)}/messages?${qs}`);
 }
 
 export function fetchMessagesPage({ contactId, channel, category, nextToken } = {}) {
@@ -56,11 +58,14 @@ export async function fetchMessages(opts = {}) {
   return { messages: allMessages };
 }
 
-export function fetchContactMessages(contactId, { nextToken } = {}) {
+const CONTACT_MESSAGES_PAGE_LIMIT = 100;
+
+export async function fetchContactMessages(contactId, { nextToken, limit } = {}) {
   const params = new URLSearchParams();
   if (nextToken) params.set('next_token', nextToken);
+  params.set('limit', String(limit ?? CONTACT_MESSAGES_PAGE_LIMIT));
   const qs = params.toString();
-  return api.get(`/contacts/${contactId}/messages${qs ? `?${qs}` : ''}`);
+  return api.get(`/contacts/${contactId}/messages?${qs}`);
 }
 
 export function createMessage(data) {

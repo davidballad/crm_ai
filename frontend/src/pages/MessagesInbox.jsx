@@ -76,7 +76,11 @@ export default function MessagesInbox() {
   }, {});
 
   const selectedCustomerPhone = normalizePhone(selectedConv?.from_number);
-  const { data: threadData } = useConversationMessages(selectedCustomerPhone);
+  const {
+    data: threadData,
+    isLoading: threadLoading,
+    isFetching: threadFetching,
+  } = useConversationMessages(selectedCustomerPhone);
   const threadMessages = (threadData?.messages || []).sort(
     (a, b) => new Date(a.created_ts || 0) - new Date(b.created_ts || 0),
   );
@@ -151,6 +155,8 @@ export default function MessagesInbox() {
       await sendMessage({ to_number: selectedConv.from_number, text });
       setReplyText('');
       queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['conversationMessages'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
     } catch (err) {
       setSendError(err.message || t('messages.failedToSend'));
     } finally {
@@ -300,10 +306,21 @@ export default function MessagesInbox() {
                 onScroll={handleThreadScroll}
                 className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-contain p-4 [scrollbar-gutter:stable]"
               >
-                {threadMessages.map((m) => {
+                {(threadLoading || threadFetching) && threadMessages.length === 0 ? (
+                  <div className="flex justify-center py-8">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
+                  </div>
+                ) : null}
+                {!threadLoading && !threadFetching && threadMessages.length === 0 ? (
+                  <p className="text-center text-sm text-gray-500">{t('messages.noMessagesInThread')}</p>
+                ) : null}
+                {threadMessages.map((m, idx) => {
                   const isThem = messageIsInboundForThread(m, selectedCustomerPhone);
                   return (
-                    <div key={m.message_id} className={`flex ${isThem ? 'justify-start' : 'justify-end'}`}>
+                    <div
+                      key={m.message_id || `m-${idx}-${m.created_ts || ''}`}
+                      className={`flex ${isThem ? 'justify-start' : 'justify-end'}`}
+                    >
                       <div
                         className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                           isThem ? 'bg-gray-100 text-gray-900' : 'bg-brand-600 text-white'

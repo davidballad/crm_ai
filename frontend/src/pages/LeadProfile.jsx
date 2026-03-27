@@ -5,6 +5,8 @@ import { usePlan } from '../hooks/useTenantConfig';
 import UpgradeWall from '../components/UpgradeWall';
 import { ArrowLeft, MessageSquare } from 'lucide-react';
 
+const normalizePhone = (value) => String(value || '').replace(/\D/g, '');
+
 const LEAD_STATUS_OPTIONS = [
   { value: 'prospect', label: 'Prospect' },
   { value: 'interested', label: 'Interested' },
@@ -59,7 +61,11 @@ export default function LeadProfile() {
   const { id } = useParams();
   const { isPro, isLoading: planLoading } = usePlan();
   const { data: contact, isLoading, error } = useContact(id);
-  const { data: messagesData } = useContactMessages(id);
+  const {
+    data: messagesData,
+    isLoading: messagesLoading,
+    isFetching: messagesFetching,
+  } = useContactMessages(id);
   const patchContact = usePatchContact();
 
   if (planLoading) {
@@ -75,11 +81,35 @@ export default function LeadProfile() {
   const messages = messagesData?.messages || [];
   const PREVIEW_COUNT = 8;
   const previewMessages = messages.slice(-PREVIEW_COUNT);
+  const contactDigits = normalizePhone(contact?.phone);
 
-const getMessageText = (m) => {
-  const t = m?.text ?? m?.message_text ?? m?.metadata?.text ?? m?.body ?? '';
-  return t != null && t !== undefined ? (typeof t === 'string' ? t : String(t)) : '';
-};
+  const getMessageText = (m) => {
+    const t =
+      m?.text ??
+      m?.message_text ??
+      m?.metadata?.text ??
+      m?.metadata?.message_text ??
+      m?.metadata?.message ??
+      m?.metadata?.body ??
+      m?.metadata?.caption ??
+      m?.body ??
+      '';
+    return t != null && t !== undefined ? (typeof t === 'string' ? t : String(t)) : '';
+  };
+
+  /** Inbound = customer (left); outbound = business (right). */
+  const messageIsInbound = (m) => {
+    const dir = (m.direction || '').toLowerCase();
+    if (dir === 'inbound') return true;
+    if (dir === 'outbound') return false;
+    if (contactDigits) {
+      const from = normalizePhone(m.from_number);
+      const to = normalizePhone(m.to_number);
+      if (from === contactDigits) return true;
+      if (to === contactDigits) return false;
+    }
+    return true;
+  };
 
   const handleStatusChange = (e) => {
     const lead_status = e.target.value;
@@ -182,32 +212,39 @@ const getMessageText = (m) => {
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-700">
             <MessageSquare className="h-4 w-4" /> Conversation history
           </h2>
-          {messages.length === 0 ? (
+          {(messagesLoading || messagesFetching) && messages.length === 0 ? (
+            <div className="flex justify-center py-6">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
+            </div>
+          ) : !messagesLoading && !messagesFetching && messages.length === 0 ? (
             <p className="text-sm text-gray-500">No messages yet.</p>
           ) : (
             <>
               <p className="mb-3 text-xs text-gray-500">
                 Showing last {Math.min(PREVIEW_COUNT, messages.length)} message(s).
               </p>
-              <ul className="space-y-3 max-h-96 overflow-y-auto">
-                {previewMessages.map((m) => (
-                <li
-                  key={m.message_id}
-                  className={`rounded-lg p-3 text-sm ${
-                    m.from_number ? 'ml-4 bg-brand-50 text-gray-900' : 'mr-4 bg-gray-100 text-gray-900'
-                  }`}
-                >
-                  <p>{getMessageText(m)}</p>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-                    <span>{m.created_ts ? new Date(m.created_ts).toLocaleString() : ''}</span>
-                    {m.category && (
-                      <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] uppercase">
-                        {m.category}
-                      </span>
-                    )}
-                  </div>
-                </li>
-                ))}
+              <ul className="max-h-96 space-y-3 overflow-y-auto">
+                {previewMessages.map((m, idx) => {
+                  const inbound = messageIsInbound(m);
+                  return (
+                    <li
+                      key={m.message_id || `m-${idx}-${m.created_ts || ''}`}
+                      className={`rounded-lg p-3 text-sm ${
+                        inbound ? 'ml-4 bg-gray-100 text-gray-900' : 'mr-4 bg-brand-50 text-gray-900'
+                      }`}
+                    >
+                      <p>{getMessageText(m)}</p>
+                      <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                        <span>{m.created_ts ? new Date(m.created_ts).toLocaleString() : ''}</span>
+                        {m.category && (
+                          <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] uppercase">
+                            {m.category}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </>
           )}

@@ -313,6 +313,7 @@
     "sending": "Enviando…",
     "sentViaHint": "Enviado por WhatsApp con tu token de Conectar WhatsApp.",
     "selectConversation": "Selecciona una conversación para ver el hilo y responder",
+    "noMessagesInThread": "Aún no hay mensajes en este hilo",
     "backToList": "Volver a conversaciones",
     "failedToSend": "Error al enviar"
   },

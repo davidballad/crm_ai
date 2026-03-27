@@ -313,6 +313,7 @@
     "sending": "Sending…",
     "sentViaHint": "Sent via WhatsApp using your Connect WhatsApp token.",
     "selectConversation": "Select a conversation to view thread and reply",
+    "noMessagesInThread": "No messages in this thread yet",
     "backToList": "Back to conversations",
     "failedToSend": "Failed to send"
   },

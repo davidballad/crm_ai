@@ -195,8 +195,15 @@ def list_conversation_messages(tenant_id: str, customer_phone: str, event: dict[
 
     out: list[dict[str, Any]] = []
     try:
+        # Newest messages first (descending SK) so we fill the thread with recent history, not the oldest N.
         while len(out) < limit:
-            items, last_eval = query_items(pk=pk, sk_prefix=MESSAGE_SK_PREFIX, limit=LIMIT_MAX, last_key=last_key)
+            items, last_eval = query_items(
+                pk=pk,
+                sk_prefix=MESSAGE_SK_PREFIX,
+                limit=LIMIT_MAX,
+                last_key=last_key,
+                scan_index_forward=False,
+            )
             for item in items:
                 from_n = _normalize_phone(item.get("from_number"))
                 to_n = _normalize_phone(item.get("to_number"))
@@ -248,6 +255,7 @@ def list_contact_messages(tenant_id: str, contact_id: str, event: dict[str, Any]
                 sk_prefix=MESSAGE_SK_PREFIX,
                 limit=LIMIT_MAX,
                 last_key=page_key,
+                scan_index_forward=False,
             )
             for item in items:
                 if item.get("contact_id") == contact_id:

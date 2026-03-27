@@ -66,8 +66,13 @@ def query_items(
     sk_prefix: str | None = None,
     limit: int = 50,
     last_key: dict[str, Any] | None = None,
+    *,
+    scan_index_forward: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
-    """Query items by pk with optional sk begins_with. Returns (items, last_evaluated_key)."""
+    """Query items by pk with optional sk begins_with. Returns (items, last_evaluated_key).
+
+    scan_index_forward=False returns newest sort keys first (for time-ordered MESSAGE#… keys).
+    """
     try:
         table = get_table()
         key_condition = Key("pk").eq(pk)
@@ -76,6 +81,7 @@ def query_items(
         params: dict[str, Any] = {
             "KeyConditionExpression": key_condition,
             "Limit": limit,
+            "ScanIndexForward": scan_index_forward,
         }
         if last_key is not None:
             params["ExclusiveStartKey"] = last_key
