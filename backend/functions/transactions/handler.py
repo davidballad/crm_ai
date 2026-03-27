@@ -442,13 +442,22 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
             ),
         )
     elif updates.get("delivery_status") == "pickup_confirmed":
-        # Move conversation to the Sales/Ventas kanban column once pickup is confirmed.
-        _mark_conversation_category(pk, updated_item.get("customer_phone") or "", "ventas")
-        _send_whatsapp_text(
-            tenant_id=tenant_id,
-            to_phone=updated_item.get("customer_phone"),
-            message="Tu pedido ya está listo para retiro. Te esperamos, gracias por tu compra.",
-        )
+        # Guard against inconsistent updates: if method is delivery, send in-transit text.
+        delivery_method = str(updated_item.get("delivery_method") or "").strip().lower()
+        if delivery_method == "delivery":
+            _send_whatsapp_text(
+                tenant_id=tenant_id,
+                to_phone=updated_item.get("customer_phone"),
+                message="Tu pedido ya está en camino. Gracias por tu compra.",
+            )
+        else:
+            # Move conversation to the Sales/Ventas kanban column once pickup is confirmed.
+            _mark_conversation_category(pk, updated_item.get("customer_phone") or "", "ventas")
+            _send_whatsapp_text(
+                tenant_id=tenant_id,
+                to_phone=updated_item.get("customer_phone"),
+                message="Tu pedido ya está listo para retiro. Te esperamos, gracias por tu compra.",
+            )
     elif updates.get("delivery_status") == "owner_approved":
         _send_whatsapp_text(
             tenant_id=tenant_id,
