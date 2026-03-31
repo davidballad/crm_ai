@@ -262,6 +262,7 @@ class Campaign(_BaseModel):
     sent_count: int = 0
     failed_count: int = 0
     error_message: str | None = None
+
     scheduled_at: str | None = None
     n8n_webhook_url: str | None = None
     created_at: str | None = None

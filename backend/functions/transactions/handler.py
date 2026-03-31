@@ -623,6 +623,7 @@ def get_revenue_range(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                     # SK pattern: TXN#YYYY-MM-DD#<id>
                     sk_parts = item.get("sk", "").split("#")
                     day_str = sk_parts[1][:10] if len(sk_parts) >= 2 else ""
+
                     if day_str in daily:
                         daily[day_str]["revenue"] = round(
                             daily[day_str]["revenue"] + float(txn.total), 2

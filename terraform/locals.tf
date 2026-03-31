@@ -62,6 +62,7 @@ locals {
       memory_size = 512
       timeout     = 60
     }
+
   }
 
   packages_dir = "${path.module}/packages"

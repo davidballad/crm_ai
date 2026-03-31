@@ -32,10 +32,6 @@ function StatusBadge({ status }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// WhatsApp Campaigns tab (existing, unchanged)
-// ---------------------------------------------------------------------------
-
 const TIER_OPTIONS = [
   { value: '', label: 'Todos los niveles' },
   { value: 'bronze', label: 'Bronce' },
@@ -95,6 +91,7 @@ function CreateCampaignModal({ onClose }) {
               rows={4} placeholder="Hola {{name}}, tenemos una promoción especial para ti..."
               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Segmento de clientes</label>
             <div className="grid grid-cols-2 gap-3">
@@ -137,6 +134,7 @@ function CampaignRow({ campaign }) {
   const sendCampaign = useSendCampaign();
   const deleteCampaign = useDeleteCampaign();
   const queryClient = useQueryClient();
+
   const canSend = campaign.status === 'draft' || campaign.status === 'failed';
   const canDelete = campaign.status !== 'sending';
 
@@ -149,10 +147,12 @@ function CampaignRow({ campaign }) {
       setCancelling(false);
     }
   };
+
   const filters = campaign.segment_filters || {};
   const filterSummary = [
     filters.tier ? `Nivel: ${filters.tier}` : null,
     filters.lead_status ? `Estado: ${filters.lead_status}` : null,
+    filters.tag ? `Etiqueta: ${filters.tag}` : null,
   ].filter(Boolean).join(' · ') || 'Todos los clientes';
 
   return (

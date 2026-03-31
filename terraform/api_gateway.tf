@@ -730,6 +730,7 @@ resource "aws_apigatewayv2_stage" "default" {
 resource "aws_lambda_permission" "api_gateway" {
   for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact", "shop", "campaigns", "agents"])
 
+
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.services[each.key].function_name
