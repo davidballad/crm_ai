@@ -69,7 +69,7 @@ export default function InventoryForm() {
         body: file,
         headers: { 'Content-Type': file.type || 'image/jpeg' },
       });
-      if (!image_url) throw new Error('No image_url returned');
+      if (!image_url) throw new Error('No se recibio image_url');
       setForm((prev) => ({ ...prev, image_url }));
     } catch (err) {
       setError(err.message || t('inventoryForm.imageUploadFailed'));

@@ -253,6 +253,68 @@ export const mockHandlers = {
     Object.assign(TRANSACTIONS[idx], body);
     return TRANSACTIONS[idx];
   },
+
+  async 'GET /transactions/revenue'() {
+    await delay(300);
+    const days = 30;
+    const revenue = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      revenue.push({
+        date: d.toISOString().slice(0, 10),
+        revenue: Math.round(Math.random() * 800 + 200),
+        order_count: Math.round(Math.random() * 8 + 1),
+        items_sold: Math.round(Math.random() * 15 + 2),
+      });
+    }
+    return { revenue };
+  },
+
+  async 'GET /contacts/stats'() {
+    await delay(200);
+    return {
+      total: CONTACTS.length,
+      by_tier: { bronze: 1, silver: 1, gold: 1 },
+      by_status: { prospect: 1, interested: 1, closed_won: 1, abandoned: 0 },
+      avg_ltv: 245.50,
+    };
+  },
+
+  async 'POST /contacts/bulk-tag'(_, body) {
+    await delay(300);
+    return { updated: (body?.contact_ids || []).length };
+  },
+
+  async 'GET /campaigns'() {
+    await delay(200);
+    return { campaigns: [] };
+  },
+
+  async 'POST /campaigns'(_, body) {
+    await delay(300);
+    return { campaign_id: `camp-${Date.now()}`, status: 'draft', ...body };
+  },
+
+  async 'GET /campaigns/:id'(id) {
+    await delay(200);
+    return { campaign_id: id, status: 'draft', name: 'Mock Campaign', message_template: '', segment_filters: {}, sent_count: 0, failed_count: 0 };
+  },
+
+  async 'PATCH /campaigns/:id'(id, body) {
+    await delay(200);
+    return { campaign_id: id, ...body };
+  },
+
+  async 'DELETE /campaigns/:id'() {
+    await delay(200);
+    return null;
+  },
+
+  async 'POST /campaigns/:id/send'(id) {
+    await delay(500);
+    return { campaign_id: id, status: 'sending' };
+  },
 };
 
 export function matchMockRoute(method, path) {

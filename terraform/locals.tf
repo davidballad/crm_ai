@@ -54,6 +54,10 @@ locals {
       memory_size = 256
       timeout     = 30
     }
+    campaigns = {
+      memory_size = 256
+      timeout     = 30
+    }
   }
 
   packages_dir = "${path.module}/packages"

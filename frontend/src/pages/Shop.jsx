@@ -15,7 +15,7 @@ async function shopFetch(path, token, options = {}) {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.error || `Request failed (${res.status})`);
+    throw new Error(body?.error || `Solicitud fallida (${res.status})`);
   }
   return res.json();
 }

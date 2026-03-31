@@ -2,12 +2,26 @@ import { api, getTokenGetter } from './client';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-export function fetchContacts({ nextToken, phone } = {}) {
+export function fetchContacts({ nextToken, phone, tier, lead_status, tag, min_spent, max_spent, days_inactive } = {}) {
   const params = new URLSearchParams();
   if (nextToken) params.set('next_token', nextToken);
   if (phone) params.set('phone', phone);
+  if (tier) params.set('tier', tier);
+  if (lead_status) params.set('lead_status', lead_status);
+  if (tag) params.set('tag', tag);
+  if (min_spent != null) params.set('min_spent', min_spent);
+  if (max_spent != null) params.set('max_spent', max_spent);
+  if (days_inactive != null) params.set('days_inactive', days_inactive);
   const qs = params.toString();
   return api.get(`/contacts${qs ? `?${qs}` : ''}`);
+}
+
+export function fetchContactStats() {
+  return api.get('/contacts/stats');
+}
+
+export function bulkTagContacts({ contact_ids, tags, action }) {
+  return api.post('/contacts/bulk-tag', { contact_ids, tags, action });
 }
 
 export function fetchContact(id) {

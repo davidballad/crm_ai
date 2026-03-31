@@ -15,6 +15,8 @@ import {
   MessageSquare,
   Settings,
   Lock,
+  BarChart2,
+  Megaphone,
 } from 'lucide-react';
 
 const NAV_KEYS = [
@@ -24,6 +26,8 @@ const NAV_KEYS = [
   { to: '/app/inventory', icon: Package, labelKey: 'layout.inventory', pro: false },
   { to: '/app/transactions', icon: ShoppingCart, labelKey: 'layout.transactions', pro: false },
   { to: '/app/insights', icon: BrainCircuit, labelKey: 'layout.aiInsights', pro: true },
+  { to: '/app/analytics', icon: BarChart2, labelKey: 'layout.analytics', pro: false },
+  { to: '/app/campaigns', icon: Megaphone, labelKey: 'layout.campaigns', pro: false },
   { to: '/app/settings/whatsapp', icon: Settings, labelKey: 'layout.connectWhatsApp', pro: false },
 ];
 
@@ -42,14 +46,19 @@ function SidebarLink({ to, icon: Icon, labelKey, t, onClick, locked }) {
       }
     >
       <Icon className="h-5 w-5 shrink-0" />
-      <span className="flex-1">{labelKey === 'layout.leads' ? 'Leads' : t(labelKey)}</span>
+      <span className="flex-1">
+        {labelKey === 'layout.leads' ? 'Prospectos'
+          : labelKey === 'layout.analytics' ? 'Analíticas'
+          : labelKey === 'layout.campaigns' ? 'Campañas'
+          : t(labelKey)}
+      </span>
       {locked && <Lock className="h-3.5 w-3.5 shrink-0 text-gray-400" />}
     </NavLink>
   );
 }
 
 export default function Layout() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -138,23 +147,6 @@ export default function Layout() {
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex-1" />
-          <div className="flex items-center gap-1 text-sm text-gray-600">
-            <span className="sr-only">{t('common.language')}</span>
-            <button
-              type="button"
-              onClick={() => i18n.changeLanguage('en')}
-              className={`rounded px-2 py-1 font-medium ${i18n.language === 'en' ? 'bg-brand-100 text-brand-700' : 'hover:bg-gray-100'}`}
-            >
-              EN
-            </button>
-            <button
-              type="button"
-              onClick={() => i18n.changeLanguage('es')}
-              className={`rounded px-2 py-1 font-medium ${i18n.language === 'es' ? 'bg-brand-100 text-brand-700' : 'hover:bg-gray-100'}`}
-            >
-              ES
-            </button>
-          </div>
         </header>
 
         <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 lg:p-6">

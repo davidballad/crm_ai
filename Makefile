@@ -1,7 +1,7 @@
 PACKAGES_DIR = terraform/packages
 LAYER_DIR    = build/layer
 REQS         = backend/requirements-lambda.txt
-FUNCTIONS    = inventory transactions purchases ai_insights onboarding users contacts messages payments
+FUNCTIONS    = inventory transactions purchases ai_insights onboarding users contacts messages payments campaigns
 
 # Use Python 3.12 Amazon Linux 2 image so cryptography gets Linux binaries (required for Lambda)
 LAYER_DOCKER_IMAGE = public.ecr.aws/sam/build-python3.12:latest
@@ -18,15 +18,15 @@ layer:
 	cd $(LAYER_DIR) && zip -r ../../$(PACKAGES_DIR)/layer.zip python -x "*.pyc" "*__pycache__*" "*.dist-info/*" > /dev/null
 	@echo "-> $(PACKAGES_DIR)/layer.zip"
 
-# Build layer inside Docker (Linux) so cryptography/PyJWT work on Lambda. Use this on Windows.
-# MSYS_NO_PATHCONV=1 stops Git Bash from rewriting /var/task to C:/Program Files/Git/var/task.
+# Build layer inside Docker (linux/amd64) so cryptography/PyJWT get x86_64 binaries for Lambda.
+# --platform linux/amd64 is required on Mac M1/M2/M3 (arm64) to avoid architecture mismatch.
 layer-docker:
 	rm -rf $(LAYER_DIR)
 	mkdir -p $(LAYER_DIR) $(PACKAGES_DIR)
-	MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR):/var/task" -w //var/task $(LAYER_DOCKER_IMAGE) \
+	docker run --rm --platform linux/amd64 -v "$(CURDIR):/var/task" -w /var/task $(LAYER_DOCKER_IMAGE) \
 		pip install -r $(REQS) -t $(LAYER_DIR)/python --quiet --upgrade
 	cd $(LAYER_DIR) && zip -r ../../$(PACKAGES_DIR)/layer.zip python -x "*.pyc" "*__pycache__*" "*.dist-info/*" > /dev/null
-	@echo "-> $(PACKAGES_DIR)/layer.zip (Linux build)"
+	@echo "-> $(PACKAGES_DIR)/layer.zip (linux/amd64 build)"
 
 package:
 	mkdir -p $(PACKAGES_DIR)

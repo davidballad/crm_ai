@@ -1,4 +1,6 @@
-import { Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './context/AuthContext';
 import { setTokenGetter } from './api/client';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -16,10 +18,24 @@ import LeadProfile from './pages/LeadProfile';
 import MessagesInbox from './pages/MessagesInbox';
 import WhatsAppSetup from './pages/WhatsAppSetup';
 import Shop from './pages/Shop';
+import Analytics from './pages/Analytics';
+import Campaigns from './pages/Campaigns';
 
 export default function App() {
   const { token } = useAuth();
-  setTokenGetter(() => token);
+  const { i18n } = useTranslation();
+  const location = useLocation();
+
+  useEffect(() => {
+    setTokenGetter(() => token);
+  }, [token]);
+
+  useEffect(() => {
+    // Keep only landing page bilingual; force Spanish everywhere else.
+    if (location.pathname !== '/' && i18n.language !== 'es') {
+      i18n.changeLanguage('es');
+    }
+  }, [i18n, location.pathname]);
 
   return (
     <Routes>
@@ -45,6 +61,8 @@ export default function App() {
         <Route path="leads/:id" element={<LeadProfile />} />
         <Route path="messages" element={<MessagesInbox />} />
         <Route path="settings/whatsapp" element={<WhatsAppSetup />} />
+        <Route path="analytics" element={<Analytics />} />
+        <Route path="campaigns" element={<Campaigns />} />
       </Route>
     </Routes>
   );

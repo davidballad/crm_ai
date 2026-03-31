@@ -119,9 +119,9 @@ export default function TransactionList() {
     if (Notification.permission !== 'granted') return;
     const ref = tx.payment_reference || tx.id || 'order';
     const total = Number(tx.total || 0).toFixed(2);
-    const body = `Transfer screenshot received (${ref}) - Total: $${total}`;
+      const body = `Comprobante de transferencia recibido (${ref}) - Total: $${total}`;
     try {
-      const n = new Notification('New payment proof to verify', { body });
+      const n = new Notification('Nuevo comprobante por verificar', { body });
       n.onclick = () => {
         window.focus();
         openVerification(tx);
@@ -150,7 +150,7 @@ export default function TransactionList() {
       const full = await fetchTransaction(tx.id);
       setSelectedTx(full);
     } catch (err) {
-      setDetailsError(err.message || 'Failed to load transaction details');
+      setDetailsError(err.message || 'No se pudieron cargar los detalles de la transaccion');
       setSelectedTx(tx);
     } finally {
       setDetailsLoading(false);
@@ -181,7 +181,7 @@ export default function TransactionList() {
       }
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
     } catch (err) {
-      setVerifyError(err.message || 'Failed to verify payment');
+      setVerifyError(err.message || 'No se pudo verificar el pago');
     } finally {
       setVerifyLoading(false);
     }
@@ -190,7 +190,7 @@ export default function TransactionList() {
   const handleCancelTransaction = async () => {
     if (!selectedTx?.id) return;
     const confirmed = window.confirm(
-      'Cancel this transaction? This will remove it from history and restore inventory quantities.',
+      'Cancelar esta transaccion? Esto la eliminara del historial y restaurara cantidades en inventario.',
     );
     if (!confirmed) return;
     setCancelError('');
@@ -202,7 +202,7 @@ export default function TransactionList() {
       queryClient.invalidateQueries({ queryKey: ['daily-summary'] });
       closeVerification();
     } catch (err) {
-      setCancelError(err.message || 'Failed to cancel transaction');
+      setCancelError(err.message || 'No se pudo cancelar la transaccion');
     } finally {
       setCancelLoading(false);
     }
@@ -242,9 +242,9 @@ export default function TransactionList() {
   const verificationTag = (tx) => {
     const status = tx.payment_verification_status || 'awaiting_verification';
     if (status === 'verified') {
-      return <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">Verified</span>;
+      return <span className="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">Verificado</span>;
     }
-    return <span className="inline-flex rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Waiting for verification</span>;
+    return <span className="inline-flex rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">Pendiente de verificacion</span>;
   };
 
   const pickupTag = (tx) => {
@@ -383,8 +383,8 @@ export default function TransactionList() {
             onClick={enableBrowserNotifications}
           >
             {typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
-              ? 'Browser alerts enabled'
-              : 'Enable browser alerts'}
+              ? 'Alertas del navegador activadas'
+              : 'Activar alertas del navegador'}
           </button>
           <button
             type="button"
@@ -398,10 +398,10 @@ export default function TransactionList() {
               if (!soundEnabled) playAlertTone();
             }}
           >
-            {soundEnabled ? 'Sound alert: on' : 'Sound alert: off'}
+            {soundEnabled ? 'Alerta sonora: activada' : 'Alerta sonora: desactivada'}
           </button>
           <p className="text-xs text-gray-500">
-            Live checks run every 15s while this page is open.
+            Las verificaciones en vivo se ejecutan cada 15 s mientras esta pagina este abierta.
           </p>
         </div>
       </div>
@@ -635,8 +635,8 @@ export default function TransactionList() {
       ) : transactions.length === 0 ? (
         <div className="card flex flex-col items-center justify-center py-12 text-center">
           <Receipt className="mb-3 h-10 w-10 text-gray-300" />
-          <p className="font-medium text-gray-600">No transactions yet</p>
-          <p className="mt-1 text-sm text-gray-400">Transactions are created when orders are completed via WhatsApp</p>
+          <p className="font-medium text-gray-600">Aun no hay transacciones</p>
+          <p className="mt-1 text-sm text-gray-400">Las transacciones se crean cuando se completan pedidos por WhatsApp</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
@@ -644,12 +644,12 @@ export default function TransactionList() {
             <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase text-gray-500">
               <tr>
                 <th className="px-4 py-3">{t('transactions.date')}</th>
-                <th className="px-4 py-3">Reference</th>
+                <th className="px-4 py-3">Referencia</th>
                 <th className="px-4 py-3">{t('transactions.items')}</th>
-                <th className="px-4 py-3">Notes</th>
+                <th className="px-4 py-3">Notas</th>
                 <th className="px-4 py-3 text-right">{t('transactions.total')}</th>
                 <th className="px-4 py-3">{t('transactions.payment')}</th>
-                <th className="px-4 py-3">Payment verification</th>
+                <th className="px-4 py-3">Verificacion de pago</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -711,19 +711,19 @@ export default function TransactionList() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-              <h3 className="text-base font-semibold text-gray-900">Payment verification</h3>
+              <h3 className="text-base font-semibold text-gray-900">Verificacion de pago</h3>
               <button type="button" onClick={closeVerification} className="text-sm text-gray-500 hover:text-gray-700">
-                Close
+                Cerrar
               </button>
             </div>
             <div className="space-y-3 overflow-y-auto px-4 py-4">
-              {detailsLoading && <p className="text-sm text-gray-500">Loading transaction details...</p>}
+              {detailsLoading && <p className="text-sm text-gray-500">Cargando detalles de la transaccion...</p>}
               {detailsError && <p className="text-sm text-red-600">{detailsError}</p>}
               <div className="text-sm text-gray-700">
-                <p><span className="font-medium">Reference:</span> {selectedTx.payment_reference || selectedTx.id || '—'}</p>
-                <p><span className="font-medium">Customer phone:</span> {selectedTx.customer_phone || '—'}</p>
+                <p><span className="font-medium">Referencia:</span> {selectedTx.payment_reference || selectedTx.id || '—'}</p>
+                <p><span className="font-medium">Telefono del cliente:</span> {selectedTx.customer_phone || '—'}</p>
                 <p><span className="font-medium">Total:</span> ${Number(selectedTx.total || 0).toFixed(2)}</p>
-                <p><span className="font-medium">Notes:</span> {selectedTx.order_notes || '—'}</p>
+                <p><span className="font-medium">Notas:</span> {selectedTx.order_notes || '—'}</p>
               </div>
               {selectedTx.payment_proof_url ? (
                 <div className="overflow-hidden rounded-lg border border-gray-200">
@@ -733,12 +733,12 @@ export default function TransactionList() {
                     onClick={() => setProofPreviewOpen(true)}
                     title="Abrir imagen completa"
                   >
-                    <img src={selectedTx.payment_proof_url} alt="Payment proof" className="max-h-[320px] w-full object-contain bg-gray-50" />
+                    <img src={selectedTx.payment_proof_url} alt="Comprobante de pago" className="max-h-[320px] w-full object-contain bg-gray-50" />
                   </button>
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
-                  Waiting for customer transfer screenshot.
+                  Esperando captura de transferencia del cliente.
                 </div>
               )}
               {verifyError && <p className="text-sm text-red-600">{verifyError}</p>}
@@ -828,10 +828,10 @@ export default function TransactionList() {
                 onClick={handleCancelTransaction}
                 disabled={verifyLoading || cancelLoading || deliveryLoading}
               >
-                {cancelLoading ? 'Canceling...' : 'Cancel transaction'}
+                {cancelLoading ? 'Cancelando...' : 'Cancelar transaccion'}
               </button>
               <button type="button" className="btn-secondary" onClick={closeVerification}>
-                Cancel
+                Cancelar
               </button>
               <button
                 type="button"
@@ -840,10 +840,10 @@ export default function TransactionList() {
                 disabled={verifyLoading || cancelLoading || deliveryLoading || selectedTx.payment_verification_status === 'verified'}
               >
                 {selectedTx.payment_verification_status === 'verified'
-                  ? 'Verified'
+                  ? 'Verificado'
                   : verifyLoading
-                    ? 'Verifying...'
-                    : 'Mark verified'}
+                    ? 'Verificando...'
+                    : 'Marcar como verificado'}
               </button>
             </div>
           </div>
@@ -857,7 +857,7 @@ export default function TransactionList() {
         >
           <img
             src={selectedTx.payment_proof_url}
-            alt="Payment proof full size"
+            alt="Comprobante de pago en tamano completo"
             className="max-h-[95vh] max-w-[95vw] object-contain"
             onClick={(e) => e.stopPropagation()}
           />

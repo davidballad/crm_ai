@@ -24,7 +24,7 @@ export default function InventoryList() {
   const categories = [...new Set(products.map((p) => p.category).filter(Boolean))];
 
   const handleDelete = (id, name) => {
-    if (window.confirm(`Delete "${name}"?`)) {
+    if (window.confirm(`Eliminar "${name}"?`)) {
       deleteMutation.mutate(id);
     }
   };
@@ -91,8 +91,8 @@ export default function InventoryList() {
     <div>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Inventory</h1>
-          <p className="text-sm text-gray-500">{products.length} products</p>
+          <h1 className="text-xl font-bold text-gray-900">Inventario</h1>
+          <p className="text-sm text-gray-500">{products.length} productos</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -100,7 +100,7 @@ export default function InventoryList() {
             onClick={handleDownloadTemplate}
             className="btn-secondary gap-2"
           >
-            <Download className="h-4 w-4" /> Template
+            <Download className="h-4 w-4" /> Plantilla
           </button>
           <button
             type="button"
@@ -116,7 +116,7 @@ export default function InventoryList() {
             className="btn-secondary gap-2"
           >
             <Upload className="h-4 w-4" />
-            {importMutation.isPending ? 'Importing...' : 'Import CSV'}
+            {importMutation.isPending ? 'Importando...' : 'Importar CSV'}
           </button>
           <input
             ref={fileInputRef}
@@ -126,7 +126,7 @@ export default function InventoryList() {
             onChange={handleFileChange}
           />
           <Link to="/app/inventory/new" className="btn-primary gap-2">
-            <Plus className="h-4 w-4" /> Add product
+            <Plus className="h-4 w-4" /> Agregar producto
           </Link>
         </div>
       </div>
@@ -138,17 +138,17 @@ export default function InventoryList() {
               importResult.error
             ) : (
               <>
-                Imported <strong>{importResult.imported_count}</strong> products
+                Se importaron <strong>{importResult.imported_count}</strong> productos
                 {importResult.error_count > 0 && (
-                  <span className="ml-2">({importResult.error_count} row(s) skipped)</span>
+                  <span className="ml-2">({importResult.error_count} fila(s) omitida(s))</span>
                 )}
               </>
             )}
           </div>
           {!importResult.error && importResult.imported?.length > 0 && (
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
-              <p className="mb-2 font-medium text-gray-700">Add images (optional)</p>
-              <p className="mb-2 text-gray-500">Select image files in the same order as your CSV rows. First file → first product, etc.</p>
+              <p className="mb-2 font-medium text-gray-700">Agregar imagenes (opcional)</p>
+              <p className="mb-2 text-gray-500">Selecciona imagenes en el mismo orden de las filas CSV. Primera imagen → primer producto, etc.</p>
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -156,7 +156,7 @@ export default function InventoryList() {
                   className="btn-secondary inline-flex items-center gap-2"
                 >
                   <ImagePlus className="h-4 w-4" />
-                  Upload images for imported products
+                  Subir imagenes para productos importados
                 </button>
                 <input
                   ref={imageFilesInputRef}
@@ -168,12 +168,12 @@ export default function InventoryList() {
                 />
                 {imageUploadResult?.status === 'uploading' && (
                   <span className="text-gray-600">
-                    {imageUploadResult.done}/{imageUploadResult.total} uploaded…
+                    {imageUploadResult.done}/{imageUploadResult.total} subidas...
                   </span>
                 )}
                 {imageUploadResult?.status === 'done' && (
                   <span className="text-green-700">
-                    {imageUploadResult.done} product(s) now have images.
+                    {imageUploadResult.done} producto(s) ya tienen imagen.
                   </span>
                 )}
                 {imageUploadResult?.status === 'error' && (
@@ -191,7 +191,7 @@ export default function InventoryList() {
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search products..."
+            placeholder="Buscar productos..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="input-field pl-9"
@@ -203,7 +203,7 @@ export default function InventoryList() {
             onChange={(e) => setCategory(e.target.value)}
             className="input-field sm:w-48"
           >
-            <option value="">All categories</option>
+            <option value="">Todas las categorias</option>
             {categories.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
@@ -221,10 +221,10 @@ export default function InventoryList() {
       ) : filtered.length === 0 ? (
         <div className="card flex flex-col items-center justify-center py-12 text-center">
           <Package className="mb-3 h-10 w-10 text-gray-300" />
-          <p className="font-medium text-gray-600">No products yet</p>
-          <p className="mt-1 text-sm text-gray-400">Add your first product to get started</p>
+          <p className="font-medium text-gray-600">Aun no hay productos</p>
+          <p className="mt-1 text-sm text-gray-400">Agrega tu primer producto para empezar</p>
           <Link to="/app/inventory/new" className="btn-primary mt-4 gap-2">
-            <Plus className="h-4 w-4" /> Add product
+            <Plus className="h-4 w-4" /> Agregar producto
           </Link>
         </div>
       ) : (
@@ -232,12 +232,12 @@ export default function InventoryList() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3 text-right">Qty</th>
-                <th className="px-4 py-3 text-right">Unit cost</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3">Producto</th>
+                <th className="px-4 py-3">Categoria</th>
+                <th className="px-4 py-3 text-right">Cantidad</th>
+                <th className="px-4 py-3 text-right">Costo unitario</th>
+                <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">

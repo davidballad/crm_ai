@@ -56,7 +56,7 @@ export default function WhatsAppSetup() {
     setSuccess('');
     const id = (metaPhoneNumberId || '').trim();
     if (!id) {
-      setError('Meta Phone number ID is required.');
+      setError('El ID de numero de telefono de Meta es obligatorio.');
       return;
     }
     setSubmitting(true);
@@ -95,9 +95,9 @@ export default function WhatsAppSetup() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Connect WhatsApp</h1>
+        <h1 className="text-xl font-bold text-gray-900">Conectar WhatsApp</h1>
         <p className="text-sm text-gray-500">
-          Link your Meta WhatsApp number to this business so the n8n workflow can route messages here.
+          Vincula tu numero de WhatsApp de Meta a este negocio para que el flujo de n8n enrute los mensajes aqui.
         </p>
         <div className="mt-4 flex items-center gap-2">
           <img src="/whatsapp-glyph.svg" alt="" className="h-8 w-8 object-contain" width={32} height={32} loading="lazy" decoding="async" />
@@ -111,41 +111,41 @@ export default function WhatsAppSetup() {
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-green-600" />
-                <h2 className="text-sm font-semibold text-gray-900">Connected</h2>
+                <h2 className="text-sm font-semibold text-gray-900">Conectado</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setEditing(true)}
                 className="btn-secondary inline-flex items-center gap-1.5 text-sm"
               >
-                <Pencil className="h-4 w-4" /> Edit
+                <Pencil className="h-4 w-4" /> Editar
               </button>
             </div>
             <p className="text-sm text-gray-600">
-              Phone number ID: <code className="rounded bg-gray-100 px-1.5 py-0.5">{config.meta_phone_number_id}</code>
+              ID del numero de telefono: <code className="rounded bg-gray-100 px-1.5 py-0.5">{config.meta_phone_number_id}</code>
             </p>
             <p className="mt-1 text-sm text-gray-600">
               {t('whatsapp.supportPhoneDisplay')}: <code className="rounded bg-gray-100 px-1.5 py-0.5">{normalizePhoneNumber(config.phone_number || config.settings?.phone_number) || '—'}</code>
             </p>
             {config.meta_business_account_id && (
               <p className="mt-1 text-sm text-gray-600">
-                Business Account ID: <code className="rounded bg-gray-100 px-1.5 py-0.5">{config.meta_business_account_id}</code>
+                ID de cuenta de negocio: <code className="rounded bg-gray-100 px-1.5 py-0.5">{config.meta_business_account_id}</code>
               </p>
             )}
-            <p className="mt-1 text-sm text-gray-500">Token configured (not shown for security).</p>
+            <p className="mt-1 text-sm text-gray-500">Token configurado (no se muestra por seguridad).</p>
             {config.ai_system_prompt && (
               <p className="mt-2 text-sm text-gray-500 line-clamp-2">
-                AI prompt: {config.ai_system_prompt}
+                Prompt de IA: {config.ai_system_prompt}
               </p>
             )}
             {(config.bank_name || config.person_name || config.account_type || config.account_id || config.identification_number) && (
               <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
-                <p className="font-medium text-gray-800">Bank transfer details configured</p>
-                {config.bank_name && <p className="mt-1">Bank: {config.bank_name}</p>}
-                {config.person_name && <p>Name: {config.person_name}</p>}
-                {config.account_type && <p>Account type: {config.account_type}</p>}
-                {config.account_id && <p>Account ID: {config.account_id}</p>}
-                {config.identification_number && <p>Identification: {config.identification_number}</p>}
+                <p className="font-medium text-gray-800">Datos de transferencia bancaria configurados</p>
+                {config.bank_name && <p className="mt-1">Banco: {config.bank_name}</p>}
+                {config.person_name && <p>Nombre: {config.person_name}</p>}
+                {config.account_type && <p>Tipo de cuenta: {config.account_type}</p>}
+                {config.account_id && <p>ID de cuenta: {config.account_id}</p>}
+                {config.identification_number && <p>Identificacion: {config.identification_number}</p>}
               </div>
             )}
           </>
@@ -154,12 +154,12 @@ export default function WhatsAppSetup() {
             <div className="mb-4 flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-green-600" />
               <h2 className="text-sm font-semibold text-gray-900">
-                {isConnected ? 'Update settings' : 'Link phone number'}
+                {isConnected ? 'Actualizar configuracion' : 'Vincular numero'}
               </h2>
             </div>
 
         <p className="mb-4 text-sm text-gray-600">
-          Get your <strong>Phone number ID</strong> from{' '}
+          Obtiene tu <strong>ID del numero de telefono</strong> desde{' '}
           <a
             href="https://developers.facebook.com/apps"
             target="_blank"
@@ -169,7 +169,7 @@ export default function WhatsAppSetup() {
             Meta for Developers
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
-          → your App → WhatsApp → API Setup → Phone numbers. Copy the numeric ID (e.g. 106540352242922).
+          → tu App → WhatsApp → Configuracion de API → Numeros de telefono. Copia el ID numerico (ej. 106540352242922).
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -182,14 +182,14 @@ export default function WhatsAppSetup() {
 
           <div>
             <label htmlFor="meta_phone_number_id" className="mb-1 block text-sm font-medium text-gray-700">
-              Meta Phone number ID <span className="text-red-500">*</span>
+              ID del numero de telefono de Meta <span className="text-red-500">*</span>
             </label>
             <input
               id="meta_phone_number_id"
               type="text"
               value={metaPhoneNumberId}
               onChange={(e) => setMetaPhoneNumberId(e.target.value)}
-              placeholder="e.g. 106540352242922"
+              placeholder="ej. 106540352242922"
               className="input-field w-full"
               required
             />
@@ -204,86 +204,86 @@ export default function WhatsAppSetup() {
               type="text"
               value={businessPhoneNumber}
               onChange={(e) => setBusinessPhoneNumber(normalizePhoneNumber(e.target.value))}
-              placeholder="e.g. 593999999999"
+              placeholder="ej. 593999999999"
               className="input-field w-full"
               inputMode="numeric"
               pattern="[0-9]*"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Format: country code + number, digits only (no + sign, spaces, or dashes).
+              Formato: codigo de pais + numero, solo digitos (sin +, espacios o guiones).
             </p>
           </div>
 
           <div>
             <label htmlFor="meta_access_token" className="mb-1 block text-sm font-medium text-gray-700">
-              Meta Access Token
+              Token de acceso de Meta
             </label>
             <input
               id="meta_access_token"
               type="password"
               value={metaAccessToken}
               onChange={(e) => setMetaAccessToken(e.target.value)}
-              placeholder={isConnected ? 'Leave blank to keep existing' : 'From Meta App → WhatsApp → API'}
+              placeholder={isConnected ? 'Dejar en blanco para mantener el actual' : 'Desde Meta App → WhatsApp → API'}
               className="input-field w-full"
               autoComplete="off"
             />
             <p className="mt-1 text-xs text-gray-500">
-              From Meta App → WhatsApp → API → Temporary or System User token. Leave blank to keep existing.
+              Desde Meta App → WhatsApp → API → Token temporal o de usuario del sistema. Deja en blanco para mantener el actual.
             </p>
           </div>
 
           <div>
             <label htmlFor="meta_business_account_id" className="mb-1 block text-sm font-medium text-gray-700">
-              WhatsApp Business Account ID
+              ID de cuenta de WhatsApp Business
             </label>
             <input
               id="meta_business_account_id"
               type="text"
               value={metaBusinessAccountId}
               onChange={(e) => setMetaBusinessAccountId(e.target.value)}
-              placeholder="e.g. 102290129340398"
+              placeholder="ej. 102290129340398"
               className="input-field w-full"
             />
             <p className="mt-1 text-xs text-gray-500">
-              From Meta Business Suite → WhatsApp Manager → Phone numbers (Account ID).
+              Desde Meta Business Suite → WhatsApp Manager → Numeros de telefono (ID de cuenta).
             </p>
           </div>
 
           <div>
             <label htmlFor="ai_system_prompt" className="mb-1 block text-sm font-medium text-gray-700">
-              AI prompt for “Something else” (optional)
+              Prompt de IA para "Algo mas" (opcional)
             </label>
             <textarea
               id="ai_system_prompt"
               value={aiSystemPrompt}
               onChange={(e) => setAiSystemPrompt(e.target.value)}
-              placeholder="You are a helpful store assistant for..."
+              placeholder="Eres un asistente util para tienda..."
               rows={3}
               className="input-field w-full resize-y"
             />
           </div>
 
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <h3 className="mb-3 text-sm font-semibold text-gray-900">Bank details</h3>
+            <h3 className="mb-3 text-sm font-semibold text-gray-900">Datos bancarios</h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label htmlFor="bank_name" className="mb-1 block text-sm font-medium text-gray-700">Bank name</label>
+                <label htmlFor="bank_name" className="mb-1 block text-sm font-medium text-gray-700">Nombre del banco</label>
                 <input id="bank_name" type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} className="input-field w-full" />
               </div>
               <div>
-                <label htmlFor="person_name" className="mb-1 block text-sm font-medium text-gray-700">Person name</label>
+                <label htmlFor="person_name" className="mb-1 block text-sm font-medium text-gray-700">Nombre de la persona</label>
                 <input id="person_name" type="text" value={personName} onChange={(e) => setPersonName(e.target.value)} className="input-field w-full" />
               </div>
               <div>
-                <label htmlFor="account_type" className="mb-1 block text-sm font-medium text-gray-700">Account type</label>
+                <label htmlFor="account_type" className="mb-1 block text-sm font-medium text-gray-700">Tipo de cuenta</label>
                 <input id="account_type" type="text" value={accountType} onChange={(e) => setAccountType(e.target.value)} className="input-field w-full" />
               </div>
               <div>
-                <label htmlFor="account_id" className="mb-1 block text-sm font-medium text-gray-700">Account ID</label>
+                <label htmlFor="account_id" className="mb-1 block text-sm font-medium text-gray-700">ID de cuenta</label>
                 <input id="account_id" type="text" value={accountId} onChange={(e) => setAccountId(e.target.value)} className="input-field w-full" />
               </div>
               <div className="sm:col-span-2">
-                <label htmlFor="identification_number" className="mb-1 block text-sm font-medium text-gray-700">Identification number</label>
+                <label htmlFor="identification_number" className="mb-1 block text-sm font-medium text-gray-700">Numero de identificacion</label>
                 <input id="identification_number" type="text" value={identificationNumber} onChange={(e) => setIdentificationNumber(e.target.value)} className="input-field w-full" />
               </div>
             </div>
@@ -291,7 +291,7 @@ export default function WhatsAppSetup() {
 
               <div className="flex gap-2">
                 <button type="submit" disabled={submitting} className="btn-primary">
-                  {submitting ? 'Saving…' : isConnected ? 'Update' : 'Link WhatsApp'}
+                  {submitting ? 'Guardando...' : isConnected ? 'Actualizar' : 'Vincular WhatsApp'}
                 </button>
                 {isConnected && (
                   <button type="button" onClick={() => { setEditing(false); setError(''); setSuccess(''); }} className="btn-secondary">

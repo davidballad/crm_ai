@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchContacts, fetchContact, createContact, updateContact, patchContact, deleteContact } from '../api/contacts';
+import { fetchContacts, fetchContact, createContact, updateContact, patchContact, deleteContact, fetchContactStats, bulkTagContacts } from '../api/contacts';
 
 export function useContacts(opts) {
   return useQuery({
@@ -50,6 +50,21 @@ export function useDeleteContact() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: deleteContact,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['contacts'] }),
+  });
+}
+
+export function useContactStats() {
+  return useQuery({
+    queryKey: ['contact-stats'],
+    queryFn: fetchContactStats,
+  });
+}
+
+export function useBulkTagContacts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: bulkTagContacts,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['contacts'] }),
   });
 }

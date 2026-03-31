@@ -124,6 +124,14 @@ resource "aws_apigatewayv2_integration" "shop" {
   payload_format_version = "2.0"
 }
 
+resource "aws_apigatewayv2_integration" "campaigns" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.services["campaigns"].invoke_arn
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
 # -----------------------------------------------------------------------------
 # Routes (with JWT authorizer except onboarding/tenant)
 # -----------------------------------------------------------------------------
@@ -232,6 +240,18 @@ resource "aws_apigatewayv2_route" "contacts_export" {
   target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
 }
 
+resource "aws_apigatewayv2_route" "contacts_stats" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /contacts/stats"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
+resource "aws_apigatewayv2_route" "contacts_bulk_tag" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /contacts/bulk-tag"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
 # Conversation history for a contact
 resource "aws_apigatewayv2_route" "contacts_messages" {
   api_id    = aws_apigatewayv2_api.main.id
@@ -273,6 +293,18 @@ resource "aws_apigatewayv2_route" "transactions_delete" {
 resource "aws_apigatewayv2_route" "transactions_payment_proof" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "POST /transactions/payment-proof"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+}
+
+resource "aws_apigatewayv2_route" "transactions_revenue" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /transactions/revenue"
+  target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
+}
+
+resource "aws_apigatewayv2_route" "transactions_summary" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /transactions/summary"
   target    = "integrations/${aws_apigatewayv2_integration.transactions.id}"
 }
 
@@ -526,6 +558,43 @@ resource "aws_apigatewayv2_route" "onboarding_service_tenant" {
   target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
 }
 
+# Campaigns routes
+resource "aws_apigatewayv2_route" "campaigns_list" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /campaigns"
+  target    = "integrations/${aws_apigatewayv2_integration.campaigns.id}"
+}
+
+resource "aws_apigatewayv2_route" "campaigns_create" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /campaigns"
+  target    = "integrations/${aws_apigatewayv2_integration.campaigns.id}"
+}
+
+resource "aws_apigatewayv2_route" "campaigns_get" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /campaigns/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.campaigns.id}"
+}
+
+resource "aws_apigatewayv2_route" "campaigns_patch" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "PATCH /campaigns/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.campaigns.id}"
+}
+
+resource "aws_apigatewayv2_route" "campaigns_delete" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "DELETE /campaigns/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.campaigns.id}"
+}
+
+resource "aws_apigatewayv2_route" "campaigns_send" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /campaigns/{id}/send"
+  target    = "integrations/${aws_apigatewayv2_integration.campaigns.id}"
+}
+
 # Contact form (public, no auth)
 resource "aws_apigatewayv2_route" "contact" {
   api_id    = aws_apigatewayv2_api.main.id
@@ -584,7 +653,7 @@ resource "aws_apigatewayv2_stage" "default" {
 # -----------------------------------------------------------------------------
 
 resource "aws_lambda_permission" "api_gateway" {
-  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact", "shop"])
+  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact", "shop", "campaigns"])
 
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"

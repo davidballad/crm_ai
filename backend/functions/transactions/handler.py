@@ -560,6 +560,81 @@ def _line_quantity(line: Any) -> int:
     return getattr(line, "quantity", 0) or 0
 
 
+def get_revenue_range(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """GET /transactions/revenue?start=YYYY-MM-DD&end=YYYY-MM-DD — per-day revenue array."""
+    from datetime import date, timedelta
+
+    query_params = _get_query_params(event)
+    start_date = query_params.get("start", today_str())
+    end_date = query_params.get("end", today_str())
+
+    try:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+    except ValueError:
+        return error("start y end deben tener formato YYYY-MM-DD", 400)
+
+    if (end - start).days > 365:
+        return error("El rango de fechas no puede superar 365 días", 400)
+
+    if start > end:
+        return error("start debe ser anterior o igual a end", 400)
+
+    # Pre-fill all days with zeros
+    daily: dict[str, dict] = {}
+    current = start
+    while current <= end:
+        daily[str(current)] = {
+            "date": str(current),
+            "revenue": 0.0,
+            "order_count": 0,
+            "items_sold": 0,
+        }
+        current += timedelta(days=1)
+
+    pk = build_pk(tenant_id)
+    sk_start = f"TXN#{start_date}"
+    sk_end = f"TXN#{end_date}\uffff"
+
+    try:
+        table = get_table()
+        key_condition = Key("pk").eq(pk) & Key("sk").between(sk_start, sk_end)
+        last_key = None
+        while True:
+            params: dict[str, Any] = {
+                "KeyConditionExpression": key_condition,
+                "Limit": 500,
+            }
+            if last_key:
+                params["ExclusiveStartKey"] = last_key
+            resp = table.query(**params)
+            for item in resp.get("Items", []):
+                try:
+                    txn = Transaction.from_dynamo(item)
+                    # SK pattern: TXN#YYYY-MM-DD#<id>
+                    sk_parts = item.get("sk", "").split("#")
+                    day_str = sk_parts[1] if len(sk_parts) >= 2 else ""
+                    if day_str in daily:
+                        daily[day_str]["revenue"] = round(
+                            daily[day_str]["revenue"] + float(txn.total), 2
+                        )
+                        daily[day_str]["order_count"] += 1
+                        for line in txn.items or []:
+                            daily[day_str]["items_sold"] += _line_quantity(line)
+                except Exception:
+                    continue
+            last_key = resp.get("LastEvaluatedKey")
+            if not last_key:
+                break
+
+        result = sorted(daily.values(), key=lambda x: x["date"])
+        return success({"revenue": result, "start": start_date, "end": end_date})
+    except ClientError as e:
+        return error(str(e), 400)
+    except Exception as e:
+        return server_error(str(e))
+
+
 def get_daily_summary(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """Get daily transaction summary for a given date."""
     try:
@@ -1082,6 +1157,10 @@ def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]
     # GET /transactions/summary - daily summary (check before /transactions/{id})
     if method == "GET" and path.endswith("/transactions/summary"):
         return get_daily_summary(tenant_id, event)
+
+    # GET /transactions/revenue - per-day revenue for a date range
+    if method == "GET" and path.endswith("/transactions/revenue"):
+        return get_revenue_range(tenant_id, event)
 
     # GET /transactions/{id} - get one
     if method == "GET" and path.startswith("/transactions/") and path != "/transactions":

@@ -30,7 +30,7 @@ import {
 
 function formatForecast(f) {
   if (typeof f === 'string') return f;
-  const name = f.product_name || f.productName || 'Product';
+  const name = f.product_name || f.productName || 'Producto';
   const date = f.estimated_restock_date || f.estimatedRestockDate || '';
   const reason = f.reason || '';
   if (date && reason) return `${name} — ${date}: ${reason}`;
@@ -40,14 +40,14 @@ function formatForecast(f) {
 
 function formatReorderSuggestion(r) {
   if (typeof r === 'string') return r;
-  const name = r.product_name || r.productName || 'Product';
+  const name = r.product_name || r.productName || 'Producto';
   const qty = r.suggested_order_quantity ?? r.suggestedOrderQuantity ?? r.quantity;
   const current = r.current_quantity ?? r.currentQuantity;
   const threshold = r.reorder_threshold ?? r.reorderThreshold;
   const reason = r.reason || '';
   let text = name;
-  if (qty != null) text += ` — order ${qty} units`;
-  if (current != null && threshold != null) text += ` (current: ${current}, threshold: ${threshold})`;
+  if (qty != null) text += ` — pedir ${qty} unidades`;
+  if (current != null && threshold != null) text += ` (actual: ${current}, umbral: ${threshold})`;
   if (reason) text += `. ${reason}`;
   return text || JSON.stringify(r);
 }
@@ -118,6 +118,16 @@ export default function Insights() {
   const funnelRates = showFunnelSnapshot ? funnelSnapshotRates(funnelRows) : null;
 
   const handleGenerate = () => generate.mutate({ language: i18n.language || 'en' });
+
+  const dayKeyToSpanishShort = {
+    Monday: 'Lun',
+    Tuesday: 'Mar',
+    Wednesday: 'Mie',
+    Thursday: 'Jue',
+    Friday: 'Vie',
+    Saturday: 'Sab',
+    Sunday: 'Dom',
+  };
 
   useEffect(() => {
     document.title = `${t('insights.title')} | Clienta AI`;
@@ -284,15 +294,15 @@ export default function Insights() {
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart
                     data={['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => ({
-                      day: day.slice(0, 3),
+                      day: dayKeyToSpanishShort[day] || day.slice(0, 3),
                       revenue: Number(insight.revenue_by_day_of_week?.[day]) || 0,
                     }))}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Revenue']} />
-                    <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Revenue" />
+                    <Tooltip formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Ingresos']} />
+                    <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Ingresos" />
                   </BarChart>
                 </ResponsiveContainer>
               </InsightCard>
@@ -305,8 +315,8 @@ export default function Insights() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis type="number" tick={{ fontSize: 11 }} />
                     <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Revenue']} />
-                    <Bar dataKey="revenue" fill="#0d9488" radius={[0, 4, 4, 0]} name="Revenue" />
+                    <Tooltip formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Ingresos']} />
+                    <Bar dataKey="revenue" fill="#0d9488" radius={[0, 4, 4, 0]} name="Ingresos" />
                   </BarChart>
                 </ResponsiveContainer>
               </InsightCard>
@@ -319,8 +329,8 @@ export default function Insights() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} angle={-20} height={56} textAnchor="end" />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(value) => [value, 'Contacts']} />
-                    <Bar dataKey="value" fill="#7c3aed" radius={[4, 4, 0, 0]} name="Contacts" />
+                    <Tooltip formatter={(value) => [value, 'Contactos']} />
+                    <Bar dataKey="value" fill="#7c3aed" radius={[4, 4, 0, 0]} name="Contactos" />
                   </BarChart>
                 </ResponsiveContainer>
               </InsightCard>
@@ -333,8 +343,8 @@ export default function Insights() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(value) => [value, 'Contacts']} />
-                    <Bar dataKey="value" fill="#d97706" radius={[4, 4, 0, 0]} name="Contacts" />
+                    <Tooltip formatter={(value) => [value, 'Contactos']} />
+                    <Bar dataKey="value" fill="#d97706" radius={[4, 4, 0, 0]} name="Contactos" />
                   </BarChart>
                 </ResponsiveContainer>
               </InsightCard>

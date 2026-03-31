@@ -12,7 +12,7 @@ const BUSINESS_TYPE_KEYS = [
 ];
 
 export default function Signup() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { signIn } = useAuth();
   const [form, setForm] = useState({
@@ -48,10 +48,6 @@ export default function Signup() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
-      <div className="absolute right-4 top-4 flex gap-1 text-sm text-gray-600">
-        <button type="button" onClick={() => i18n.changeLanguage('en')} className={`rounded px-2 py-1 ${i18n.language === 'en' ? 'bg-brand-100 font-medium text-brand-700' : 'hover:bg-gray-200'}`}>EN</button>
-        <button type="button" onClick={() => i18n.changeLanguage('es')} className={`rounded px-2 py-1 ${i18n.language === 'es' ? 'bg-brand-100 font-medium text-brand-700' : 'hover:bg-gray-200'}`}>ES</button>
-      </div>
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex">

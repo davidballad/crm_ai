@@ -30,3 +30,10 @@ export function fetchDailySummary(date) {
   const qs = date ? `?date=${date}` : '';
   return api.get(`/transactions/summary${qs}`);
 }
+
+export function fetchRevenueRange({ start, end } = {}) {
+  const params = new URLSearchParams();
+  if (start) params.set('start', start);
+  if (end) params.set('end', end);
+  return api.get(`/transactions/revenue?${params.toString()}`);
+}

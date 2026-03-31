@@ -237,11 +237,12 @@ resource "aws_lambda_function" "services" {
       TABLE_NAME               = aws_dynamodb_table.main.name
       COGNITO_USER_POOL_ID     = aws_cognito_user_pool.main.id
       DATA_BUCKET              = aws_s3_bucket.data.id
-      GEMINI_API_KEY           = var.gemini_api_key
-      GEMINI_MODEL_ID          = var.gemini_model_id
-      SERVICE_API_KEY          = var.service_api_key
-      CONTACT_FROM_EMAIL       = var.contact_from_email
-      CONTACT_RECIPIENT_EMAIL  = var.contact_recipient_email
+      GEMINI_API_KEY              = var.gemini_api_key
+      GEMINI_MODEL_ID             = var.gemini_model_id
+      SERVICE_API_KEY             = var.service_api_key
+      CONTACT_FROM_EMAIL          = var.contact_from_email
+      CONTACT_RECIPIENT_EMAIL     = var.contact_recipient_email
+      N8N_CAMPAIGN_WEBHOOK_URL    = var.n8n_campaign_webhook_url
     }
   }
 

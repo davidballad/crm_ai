@@ -244,6 +244,21 @@ class Message(_BaseModel):
 
 
 @dataclass
+class Campaign(_BaseModel):
+    name: str
+    message_template: str
+    id: str | None = None
+    segment_filters: dict | None = None   # tier, lead_status, min_spent, max_spent, days_inactive, tag
+    status: str = "draft"                 # draft | sending | sent | failed
+    sent_count: int = 0
+    failed_count: int = 0
+    scheduled_at: str | None = None
+    n8n_webhook_url: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass
 class ConversationSummary(_BaseModel):
     """Fast inbox/reminder view per customer conversation."""
 

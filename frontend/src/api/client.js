@@ -3,14 +3,30 @@ import { matchMockRoute } from './mockData';
 const API_URL = import.meta.env.VITE_API_URL || '';
 const USE_MOCKS = !API_URL;
 
-let getToken = () => null;
+let tokenGetter = () => null;
 
 export function setTokenGetter(fn) {
-  getToken = fn;
+  tokenGetter = fn;
 }
 
 export function getTokenGetter() {
-  return getToken;
+  return tokenGetter;
+}
+
+// Fallback: read token directly from Cognito storage if state fails
+function getTokenFromStorage() {
+  try {
+    const keys = Object.keys(typeof window !== 'undefined' ? window.localStorage : {});
+    const idTokenKey = keys.find(k => k.includes('CognitoIdentityServiceProvider') && k.includes('idToken'));
+    return idTokenKey ? window.localStorage.getItem(idTokenKey) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getToken() {
+  const token = tokenGetter();
+  return token || getTokenFromStorage();
 }
 
 function mockRequest(method, path, body) {
@@ -29,7 +45,7 @@ async function request(path, options = {}) {
     return mockRequest(method, path, body);
   }
 
-  const token = getToken();
+  const token = getToken(); // Now uses fallback to localStorage
   const headers = {
     ...(options.headers || {}),
     'Content-Type': options.headers?.['Content-Type'] ?? 'application/json',

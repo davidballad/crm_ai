@@ -98,6 +98,12 @@ variable "service_api_key" {
   sensitive   = true
 }
 
+variable "n8n_campaign_webhook_url" {
+  description = "n8n webhook URL for the Broadcast Campaign Executor workflow"
+  type        = string
+  default     = "https://n8n.clientaai.com/webhook/campaign-executor"
+}
+
 # -----------------------------------------------------------------------------
 # Custom Domain (CloudFront + ACM)
 # -----------------------------------------------------------------------------

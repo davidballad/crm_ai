@@ -286,12 +286,12 @@ def _send_delivery_choice_buttons(tenant: dict[str, Any], to_phone: str, transac
             "type": "interactive",
             "interactive": {
                 "type": "button",
-                "body": {"text": "Esta orden es delivery o pickup?"},
+                "body": {"text": "Esta orden es para entrega o retiro?"},
                 "footer": {"text": f"Ref: {transaction_id[:8]}"},
                 "action": {
                     "buttons": [
-                        {"type": "reply", "reply": {"id": "delivery", "title": "Delivery"}},
-                        {"type": "reply", "reply": {"id": "pickup", "title": "Pickup"}},
+                        {"type": "reply", "reply": {"id": "delivery", "title": "Entrega"}},
+                        {"type": "reply", "reply": {"id": "pickup", "title": "Retiro"}},
                     ]
                 },
             },

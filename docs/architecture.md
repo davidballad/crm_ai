@@ -36,6 +36,7 @@ graph TB
     Payments["Payments Service"]
     Messages["Messages Service"]
     Contacts["Contacts Service"]
+    Campaigns["Campaigns Service"]
   end
 
   subgraph data [Data Layer]
@@ -45,7 +46,8 @@ graph TB
   end
 
   subgraph ai [AI]
-    Bedrock["Amazon Bedrock\nClaude Haiku"]
+    Gemini["Google Gemini API\n(AI Insights)"]
+    Ollama["Ollama\n(n8n AI Agent, self-hosted)"]
   end
 
   subgraph payments_ext [Payment Processing]
@@ -70,15 +72,16 @@ graph TB
   APIGW --> Payments
   APIGW --> Messages
   APIGW --> Contacts
+  APIGW --> Campaigns
   Meta -->|Webhook| n8n
   n8n -->|"Service Key + Tenant ID"| APIGW
   n8n -->|Reply| Meta
-  n8n -->|"Bedrock API"| Bedrock
+  n8n -->|"Inference API"| Ollama
   Inventory --> DynamoDB
   Transactions --> DynamoDB
   Purchases --> DynamoDB
   AIInsights --> DynamoDB
-  AIInsights --> Bedrock
+  AIInsights --> Gemini
   Onboarding --> DynamoDB
   Onboarding --> Cognito
   Users --> DynamoDB
@@ -88,13 +91,14 @@ graph TB
   Payments --> Secrets
   Messages --> DynamoDB
   Contacts --> DynamoDB
+  Campaigns --> DynamoDB
   Square -->|Webhooks| Payments
   Transactions --> S3Data
 ```
 
 All services run as Lambda functions (Python 3.12) behind a single API Gateway HTTP API. Data is stored in a single DynamoDB table using a multi-tenant single-table design. The React SPA is served from S3 via CloudFront. Square handles payment processing for both in-store (card readers) and online (Web Payments SDK) transactions. Square credentials are stored in AWS Secrets Manager.
 
-WhatsApp messages are handled by n8n (self-hosted): Meta sends webhooks directly to n8n, which runs an AI Agent (Bedrock) to process conversations. n8n calls the Clienta API using a service key (`X-Service-Key` + `X-Tenant-Id` headers) to manage contacts, messages, inventory, and transactions. Tenant resolution uses Meta's `phone_number_id` mapped in DynamoDB.
+WhatsApp messages are handled by n8n (self-hosted): Meta sends webhooks directly to n8n, which runs an AI Agent (Ollama, self-hosted) to process conversations. n8n calls the Clienta API using a service key (`X-Service-Key` + `X-Tenant-Id` headers) to manage contacts, messages, inventory, and transactions. Tenant resolution uses Meta's `phone_number_id` mapped in DynamoDB.
 
 ---
 
@@ -145,7 +149,7 @@ sequenceDiagram
   participant N as n8n AI Agent
   participant API as Clienta API
   participant DB as DynamoDB
-  participant BR as Bedrock
+  participant OL as Ollama (self-hosted)
 
   C->>M: "Quiero ordenar 2 tortas"
   M->>N: Webhook (phone_number_id, from, text)
@@ -165,12 +169,12 @@ sequenceDiagram
   API-->>N: message_id
 
   Note over N: Step 4 — AI Agent processes
-  N->>BR: Invoke model (system prompt + history + tools)
-  BR-->>N: Tool call: search_products("torta")
+  N->>OL: Invoke model (system prompt + history + tools)
+  OL-->>N: Tool call: search_products("torta")
   N->>API: GET /inventory?search=torta
   API-->>N: Products list
-  N->>BR: Tool result + continue
-  BR-->>N: "Tenemos tortas a $45. ¿Cuántas quieres?"
+  N->>OL: Tool result + continue
+  OL-->>N: "Tenemos tortas a $45. ¿Cuántas quieres?"
 
   Note over N: Step 5 — Reply
   N->>M: Send message via WhatsApp Cloud API
@@ -181,7 +185,7 @@ sequenceDiagram
 Key design decisions:
 - Meta sends webhooks directly to n8n (no Lambda in between) for simplicity
 - One n8n workflow handles all tenants — tenant config is loaded dynamically per message
-- The AI Agent uses Bedrock (Claude 3.5 Haiku) with tool calling for inventory, orders, and contacts
+- The AI Agent uses Ollama (self-hosted) with tool calling for inventory, orders, and contacts
 - Service key auth (`X-Service-Key` + `X-Tenant-Id`) enables n8n to act on behalf of any tenant
 - Tenant resolution uses Meta's `phone_number_id` (stable, unique per business phone)
 
@@ -306,7 +310,7 @@ sequenceDiagram
   participant AG as API Gateway
   participant AI as AI Insights Lambda
   participant DB as DynamoDB
-  participant BR as Bedrock (Claude Haiku)
+  participant GM as Google Gemini API
 
   B->>AG: POST /insights/generate
   AG->>AI: Invoke
@@ -322,9 +326,9 @@ sequenceDiagram
   AI->>AI: Calculate revenue, top products, day-of-week trends
   AI->>AI: Construct structured prompt with business data
 
-  Note over AI: Step 3 -- Call Bedrock
-  AI->>BR: InvokeModel (Claude Haiku, max_tokens=2048)
-  BR-->>AI: JSON response (summary, forecasts, reorder, trends, revenue)
+  Note over AI: Step 3 -- Call Gemini
+  AI->>GM: generateContent (Gemini 2.5 Flash)
+  GM-->>AI: JSON response (summary, forecasts, reorder, trends, revenue)
 
   Note over AI: Step 4 -- Cache result
   AI->>DB: PutItem(INSIGHT#<today>, TTL=7 days)
@@ -343,10 +347,10 @@ sequenceDiagram
 ```
 
 Key design decisions:
-- Insights are generated on-demand (not scheduled) to minimize Bedrock costs
+- Insights are generated on-demand (not scheduled) to minimize API costs
 - Results are cached in DynamoDB with a 7-day TTL for automatic cleanup
 - The prompt includes structured business data (inventory stats, transaction summaries) for grounded analysis
-- Claude Haiku is used for cost efficiency (~$0.25/M input tokens)
+- Gemini 2.5 Flash is used for cost efficiency (free tier available in Google AI Studio)
 
 ---
 
@@ -459,10 +463,10 @@ graph LR
   end
 
   subgraph paid [Pay-per-use Only]
-    BedrockCost["Bedrock\n~$0.003/1K tokens"]
+    GeminiCost["Gemini API\n(free tier in AI Studio)"]
   end
 
   free_tier --> paid
 ```
 
-At 0-50 customers, estimated monthly cost is $5-25 (mostly Bedrock calls). Caching AI insights daily per tenant keeps Bedrock usage minimal.
+At 0-50 customers, estimated monthly cost is $5-25. AI Insights uses Gemini (free tier covers most usage). Caching insights daily per tenant keeps API calls minimal.

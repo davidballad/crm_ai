@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "npx",
+      "args": ["n8n-mcp"],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true",
+        "N8N_API_URL": "https://n8n.clientaai.com",
+        "N8N_API_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyN2Y0N2QwYi0xMDAzLTQ4MjQtOTQyNS1hNTM3NzZiN2NjYTIiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiOWY4NTYzNTQtMGY4Zi00NDY0LWFhYzktYjgwMGQ2ZjdmNjkyIiwiaWF0IjoxNzc0MDYwOTE4fQ.kQt6iN6m2W_TTexnCiPM3oncN2ZK_kqdkb8_V6zftPg"
+      }
+    }
+  }
+}

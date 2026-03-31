@@ -109,15 +109,82 @@ def _encode_next_token(last_key: dict[str, Any] | None) -> str | None:
     return base64.b64encode(json.dumps(last_key, default=str).encode()).decode()
 
 
+def _contact_matches_filters(
+    c: dict[str, Any],
+    *,
+    tier: str | None,
+    lead_status: str | None,
+    min_spent: Decimal | None,
+    max_spent: Decimal | None,
+    cutoff_ts: str | None,
+    tag: str | None,
+) -> bool:
+    """Return True if a contact dict matches all active segment filters."""
+    if tier and c.get("tier") != tier:
+        return False
+    if lead_status and c.get("lead_status") != lead_status:
+        return False
+    spent = _to_decimal_amount(c.get("total_spent"))
+    if min_spent is not None:
+        if spent is None or spent < min_spent:
+            return False
+    if max_spent is not None:
+        if spent is None or spent > max_spent:
+            return False
+    if cutoff_ts is not None:
+        last_act = c.get("last_activity_ts") or c.get("created_ts") or ""
+        if last_act >= cutoff_ts:  # active more recently than cutoff → skip
+            return False
+    if tag:
+        tags = c.get("tags") or []
+        if tag not in tags:
+            return False
+    return True
+
+
 def list_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """List contacts with optional phone filter and pagination."""
+    """List contacts with optional phone filter, segment filters, and pagination."""
+    from datetime import datetime, timedelta, timezone
+
     params = event.get("queryStringParameters") or {}
     next_token = params.get("next_token")
     phone_filter = params.get("phone")
+    tier_filter = params.get("tier") or None
+    status_filter = params.get("lead_status") or None
+    tag_filter = params.get("tag") or None
     try:
         limit = min(int(params.get("limit", LIMIT_DEFAULT)), LIMIT_MAX)
     except (TypeError, ValueError):
         limit = LIMIT_DEFAULT
+
+    # Spend range filters
+    min_spent: Decimal | None = None
+    max_spent: Decimal | None = None
+    try:
+        if params.get("min_spent"):
+            min_spent = Decimal(params["min_spent"])
+    except Exception:
+        pass
+    try:
+        if params.get("max_spent"):
+            max_spent = Decimal(params["max_spent"])
+    except Exception:
+        pass
+
+    # Inactivity filter: contacts with no activity in the last N days
+    cutoff_ts: str | None = None
+    try:
+        if params.get("days_inactive"):
+            days = int(params["days_inactive"])
+            cutoff_dt = datetime.now(timezone.utc) - timedelta(days=days)
+            cutoff_ts = cutoff_dt.strftime("%Y-%m-%dT%H:%M:%S")
+    except Exception:
+        pass
+
+    has_segment_filters = any([
+        tier_filter, status_filter, tag_filter,
+        min_spent is not None, max_spent is not None, cutoff_ts is not None,
+    ])
 
     pk = build_pk(tenant_id)
     last_key = _decode_next_token(next_token)
@@ -134,7 +201,7 @@ def list_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                 items, last_eval = query_items(
                     pk=pk,
                     sk_prefix=CONTACT_SK_PREFIX,
-                    limit=limit,
+                    limit=LIMIT_MAX,
                     last_key=last_key_loop,
                 )
                 for item in items:
@@ -147,8 +214,45 @@ def list_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                 if not last_eval:
                     break
                 last_key_loop = last_eval
-            body: dict[str, Any] = {"contacts": found}
-            return success(body=body)
+            return success(body={"contacts": found})
+
+        if has_segment_filters:
+            # Client-side filtering: paginate until we collect `limit` matches or exhaust pages.
+            matched: list[dict[str, Any]] = []
+            last_key_loop = last_key
+            max_pages = 100  # safety cap
+            for _ in range(max_pages):
+                items, last_eval = query_items(
+                    pk=pk,
+                    sk_prefix=CONTACT_SK_PREFIX,
+                    limit=LIMIT_MAX,
+                    last_key=last_key_loop,
+                )
+                for item in items:
+                    c = Contact.from_dynamo(item).to_dict()
+                    if _contact_matches_filters(
+                        c,
+                        tier=tier_filter,
+                        lead_status=status_filter,
+                        min_spent=min_spent,
+                        max_spent=max_spent,
+                        cutoff_ts=cutoff_ts,
+                        tag=tag_filter,
+                    ):
+                        matched.append(c)
+                        if len(matched) >= limit:
+                            break
+                if len(matched) >= limit:
+                    # Return a pagination token so caller can get next page
+                    next_token_out = _encode_next_token(last_eval) if last_eval else None
+                    body: dict[str, Any] = {"contacts": matched}
+                    if next_token_out:
+                        body["next_token"] = next_token_out
+                    return success(body=body)
+                if not last_eval:
+                    break
+                last_key_loop = last_eval
+            return success(body={"contacts": matched})
 
         items, last_eval = query_items(
             pk=pk,
@@ -390,6 +494,91 @@ def update_contact(
     return patch_contact(tenant_id, contact_id, event)
 
 
+def get_contact_stats(tenant_id: str) -> dict[str, Any]:
+    """GET /contacts/stats — aggregate totals by tier/status + avg LTV."""
+    pk = build_pk(tenant_id)
+    totals: dict[str, Any] = {
+        "total": 0,
+        "by_tier": {"bronze": 0, "silver": 0, "gold": 0},
+        "by_status": {"prospect": 0, "interested": 0, "closed_won": 0, "abandoned": 0},
+        "total_revenue": 0.0,
+        "avg_ltv": 0.0,
+        "customers_with_orders": 0,
+    }
+    last_key: dict[str, Any] | None = None
+    try:
+        while True:
+            items, last_key = query_items(
+                pk=pk, sk_prefix=CONTACT_SK_PREFIX, limit=200, last_key=last_key
+            )
+            for item in items:
+                c = Contact.from_dynamo(item)
+                totals["total"] += 1
+                tier = c.tier or "bronze"
+                status = c.lead_status or "prospect"
+                if tier in totals["by_tier"]:
+                    totals["by_tier"][tier] += 1
+                if status in totals["by_status"]:
+                    totals["by_status"][status] += 1
+                if c.total_spent is not None:
+                    spent = c.total_spent if isinstance(c.total_spent, Decimal) else Decimal(str(c.total_spent))
+                    if spent > Decimal("0"):
+                        totals["total_revenue"] += float(spent)
+                        totals["customers_with_orders"] += 1
+            if not last_key:
+                break
+        if totals["customers_with_orders"] > 0:
+            totals["avg_ltv"] = round(totals["total_revenue"] / totals["customers_with_orders"], 2)
+        totals["total_revenue"] = round(totals["total_revenue"], 2)
+        return success(totals)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+
+def bulk_tag_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /contacts/bulk-tag — add or remove tags from multiple contacts."""
+    try:
+        body = parse_body(event)
+    except json.JSONDecodeError:
+        return error("Cuerpo JSON inválido", 400)
+
+    contact_ids = body.get("contact_ids") or []
+    tags = body.get("tags") or []
+    action = body.get("action", "add")
+
+    if not contact_ids:
+        return error("contact_ids es requerido", 400)
+    if not tags:
+        return error("tags es requerido", 400)
+    if action not in {"add", "remove"}:
+        return error("action debe ser 'add' o 'remove'", 400)
+
+    pk = build_pk(tenant_id)
+    updated = 0
+    failed = 0
+
+    for contact_id in contact_ids:
+        sk = build_sk("CONTACT", contact_id)
+        try:
+            item = get_item(pk=pk, sk=sk)
+            if not item:
+                failed += 1
+                continue
+            current_tags = list(item.get("tags") or [])
+            if action == "add":
+                for tag in tags:
+                    if tag not in current_tags:
+                        current_tags.append(tag)
+            else:
+                current_tags = [t for t in current_tags if t not in tags]
+            update_item(pk=pk, sk=sk, updates={"tags": current_tags})
+            updated += 1
+        except DynamoDBError:
+            failed += 1
+
+    return success({"actualizado": updated, "fallido": failed})
+
+
 def delete_contact(tenant_id: str, contact_id: str) -> dict[str, Any]:
     """Delete a contact."""
     pk = build_pk(tenant_id)
@@ -417,6 +606,12 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         if method == "GET" and path.endswith("/contacts/export"):
             return export_contacts_csv(tenant_id)
+
+        if method == "GET" and path.endswith("/contacts/stats"):
+            return get_contact_stats(tenant_id)
+
+        if method == "POST" and path.endswith("/contacts/bulk-tag"):
+            return bulk_tag_contacts(tenant_id, event)
 
         if method == "GET" and not contact_id:
             return list_contacts(tenant_id, event)

@@ -8,16 +8,16 @@ import { ArrowLeft, MessageSquare } from 'lucide-react';
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '');
 
 const LEAD_STATUS_OPTIONS = [
-  { value: 'prospect', label: 'Prospect' },
-  { value: 'interested', label: 'Interested' },
-  { value: 'closed_won', label: 'Closed Won' },
-  { value: 'abandoned', label: 'Abandoned' },
+  { value: 'prospect', label: 'Prospecto' },
+  { value: 'interested', label: 'Interesado' },
+  { value: 'closed_won', label: 'Cerrado ganado' },
+  { value: 'abandoned', label: 'Abandonado' },
 ];
 
 const TIER_OPTIONS = [
-  { value: 'bronze', label: 'Bronze' },
-  { value: 'silver', label: 'Silver' },
-  { value: 'gold', label: 'Gold' },
+  { value: 'bronze', label: 'Bronce' },
+  { value: 'silver', label: 'Plata' },
+  { value: 'gold', label: 'Oro' },
 ];
 
 function formatCurrency(value) {
@@ -133,8 +133,8 @@ export default function LeadProfile() {
   if (error || !contact) {
     return (
       <div className="card text-center text-sm text-red-600">
-        {error?.message || 'Lead not found'}
-        <Link to="/app/leads" className="mt-3 block text-brand-600 hover:underline">Back to leads</Link>
+        {error?.message || 'Prospecto no encontrado'}
+        <Link to="/app/leads" className="mt-3 block text-brand-600 hover:underline">Volver a prospectos</Link>
       </div>
     );
   }
@@ -147,10 +147,10 @@ export default function LeadProfile() {
         </Link>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">{contact.name}</h1>
-          <p className="text-sm text-gray-500">{contact.phone || contact.email || 'No contact info'}</p>
+          <p className="text-sm text-gray-500">{contact.phone || contact.email || 'Sin informacion de contacto'}</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm">
-              <span className="text-gray-500">Status</span>
+              <span className="text-gray-500">Estado</span>
               <select
                 value={contact.lead_status || 'prospect'}
                 onChange={handleStatusChange}
@@ -163,7 +163,7 @@ export default function LeadProfile() {
               </select>
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <span className="text-gray-500">Tier</span>
+              <span className="text-gray-500">Nivel</span>
               <select
                 value={contact.tier || 'bronze'}
                 onChange={handleTierChange}
@@ -181,26 +181,26 @@ export default function LeadProfile() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="card">
-          <h2 className="mb-4 text-sm font-semibold text-gray-700">Details</h2>
+          <h2 className="mb-4 text-sm font-semibold text-gray-700">Detalles</h2>
           <dl className="space-y-3 text-sm">
             <div>
-              <dt className="text-gray-500">Total spent</dt>
+              <dt className="text-gray-500">Total gastado</dt>
               <dd className="font-medium text-gray-900">{formatCurrency(contact.total_spent)}</dd>
             </div>
             <div>
-              <dt className="text-gray-500">Phone</dt>
+              <dt className="text-gray-500">Telefono</dt>
               <dd className="font-medium text-gray-900">{contact.phone || '\u2014'}</dd>
             </div>
             <div>
-              <dt className="text-gray-500">Email</dt>
+              <dt className="text-gray-500">Correo</dt>
               <dd className="font-medium text-gray-900">{contact.email || '\u2014'}</dd>
             </div>
             <div>
-              <dt className="text-gray-500">Source</dt>
+              <dt className="text-gray-500">Origen</dt>
               <dd className="font-medium text-gray-900">{contact.source_channel || '\u2014'}</dd>
             </div>
             <div>
-              <dt className="text-gray-500">Last activity</dt>
+              <dt className="text-gray-500">Ultima actividad</dt>
               <dd className="font-medium text-gray-900">
                 {contact.last_activity_ts ? new Date(contact.last_activity_ts).toLocaleString() : '\u2014'}
               </dd>
@@ -210,18 +210,18 @@ export default function LeadProfile() {
 
         <div className="card">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-700">
-            <MessageSquare className="h-4 w-4" /> Conversation history
+            <MessageSquare className="h-4 w-4" /> Historial de conversacion
           </h2>
           {(messagesLoading || messagesFetching) && messages.length === 0 ? (
             <div className="flex justify-center py-6">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
             </div>
           ) : !messagesLoading && !messagesFetching && messages.length === 0 ? (
-            <p className="text-sm text-gray-500">No messages yet.</p>
+            <p className="text-sm text-gray-500">Aun no hay mensajes.</p>
           ) : (
             <>
               <p className="mb-3 text-xs text-gray-500">
-                Showing last {Math.min(PREVIEW_COUNT, messages.length)} message(s).
+                Mostrando los ultimos {Math.min(PREVIEW_COUNT, messages.length)} mensaje(s).
               </p>
               <ul className="max-h-96 space-y-3 overflow-y-auto">
                 {previewMessages.map((m, idx) => {
