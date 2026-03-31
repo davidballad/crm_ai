@@ -44,6 +44,18 @@ export function deleteContact(id) {
   return api.delete(`/contacts/${id}`);
 }
 
+export function fetchNotes(contactId) {
+  return api.get(`/contacts/${contactId}/notes`);
+}
+
+export function addNote(contactId, content) {
+  return api.post(`/contacts/${contactId}/notes`, { content });
+}
+
+export function deleteNote(contactId, noteId) {
+  return api.delete(`/contacts/${contactId}/notes/${noteId}`);
+}
+
 /** Download leads export CSV (Google Sheets-friendly). */
 export async function downloadLeadsExport() {
   if (!API_URL) throw new Error('API URL is not configured');

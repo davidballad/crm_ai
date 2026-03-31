@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useContact, usePatchContact } from '../hooks/useContacts';
+import { useContact, usePatchContact, useContactNotes, useAddNote, useDeleteNote } from '../hooks/useContacts';
 import { useContactMessages } from '../hooks/useContactMessages';
 import { usePlan } from '../hooks/useTenantConfig';
 import UpgradeWall from '../components/UpgradeWall';
-import { ArrowLeft, MessageSquare } from 'lucide-react';
+import { ArrowLeft, MessageSquare, StickyNote, Trash2, Plus } from 'lucide-react';
 
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '');
 
@@ -67,6 +68,10 @@ export default function LeadProfile() {
     isFetching: messagesFetching,
   } = useContactMessages(id);
   const patchContact = usePatchContact();
+  const { data: notesData, isLoading: notesLoading } = useContactNotes(id);
+  const addNote = useAddNote(id);
+  const deleteNote = useDeleteNote(id);
+  const [noteInput, setNoteInput] = useState('');
 
   if (planLoading) {
     return (
@@ -249,6 +254,69 @@ export default function LeadProfile() {
             </>
           )}
         </div>
+      </div>
+
+      {/* Notes */}
+      <div className="mt-6 card">
+        <div className="mb-4 flex items-center gap-2">
+          <StickyNote className="h-4 w-4 text-brand-600" />
+          <h2 className="text-sm font-semibold text-gray-700">Notas internas</h2>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const content = noteInput.trim();
+            if (!content) return;
+            addNote.mutate(content, { onSuccess: () => setNoteInput('') });
+          }}
+          className="mb-4 flex gap-2"
+        >
+          <input
+            type="text"
+            value={noteInput}
+            onChange={(e) => setNoteInput(e.target.value)}
+            placeholder="Agregar nota..."
+            className="input-field flex-1"
+            maxLength={2000}
+          />
+          <button
+            type="submit"
+            disabled={addNote.isPending || !noteInput.trim()}
+            className="btn-primary inline-flex items-center gap-1"
+          >
+            <Plus className="h-4 w-4" />
+            Agregar
+          </button>
+        </form>
+
+        {notesLoading ? (
+          <p className="text-sm text-gray-400">Cargando notas...</p>
+        ) : (notesData?.notes || []).length === 0 ? (
+          <p className="text-sm text-gray-400">Sin notas aun.</p>
+        ) : (
+          <ul className="space-y-2">
+            {(notesData?.notes || []).map((note) => (
+              <li key={note.id} className="flex items-start justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-900">{note.content}</p>
+                  <p className="mt-0.5 text-xs text-gray-400">
+                    {note.created_by && `${note.created_by} · `}
+                    {note.created_at ? new Date(note.created_at).toLocaleString() : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deleteNote.mutate(note.id)}
+                  disabled={deleteNote.isPending}
+                  className="shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

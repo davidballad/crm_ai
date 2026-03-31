@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTransactions, useDailySummary, useRecordSale } from '../hooks/useTransactions';
 import { useProducts } from '../hooks/useProducts';
+import { useTenantConfig } from '../hooks/useTenantConfig';
 import { patchTransaction, fetchTransaction, cancelTransaction } from '../api/transactions';
 import { sendMessage } from '../api/messages';
 import StatsCard from '../components/StatsCard';
@@ -51,6 +52,7 @@ export default function TransactionList() {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [orderNotes, setOrderNotes] = useState('');
   const [saleItems, setSaleItems] = useState([{ productId: '', quantity: 1 }]);
+  const [taxRate, setTaxRate] = useState(15);
 
   const [soundEnabled, setSoundEnabled] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -59,6 +61,7 @@ export default function TransactionList() {
   const knownProofTxIdsRef = useRef(new Set());
   const notificationInitRef = useRef(false);
 
+  const { data: tenantConfig } = useTenantConfig();
   const { data, isLoading, error } = useTransactions(filters, {
     refetchInterval: 15000,
     refetchIntervalInBackground: true,
@@ -69,6 +72,11 @@ export default function TransactionList() {
 
   const transactions = data?.transactions || data?.items || [];
   const products = productsData?.products || productsData?.items || [];
+
+  useEffect(() => {
+    const configRate = tenantConfig?.tax_rate;
+    if (configRate != null) setTaxRate(Number(configRate));
+  }, [tenantConfig]);
 
   const salePreviewRows = saleItems
     .map((line) => {
@@ -87,7 +95,9 @@ export default function TransactionList() {
         : null;
     })
     .filter(Boolean);
-  const saleTotal = salePreviewRows.reduce((sum, line) => sum + Number(line.line_total || 0), 0);
+  const saleSubtotal = salePreviewRows.reduce((sum, line) => sum + Number(line.line_total || 0), 0);
+  const saleTaxAmount = Math.round(saleSubtotal * (Number(taxRate) || 0) / 100 * 100) / 100;
+  const saleTotal = saleSubtotal + saleTaxAmount;
 
   const playAlertTone = () => {
     if (!soundEnabled || typeof window === 'undefined') return;
@@ -278,6 +288,7 @@ export default function TransactionList() {
     setPaymentMethod('cash');
     setOrderNotes('');
     setSaleItems([{ productId: '', quantity: 1 }]);
+    setTaxRate(tenantConfig?.tax_rate != null ? Number(tenantConfig.tax_rate) : 15);
     setCreateError('');
   };
 
@@ -304,6 +315,9 @@ export default function TransactionList() {
           quantity: line.quantity,
           unit_price: line.unit_price,
         })),
+        subtotal: saleSubtotal,
+        tax_rate: Number(taxRate) || 0,
+        tax_amount: saleTaxAmount,
         total: saleTotal,
         payment_method: paymentMethod,
         order_notes: orderNotes || undefined,
@@ -481,12 +495,35 @@ export default function TransactionList() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">Total</label>
-                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold">
-                  ${saleTotal.toFixed(2)}
-                </div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">Impuesto (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.5}
+                  value={taxRate}
+                  onChange={(e) => setTaxRate(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
               </div>
             </div>
+
+            {saleSubtotal > 0 && (
+              <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm space-y-1">
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal</span>
+                  <span>${saleSubtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>Impuesto ({taxRate}%)</span>
+                  <span>${saleTaxAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-semibold text-gray-900 border-t border-gray-200 pt-1">
+                  <span>Total</span>
+                  <span>${saleTotal.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500">Notas</label>
               <textarea

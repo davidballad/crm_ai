@@ -81,6 +81,9 @@ class Transaction(_BaseModel):
     delivery_window_requested: str | None = None
     delivery_window_approved: str | None = None
     delivery_decision_note: str | None = None
+    subtotal: Decimal | None = None
+    tax_rate: Decimal | None = None
+    tax_amount: Decimal | None = None
     status: str = "pending"
     idempotency_key: str | None = None
     square_payment_id: str | None = None
@@ -117,6 +120,8 @@ class Tenant(_BaseModel):
     meta_phone_number_id: str | None = None
     meta_business_account_id: str | None = None
     meta_access_token: str | None = None
+    ig_business_account_id: str | None = None
+    ig_access_token: str | None = None
     ai_system_prompt: str | None = None
     bank_name: str | None = None
     person_name: str | None = None

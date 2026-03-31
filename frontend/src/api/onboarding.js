@@ -12,3 +12,8 @@ export function completeSetup(data) {
 export function getTenantConfig() {
   return api.get('/onboarding/config');
 }
+
+/** PATCH /onboarding/config — partial update of tenant config fields. */
+export function patchTenantConfig(data) {
+  return api.patch('/onboarding/config', data);
+}

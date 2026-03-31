@@ -252,6 +252,24 @@ resource "aws_apigatewayv2_route" "contacts_bulk_tag" {
   target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
 }
 
+resource "aws_apigatewayv2_route" "contacts_notes_list" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /contacts/{id}/notes"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
+resource "aws_apigatewayv2_route" "contacts_notes_create" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /contacts/{id}/notes"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
+resource "aws_apigatewayv2_route" "contacts_notes_delete" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "DELETE /contacts/{id}/notes/{note_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.contacts.id}"
+}
+
 # Conversation history for a contact
 resource "aws_apigatewayv2_route" "contacts_messages" {
   api_id    = aws_apigatewayv2_api.main.id
@@ -540,9 +558,21 @@ resource "aws_apigatewayv2_route" "onboarding_config" {
   target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
 }
 
+resource "aws_apigatewayv2_route" "onboarding_config_patch" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "PATCH /onboarding/config"
+  target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
+}
+
 resource "aws_apigatewayv2_route" "onboarding_resolve_phone" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "GET /onboarding/resolve-phone"
+  target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
+}
+
+resource "aws_apigatewayv2_route" "onboarding_resolve_ig" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /onboarding/resolve-ig"
   target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
 }
 

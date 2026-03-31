@@ -590,6 +590,78 @@ def delete_contact(tenant_id: str, contact_id: str) -> dict[str, Any]:
     return no_content()
 
 
+NOTE_SK_PREFIX = "NOTE#"
+
+
+def list_notes(tenant_id: str, contact_id: str) -> dict[str, Any]:
+    """GET /contacts/{id}/notes — list all notes for a contact."""
+    pk = build_pk(tenant_id)
+    items, _ = query_items(pk=pk, sk_prefix=f"NOTE#{contact_id}#")
+    notes = [
+        {
+            "id": item.get("id"),
+            "content": item.get("content", ""),
+            "created_by": item.get("created_by", ""),
+            "created_at": item.get("created_at", ""),
+        }
+        for item in items
+    ]
+    notes.sort(key=lambda n: n.get("created_at") or "", reverse=True)
+    return success({"notes": notes})
+
+
+def add_note(tenant_id: str, contact_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /contacts/{id}/notes — add a note to a contact."""
+    try:
+        body = parse_body(event)
+    except (json.JSONDecodeError, TypeError):
+        return error("Invalid JSON body", 400)
+
+    content = (body.get("content") or "").strip()
+    if not content:
+        return error("content is required", 400)
+    if len(content) > 2000:
+        return error("content must be 2000 characters or less", 400)
+
+    user_info = event.get("user_info") or {}
+    created_by = user_info.get("email") or ""
+
+    note_id = generate_id()
+    pk = build_pk(tenant_id)
+    sk = f"NOTE#{contact_id}#{note_id}"
+    now = now_iso()
+    item = {
+        "pk": pk,
+        "sk": sk,
+        "entity_type": "NOTE",
+        "id": note_id,
+        "contact_id": contact_id,
+        "content": content,
+        "created_by": created_by,
+        "created_at": now,
+    }
+    try:
+        put_item(item)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+    return created({"id": note_id, "content": content, "created_by": created_by, "created_at": now})
+
+
+def delete_note(tenant_id: str, contact_id: str, note_id: str) -> dict[str, Any]:
+    """DELETE /contacts/{id}/notes/{note_id} — delete a note."""
+    pk = build_pk(tenant_id)
+    sk = f"NOTE#{contact_id}#{note_id}"
+    try:
+        existing = get_item(pk=pk, sk=sk)
+        if not existing:
+            return not_found("Note not found")
+        delete_item(pk=pk, sk=sk)
+    except DynamoDBError as e:
+        return server_error(str(e))
+    return no_content()
+
+
 @require_auth
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Route requests by method and path."""
@@ -598,6 +670,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         path = event.get("path", "") or event.get("rawPath", "")
         path_params = event.get("pathParameters") or {}
         contact_id = path_params.get("id")
+        note_id = path_params.get("note_id")
         tenant_id = event.get("tenant_id", "")
 
         # UI (JWT): Pro plan required. n8n / service key may upsert contacts for any plan.
@@ -612,6 +685,15 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         if method == "POST" and path.endswith("/contacts/bulk-tag"):
             return bulk_tag_contacts(tenant_id, event)
+
+        # Notes sub-resource
+        if "/notes" in path and contact_id:
+            if method == "GET":
+                return list_notes(tenant_id, contact_id)
+            if method == "POST":
+                return add_note(tenant_id, contact_id, event)
+            if method == "DELETE" and note_id:
+                return delete_note(tenant_id, contact_id, note_id)
 
         if method == "GET" and not contact_id:
             return list_contacts(tenant_id, event)

@@ -21,6 +21,7 @@ from shared.response import created, error, server_error, success
 from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
 
 PHONE_NUMBER_ID_PK = "PHONE_NUMBER_ID"
+IG_ACCOUNT_ID_PK = "IG_ACCOUNT_ID"
 S3_TENANT_IDS_KEY = "tenant-registry/tenant-ids.json"
 
 _s3_client = None
@@ -311,6 +312,8 @@ TENANT_CONFIG_FIELDS = (
     "phone_number", "meta_phone_number_id", "meta_business_account_id", "meta_access_token",
     "ai_system_prompt", "capabilities", "delivery_enabled", "payment_methods",
     "bank_name", "person_name", "account_type", "account_id", "identification_number",
+    "follow_up_sequences", "tax_rate",
+    "ig_business_account_id", "ig_access_token",
 )
 
 
@@ -319,6 +322,15 @@ def _upsert_phone_number_id_mapping(meta_phone_number_id: str, tenant_id: str) -
     put_item({
         "pk": PHONE_NUMBER_ID_PK,
         "sk": meta_phone_number_id,
+        "tenant_id": tenant_id,
+    })
+
+
+def _upsert_ig_account_mapping(ig_business_account_id: str, tenant_id: str) -> None:
+    """Create or update the IG_ACCOUNT_ID -> tenant_id mapping in DynamoDB."""
+    put_item({
+        "pk": IG_ACCOUNT_ID_PK,
+        "sk": ig_business_account_id,
         "tenant_id": tenant_id,
     })
 
@@ -390,6 +402,51 @@ def _load_tenant_config(tenant_id: str) -> dict[str, Any] | None:
     return config
 
 
+def patch_config(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """PATCH /onboarding/config — partial update of tenant config fields."""
+    try:
+        body = parse_body(event)
+    except (TypeError, ValueError) as e:
+        return error(f"Invalid JSON body: {e}", 400)
+
+    pk = build_pk(tenant_id)
+    sk = build_sk("TENANT", tenant_id)
+
+    if not get_item(pk, sk):
+        return error("Tenant not found", 404)
+
+    updates: dict[str, Any] = {}
+    for field in TENANT_CONFIG_FIELDS:
+        if field in body:
+            value = body[field]
+            if isinstance(value, str):
+                value = value.strip()
+            updates[field] = value
+
+    if not updates:
+        return error("No valid fields provided", 400)
+
+    updates["updated_at"] = now_iso()
+    try:
+        update_item(pk, sk, updates)
+    except DynamoDBError:
+        return server_error("Failed to update config")
+
+    if updates.get("meta_phone_number_id"):
+        try:
+            _upsert_phone_number_id_mapping(updates["meta_phone_number_id"], tenant_id)
+        except DynamoDBError:
+            pass
+
+    if updates.get("ig_business_account_id"):
+        try:
+            _upsert_ig_account_mapping(updates["ig_business_account_id"], tenant_id)
+        except DynamoDBError:
+            pass
+
+    return success({"message": "Config updated"})
+
+
 def get_tenant_config(tenant_id: str, _event: dict[str, Any]) -> dict[str, Any]:
     """GET /onboarding/config — return full tenant config (token redacted for frontend)."""
     try:
@@ -398,8 +455,9 @@ def get_tenant_config(tenant_id: str, _event: dict[str, Any]) -> dict[str, Any]:
         return server_error(str(e))
     if not config:
         return error("Tenant not found", 404)
-    # Redact token — frontend must never receive it
+    # Redact tokens — frontend must never receive them
     config.pop("meta_access_token", None)
+    config.pop("ig_access_token", None)
     return success(body=config)
 
 
@@ -428,6 +486,46 @@ def resolve_phone(event: dict[str, Any]) -> dict[str, Any]:
 
     if not mapping:
         return error("No tenant found for this phone_number_id", 404)
+
+    resolved_tenant_id = mapping.get("tenant_id")
+    if not resolved_tenant_id:
+        return error("Mapping is missing tenant_id", 500)
+
+    try:
+        config = _load_tenant_config(resolved_tenant_id)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+    if not config:
+        return error("Tenant not found", 404)
+
+    return success(body=config)
+
+
+def resolve_ig_account(event: dict[str, Any]) -> dict[str, Any]:
+    """GET /onboarding/resolve-ig — resolve ig_business_account_id to tenant config.
+
+    Requires service key auth (X-Service-Key header). Used by n8n Instagram workflow.
+    Returns full config including ig_access_token so n8n can reply to comments.
+    """
+    if not validate_service_key(event):
+        headers = event.get("headers") or {}
+        if not (headers.get("x-service-key") or headers.get("X-Service-Key")):
+            return error("X-Service-Key header required", 401)
+        return error("Invalid service key", 401)
+
+    params = event.get("queryStringParameters") or {}
+    ig_id = (params.get("ig_business_account_id") or "").strip()
+    if not ig_id:
+        return error("ig_business_account_id query parameter is required", 400)
+
+    try:
+        mapping = get_item(pk=IG_ACCOUNT_ID_PK, sk=ig_id)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+    if not mapping:
+        return error("No tenant found for this ig_business_account_id", 404)
 
     resolved_tenant_id = mapping.get("tenant_id")
     if not resolved_tenant_id:
@@ -494,6 +592,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if method == "GET" and ("/onboarding/resolve-phone" in path):
         return resolve_phone(event)
 
+    # No JWT auth: Instagram account resolution (service key checked inside handler)
+    if method == "GET" and ("/onboarding/resolve-ig" in path):
+        return resolve_ig_account(event)
+
     # Service key only: list tenant IDs (for Phase 3 scheduler / multi-tenant n8n)
     if method == "GET" and ("/onboarding/tenant-ids" in path):
         return list_tenant_ids(event)
@@ -511,5 +613,11 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if not tenant_id:
             return error("Unauthorized", 401)
         return get_tenant_config(tenant_id, event)
+
+    if method == "PATCH" and ("/onboarding/config" in path):
+        tenant_id = extract_tenant_id(event)
+        if not tenant_id:
+            return error("Unauthorized", 401)
+        return patch_config(tenant_id, event)
 
     return error("Not found", 404)

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { completeSetup, getTenantConfig } from '../api/onboarding';
-import { MessageCircle, ExternalLink, Pencil, CheckCircle } from 'lucide-react';
+import { completeSetup, getTenantConfig, patchTenantConfig } from '../api/onboarding';
+import { MessageCircle, ExternalLink, Pencil, CheckCircle, Plus, Trash2 } from 'lucide-react';
 
 const normalizePhoneNumber = (value) => String(value || '').replace(/\D/g, '');
 
@@ -17,6 +17,17 @@ export default function WhatsAppSetup() {
   const [accountType, setAccountType] = useState('');
   const [accountId, setAccountId] = useState('');
   const [identificationNumber, setIdentificationNumber] = useState('');
+  const [sequences, setSequences] = useState([]);
+  const [seqSaving, setSeqSaving] = useState(false);
+  const [seqSuccess, setSeqSuccess] = useState('');
+  const [taxRateInput, setTaxRateInput] = useState(15);
+  const [taxSaving, setTaxSaving] = useState(false);
+  const [taxSuccess, setTaxSuccess] = useState('');
+  const [igBusinessAccountId, setIgBusinessAccountId] = useState('');
+  const [igAccessToken, setIgAccessToken] = useState('');
+  const [igSaving, setIgSaving] = useState(false);
+  const [igSuccess, setIgSuccess] = useState('');
+  const [igError, setIgError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -46,7 +57,10 @@ export default function WhatsAppSetup() {
       setAccountType(config.account_type || '');
       setAccountId(config.account_id || '');
       setIdentificationNumber(config.identification_number || '');
-      // Do NOT set metaAccessToken from config — it is never returned
+      setSequences(config.follow_up_sequences || []);
+      if (config.tax_rate != null) setTaxRateInput(Number(config.tax_rate));
+      setIgBusinessAccountId(config.ig_business_account_id || '');
+      // Do NOT set igAccessToken or metaAccessToken — never returned by API
     }
   }, [config]);
 
@@ -103,6 +117,160 @@ export default function WhatsAppSetup() {
           <img src="/whatsapp-glyph.svg" alt="" className="h-8 w-8 object-contain" width={32} height={32} loading="lazy" decoding="async" />
           <span className="text-sm font-medium text-gray-700">WhatsApp Business</span>
         </div>
+      </div>
+
+      {/* Follow-up sequence editor */}
+      <div className="mt-6 card max-w-xl">
+        <h2 className="mb-1 text-sm font-semibold text-gray-900">Secuencias de seguimiento</h2>
+        <p className="mb-4 text-xs text-gray-500">
+          Define mensajes automáticos que se envían si un cliente no completa su pedido. El flujo de n8n los ejecutará en orden.
+        </p>
+
+        {seqSuccess && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{seqSuccess}</div>}
+
+        <div className="space-y-3">
+          {sequences.map((seq, i) => (
+            <div key={i} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-700">Paso {i + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => setSequences((s) => s.filter((_, j) => j !== i))}
+                  className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Esperar (horas)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={seq.delay_hours}
+                    onChange={(e) => setSequences((s) => s.map((item, j) => j === i ? { ...item, delay_hours: Number(e.target.value) } : item))}
+                    className="input-field w-full"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={!!seq.mark_abandoned_after}
+                      onChange={(e) => setSequences((s) => s.map((item, j) => j === i ? { ...item, mark_abandoned_after: e.target.checked } : item))}
+                      className="rounded"
+                    />
+                    Marcar como abandonado
+                  </label>
+                </div>
+              </div>
+              <div className="mt-2">
+                <label className="mb-1 block text-xs font-medium text-gray-600">Mensaje (usa {'{{name}}'} para el nombre)</label>
+                <textarea
+                  value={seq.message || ''}
+                  onChange={(e) => setSequences((s) => s.map((item, j) => j === i ? { ...item, message: e.target.value } : item))}
+                  rows={2}
+                  className="input-field w-full resize-y text-sm"
+                  placeholder="Hola {{name}}, ¿sigues interesado?"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setSequences((s) => [...s, { delay_hours: 2, message: '', mark_abandoned_after: false }])}
+            className="btn-secondary inline-flex items-center gap-1.5 text-sm"
+          >
+            <Plus className="h-4 w-4" /> Agregar paso
+          </button>
+          <button
+            type="button"
+            disabled={seqSaving}
+            onClick={async () => {
+              setSeqSaving(true);
+              setSeqSuccess('');
+              try {
+                await patchTenantConfig({ follow_up_sequences: sequences });
+                setSeqSuccess('Secuencias guardadas correctamente.');
+              } catch {
+                /* ignore */
+              } finally {
+                setSeqSaving(false);
+              }
+            }}
+            className="btn-primary text-sm"
+          >
+            {seqSaving ? 'Guardando...' : 'Guardar secuencias'}
+          </button>
+        </div>
+      </div>
+
+      {/* Instagram integration */}
+      <div className="mt-6 card max-w-xl">
+        <h2 className="mb-1 text-sm font-semibold text-gray-900">Instagram → WhatsApp</h2>
+        <p className="mb-4 text-xs text-gray-500">
+          Cuando alguien comente en tus posts de Instagram, el flujo de n8n responderá automáticamente con tu enlace de WhatsApp. Obtén el ID de cuenta y el token desde Meta Business Suite.
+        </p>
+
+        {igSuccess && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{igSuccess}</div>}
+        {igError && <div className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">{igError}</div>}
+
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              ID de cuenta de Instagram Business
+            </label>
+            <input
+              type="text"
+              value={igBusinessAccountId}
+              onChange={(e) => setIgBusinessAccountId(e.target.value)}
+              placeholder="Ej: 17841400000000000"
+              className="input-field w-full font-mono text-sm"
+            />
+            <p className="mt-1 text-xs text-gray-400">Meta Business Suite → tu cuenta de Instagram → ID numérico</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              Token de acceso de página (con permiso instagram_manage_comments)
+            </label>
+            <input
+              type="password"
+              value={igAccessToken}
+              onChange={(e) => setIgAccessToken(e.target.value)}
+              placeholder="Dejar en blanco para mantener el actual"
+              className="input-field w-full font-mono text-sm"
+              autoComplete="off"
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={igSaving}
+          onClick={async () => {
+            setIgSaving(true);
+            setIgSuccess('');
+            setIgError('');
+            try {
+              await patchTenantConfig({
+                ...(igBusinessAccountId.trim() && { ig_business_account_id: igBusinessAccountId.trim() }),
+                ...(igAccessToken.trim() && { ig_access_token: igAccessToken.trim() }),
+              });
+              setIgSuccess('Configuración de Instagram guardada.');
+              setIgAccessToken('');
+            } catch {
+              setIgError('No se pudo guardar. Intenta de nuevo.');
+            } finally {
+              setIgSaving(false);
+            }
+          }}
+          className="mt-3 btn-primary text-sm"
+        >
+          {igSaving ? 'Guardando...' : 'Guardar Instagram'}
+        </button>
       </div>
 
       <div className="card max-w-xl">

@@ -271,6 +271,15 @@ def record_sale(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """
     try:
         body = parse_body(event)
+        # Calculate tax before building the Transaction model
+        subtotal = Decimal(str(body.get("subtotal") or body.get("total") or 0))
+        tax_rate = Decimal(str(body.get("tax_rate") if body.get("tax_rate") is not None else 0))
+        tax_amount = (subtotal * tax_rate / Decimal("100")).quantize(Decimal("0.01"))
+        total = subtotal + tax_amount
+        body["subtotal"] = subtotal
+        body["tax_rate"] = tax_rate
+        body["tax_amount"] = tax_amount
+        body["total"] = total
         transaction = Transaction.from_dynamo(body)
     except Exception as e:
         return error(f"Invalid request body: {e}")
@@ -613,7 +622,7 @@ def get_revenue_range(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                     txn = Transaction.from_dynamo(item)
                     # SK pattern: TXN#YYYY-MM-DD#<id>
                     sk_parts = item.get("sk", "").split("#")
-                    day_str = sk_parts[1] if len(sk_parts) >= 2 else ""
+                    day_str = sk_parts[1][:10] if len(sk_parts) >= 2 else ""
                     if day_str in daily:
                         daily[day_str]["revenue"] = round(
                             daily[day_str]["revenue"] + float(txn.total), 2

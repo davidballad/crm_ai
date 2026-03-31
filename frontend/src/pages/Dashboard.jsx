@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
-import { useDailySummary } from '../hooks/useTransactions';
+import { useDailySummary, useRevenueRange } from '../hooks/useTransactions';
 import { useInsights } from '../hooks/useInsights';
+import { useContactStats } from '../hooks/useContacts';
 import StatsCard from '../components/StatsCard';
 import LowStockBadge from '../components/LowStockBadge';
+import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   Package,
   DollarSign,
@@ -12,10 +14,18 @@ import {
   AlertTriangle,
   BrainCircuit,
   ArrowRight,
+  Users,
+  TrendingUp,
 } from 'lucide-react';
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function nDaysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
 }
 
 export default function Dashboard() {
@@ -23,6 +33,8 @@ export default function Dashboard() {
   const { data: productData, isLoading: loadingProducts } = useProducts();
   const { data: summary } = useDailySummary(todayStr());
   const { data: insightData } = useInsights();
+  const { data: contactStats } = useContactStats();
+  const { data: revenueData } = useRevenueRange(nDaysAgo(6), todayStr());
 
   const products = productData?.products || productData?.items || [];
   const lowStockProducts = products.filter((p) => {
@@ -36,6 +48,11 @@ export default function Dashboard() {
   );
 
   const insight = insightData?.insight || insightData;
+  const revenuePoints = (revenueData?.revenue || revenueData || []).map((r) => ({
+    date: r.date?.slice(5),
+    revenue: Number(r.revenue || 0),
+  }));
+  const weekRevenue = revenuePoints.reduce((s, r) => s + r.revenue, 0);
 
   return (
     <div>
@@ -62,13 +79,32 @@ export default function Dashboard() {
           icon={ShoppingCart}
         />
         <StatsCard
-          title={t('dashboard.lowStockItems')}
-          value={lowStockProducts.length}
-          icon={AlertTriangle}
-          trend={lowStockProducts.length > 0 ? 'down' : undefined}
-          subtitle={lowStockProducts.length > 0 ? t('dashboard.needsAttention') : t('dashboard.allStocked')}
+          title="Clientes"
+          value={contactStats?.total ?? '...'}
+          icon={Users}
+          subtitle={contactStats ? `${contactStats.by_tier?.gold ?? 0} oro · ${contactStats.by_tier?.silver ?? 0} plata` : ''}
         />
       </div>
+
+      {/* Revenue trend */}
+      {revenuePoints.length > 0 && (
+        <div className="mb-6 card">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-brand-600" />
+              <h2 className="text-sm font-semibold text-gray-900">Ingresos — últimos 7 días</h2>
+            </div>
+            <span className="text-sm font-semibold text-brand-600">${weekRevenue.toFixed(2)}</span>
+          </div>
+          <ResponsiveContainer width="100%" height={80}>
+            <LineChart data={revenuePoints}>
+              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+              <Tooltip formatter={(v) => [`$${v.toFixed(2)}`, 'Ingresos']} />
+              <Line type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* AI Summary */}
