@@ -24,6 +24,151 @@ PHONE_NUMBER_ID_PK = "PHONE_NUMBER_ID"
 IG_ACCOUNT_ID_PK = "IG_ACCOUNT_ID"
 S3_TENANT_IDS_KEY = "tenant-registry/tenant-ids.json"
 
+_ses_client = None
+
+
+def _get_ses():
+    global _ses_client
+    if _ses_client is None:
+        _ses_client = boto3.client("ses")
+    return _ses_client
+
+
+def _build_summary_html(business_name: str, date: str, revenue: float, orders: int,
+                        items_sold: int, contacts: int, new_leads: int, low_stock: list) -> str:
+    low_stock_rows = "".join(
+        f"<tr><td style='padding:4px 8px'>{p.get('name','')}</td>"
+        f"<td style='padding:4px 8px;color:#dc2626;font-weight:bold'>{p.get('quantity', 0)}</td>"
+        f"<td style='padding:4px 8px;color:#6b7280'>{p.get('reorder_threshold', 10)}</td></tr>"
+        for p in low_stock[:8]
+    )
+    low_stock_section = ""
+    if low_stock:
+        low_stock_section = f"""
+        <div style="margin-top:24px;background:#fef2f2;border-radius:10px;padding:16px 20px">
+          <h3 style="margin:0 0 12px;color:#dc2626;font-size:15px">&#9888; Stock bajo &mdash; {len(low_stock)} producto(s)</h3>
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="border-bottom:1px solid #fecaca">
+              <th style="text-align:left;padding:4px 8px;color:#6b7280;font-weight:500">Producto</th>
+              <th style="text-align:left;padding:4px 8px;color:#6b7280;font-weight:500">Stock actual</th>
+              <th style="text-align:left;padding:4px 8px;color:#6b7280;font-weight:500">Umbral</th>
+            </tr></thead>
+            <tbody>{low_stock_rows}</tbody>
+          </table>
+        </div>"""
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<body style="font-family:sans-serif;max-width:580px;margin:0 auto;padding:28px 20px;color:#111827;background:#f9fafb">
+  <div style="background:#fff;border-radius:12px;padding:28px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+    <h2 style="margin:0 0 4px;color:#4f46e5;font-size:20px">&#128202; Resumen diario</h2>
+    <p style="margin:0 0 20px;color:#6b7280;font-size:14px">{business_name} &mdash; {date}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="background:#f0fdf4;border-radius:8px;padding:16px;text-align:center">
+        <div style="font-size:26px;font-weight:700;color:#16a34a">${revenue:,.2f}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">Ingresos ayer</div>
+      </div>
+      <div style="background:#eff6ff;border-radius:8px;padding:16px;text-align:center">
+        <div style="font-size:26px;font-weight:700;color:#2563eb">{orders}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">Pedidos</div>
+      </div>
+      <div style="background:#faf5ff;border-radius:8px;padding:16px;text-align:center">
+        <div style="font-size:26px;font-weight:700;color:#7c3aed">{contacts}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">Total contactos</div>
+      </div>
+      <div style="background:#fefce8;border-radius:8px;padding:16px;text-align:center">
+        <div style="font-size:26px;font-weight:700;color:#ca8a04">{new_leads}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">Nuevos leads ayer</div>
+      </div>
+    </div>
+    {low_stock_section}
+    <p style="margin-top:28px;font-size:11px;color:#9ca3af;text-align:center">
+      Enviado por <strong>Clienta AI</strong> &bull; Resumen autom&aacute;tico diario
+    </p>
+  </div>
+</body>
+</html>"""
+
+
+def send_daily_summary(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /onboarding/daily-summary — send daily email digest to tenant owner. Service key only."""
+    from datetime import datetime, timedelta, timezone
+
+    if not validate_service_key(event):
+        return error("Forbidden", 403)
+
+    pk = build_pk(tenant_id)
+    config = get_item(pk, build_sk("TENANT", tenant_id))
+    if not config:
+        return error("Tenant not found", 404)
+
+    owner_email = (config.get("owner_email") or "").strip()
+    business_name = config.get("business_name") or "Tu negocio"
+    if not owner_email:
+        return success({"skipped": True, "reason": "no owner_email"})
+
+    from_addr = os.environ.get("CONTACT_FROM_EMAIL", "")
+    if not from_addr:
+        return error("CONTACT_FROM_EMAIL not configured", 500)
+
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # Yesterday's transactions (SK prefix: TXN#<date>)
+    try:
+        txn_items, _ = query_items(pk, sk_prefix=f"TXN#{yesterday}", limit=500)
+    except DynamoDBError:
+        txn_items = []
+    total_revenue = sum(float(t.get("total") or 0) for t in txn_items)
+    order_count = len(txn_items)
+    items_sold = sum(
+        int((item.get("quantity") or 0) if isinstance(item, dict) else 0)
+        for t in txn_items
+        for item in (t.get("items") or [])
+    )
+
+    # All contacts (count + new yesterday)
+    try:
+        contact_items, _ = query_items(pk, sk_prefix="CONTACT#", limit=500)
+    except DynamoDBError:
+        contact_items = []
+    total_contacts = len(contact_items)
+    new_leads = sum(1 for c in contact_items if (c.get("created_ts") or "")[:10] == yesterday)
+
+    # Low-stock products
+    try:
+        product_items, _ = query_items(pk, sk_prefix="PRODUCT#", limit=200)
+    except DynamoDBError:
+        product_items = []
+    low_stock = [
+        p for p in product_items
+        if int(p.get("quantity") or 0) <= int(p.get("reorder_threshold") or 10)
+    ]
+
+    html_body = _build_summary_html(business_name, yesterday, total_revenue, order_count,
+                                    items_sold, total_contacts, new_leads, low_stock)
+    plain_body = (
+        f"Resumen {yesterday} — {business_name}\n\n"
+        f"Ingresos: ${total_revenue:,.2f} | Pedidos: {order_count} | "
+        f"Contactos: {total_contacts} | Nuevos leads: {new_leads}\n"
+        f"Productos con stock bajo: {len(low_stock)}"
+    )
+
+    try:
+        _get_ses().send_email(
+            Source=from_addr,
+            Destination={"ToAddresses": [owner_email]},
+            Message={
+                "Subject": {"Data": f"Resumen diario — {business_name} ({yesterday})", "Charset": "UTF-8"},
+                "Body": {
+                    "Html": {"Data": html_body, "Charset": "UTF-8"},
+                    "Text": {"Data": plain_body, "Charset": "UTF-8"},
+                },
+            },
+        )
+    except ClientError as e:
+        return server_error(f"SES error: {e}")
+
+    return success({"sent": True, "to": owner_email, "date": yesterday})
+
 _s3_client = None
 
 
@@ -595,6 +740,17 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # No JWT auth: Instagram account resolution (service key checked inside handler)
     if method == "GET" and ("/onboarding/resolve-ig" in path):
         return resolve_ig_account(event)
+
+    # Service key only: send daily summary email to tenant owner
+    if method == "POST" and ("/onboarding/daily-summary" in path):
+        params = event.get("queryStringParameters") or {}
+        tid = (params.get("tenant_id") or "").strip()
+        if not tid:
+            body = parse_body(event) if event.get("body") else {}
+            tid = (body.get("tenant_id") or "").strip()
+        if not tid:
+            return error("tenant_id required", 400)
+        return send_daily_summary(tid, event)
 
     # Service key only: list tenant IDs (for Phase 3 scheduler / multi-tenant n8n)
     if method == "GET" and ("/onboarding/tenant-ids" in path):

@@ -576,6 +576,12 @@ resource "aws_apigatewayv2_route" "onboarding_resolve_ig" {
   target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
 }
 
+resource "aws_apigatewayv2_route" "onboarding_daily_summary" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /onboarding/daily-summary"
+  target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
+}
+
 resource "aws_apigatewayv2_route" "onboarding_tenant_ids" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "GET /onboarding/tenant-ids"
