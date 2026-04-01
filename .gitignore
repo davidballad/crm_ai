@@ -39,6 +39,7 @@ terraform/config/prod/*.tfvars
 *.swp
 *.swo
 .cursor/
+.mcp.json
 
 # OS
 .DS_Store

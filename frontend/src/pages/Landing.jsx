@@ -14,6 +14,10 @@ import {
   Globe,
   Layers,
   Sparkles,
+  Share2,
+  Megaphone,
+  Target,
+  Zap,
 } from 'lucide-react';
 import { submitContact } from '../api/contact';
 import { useHeroParallax, useLandingReveal } from '../hooks/useLandingScroll';
@@ -40,10 +44,65 @@ function WhatsAppGlyph({ className }) {
   );
 }
 
+/** 
+ * NetworkBackground: A cosmic neural network representation for AI/CRM connectivity.
+ */
+function NetworkBackground() {
+  return (
+    <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden>
+      {/* Background Orbs */}
+      <div className="absolute top-[15%] left-[10%] h-64 w-64 rounded-full bg-brand-500/10 blur-[80px] landing-orb-float opacity-30" />
+      <div className="absolute top-[60%] right-[15%] h-80 w-80 rounded-full bg-brand-600/10 blur-[100px] landing-orb-float-slow opacity-20" />
+      <div className="absolute bottom-[10%] left-[20%] h-48 w-48 rounded-full bg-brand-400/10 blur-[60px] landing-orb-float opacity-20" />
+      
+      <svg className="h-full w-full opacity-[0.15]" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="glow-heavy">
+            <feGaussianBlur stdDeviation="4.5" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        
+        {/* Intricate connection lines */}
+        <g stroke="rgba(59, 130, 246, 0.4)" strokeWidth="0.5" fill="none">
+          <path d="M50 150 Q200 100 350 200 T650 150" className="animate-pulse" />
+          <path d="M100 450 Q300 400 450 500 T750 450" className="animate-pulse" style={{ animationDelay: '1.5s' }} />
+          <path d="M150 650 Q400 600 550 700 T850 650" className="animate-pulse" style={{ animationDelay: '3s' }} />
+          
+          <path d="M150 100 L100 450 L150 650" opacity="0.3" />
+          <path d="M350 200 L450 500 L400 600" opacity="0.3" />
+          <path d="M650 150 L750 450 L850 650" opacity="0.3" />
+        </g>
+        
+        {/* Persistent glowing nodes */}
+        {[
+          { cx: 50, cy: 150 }, { cx: 350, cy: 200 }, { cx: 650, cy: 150 },
+          { cx: 100, cy: 450 }, { cx: 450, cy: 500 }, { cx: 750, cy: 450 },
+          { cx: 150, cy: 650 }, { cx: 400, cy: 600 }, { cx: 850, cy: 650 },
+        ].map((node, i) => (
+          <circle
+            key={i}
+            cx={node.cx}
+            cy={node.cy}
+            r="2"
+            fill="#60a5fa"
+            filter="url(#glow-heavy)"
+            className="animate-pulse"
+            style={{ animationDuration: `${2 + i % 2}s`, animationDelay: `${i * 0.3}s` }}
+          />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 function PhoneMockup({ t }) {
   return (
-    <div className="relative mx-auto w-full max-w-[280px] lg:max-w-[300px]" aria-hidden>
-      <div className="relative aspect-[9/18] rounded-[2.35rem] border-[9px] border-gray-950 bg-gray-950 shadow-[0_25px_60px_-12px_rgba(0,0,0,0.65)] ring-1 ring-white/15">
+    <div className="relative mx-auto w-[280px] h-[560px] lg:w-[300px] lg:h-[600px]">
+      <div className="relative h-full w-full rounded-[2.35rem] border-[8px] border-white/20 bg-[#0b141a] shadow-[0_30px_70px_-15px_rgba(0,0,0,0.8),0_0_50px_-5px_rgba(59,130,246,0.3)] ring-1 ring-white/10">
         <div className="absolute left-1/2 top-2 z-10 h-5 w-24 -translate-x-1/2 rounded-full bg-black/90" />
         <div className="absolute inset-[7px] flex flex-col overflow-hidden rounded-[1.65rem] bg-[#0b141a]">
           <div className="flex shrink-0 items-center gap-2 border-b border-white/10 bg-[#1f2c34] px-3 py-2.5">
@@ -65,6 +124,88 @@ function PhoneMockup({ t }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function LandingCampaigns({ t }) {
+  const [activeTab, setActiveTab] = useState(0);
+  const tabs = [
+    { title: t('landing.campaigns.tab1'), icon: Zap, fullTitle: t('landing.campaigns.tab1Title'), desc: t('landing.campaigns.tab1Desc') },
+    { title: t('landing.campaigns.tab2'), icon: Target, fullTitle: t('landing.campaigns.tab2Title'), desc: t('landing.campaigns.tab2Desc') },
+    { title: t('landing.campaigns.tab3'), icon: Megaphone, fullTitle: t('landing.campaigns.tab3Title'), desc: t('landing.campaigns.tab3Desc') },
+  ];
+
+  return (
+    <section className="relative overflow-hidden bg-[#020617] py-20 md:py-28 dot-pattern vignette-glow">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="landing-reveal text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-brand-400 sm:text-sm">{t('landing.campaigns.eyebrow')}</p>
+          <h2 className="mt-4 font-serif text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
+            {t('landing.campaigns.title')}
+          </h2>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-300 sm:text-xl">
+            {t('landing.campaigns.subtitle')}
+          </p>
+        </div>
+
+        <div className="mt-16 flex flex-col items-center">
+          {/* Pill Tabs */}
+          <div className="flex flex-wrap justify-center gap-2 rounded-full border border-white/5 bg-white/5 p-1.5 backdrop-blur-md sm:gap-4">
+            {tabs.map((tab, i) => (
+              <button
+                key={i}
+                onClick={() => setActiveTab(i)}
+                className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-all duration-300 ${
+                  activeTab === i 
+                    ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' 
+                    : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <tab.icon className={`h-4 w-4 ${activeTab === i ? 'text-white' : 'text-brand-400'}`} />
+                {tab.title}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          <div className="mt-12 w-full max-w-4xl">
+            <div className="glass-card overflow-hidden p-8 md:p-12">
+              <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+                <div>
+                  <h3 className="font-serif text-3xl font-bold text-white">{tabs[activeTab].fullTitle}</h3>
+                  <p className="mt-4 text-lg leading-relaxed text-slate-300">{tabs[activeTab].desc}</p>
+                  <div className="mt-8">
+                    <button className="btn-primary px-8 py-3 text-sm">{t('landing.campaigns.cta')}</button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <div className="aspect-video w-full rounded-2xl border border-white/10 bg-slate-900/50 p-4 ring-1 ring-white/5">
+                    {/* Simplified AI Campaign Visualizer */}
+                    <div className="h-full w-full space-y-3 overflow-hidden rounded-lg bg-black/40 p-4 font-mono text-[10px] text-brand-400">
+                      <div className="opacity-50"># Preparing broadcast list...</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-white">→</span> <span>Targeting:</span> <span className="text-emerald-400">Leads with 'Interested' status</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-white">→</span> <span>Template:</span> <span className="text-emerald-400">{tabs[activeTab].title}</span>
+                      </div>
+                      <div className="mt-4 h-1 w-full bg-white/10">
+                        <div className="h-full bg-brand-500 animate-[loading-bar_3s_infinite]" style={{ width: '60%' }} />
+                      </div>
+                      <div className="grid grid-cols-5 gap-2 pt-4">
+                        {[...Array(10)].map((_, i) => (
+                          <div key={i} className="h-8 rounded bg-white/5 animate-pulse" />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -137,8 +278,8 @@ export default function Landing() {
   if (isAuthenticated) return <Navigate to="/app" replace />;
 
   return (
-    <div className="landing-page min-h-screen bg-white font-landing-sans">
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-black/20 backdrop-blur-md">
+    <div className="landing-page min-h-screen bg-slate-50">
+      <nav className="fixed top-0 left-0 right-0 z-50 nav-solid transition-all duration-300">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-2">
             <span className="inline-flex items-center rounded-xl bg-white px-2 py-1.5 shadow-md ring-1 ring-black/5">
@@ -207,10 +348,15 @@ export default function Landing() {
       </nav>
 
       {/* Hero — full-bleed premium + parallax (no heavy raster images) */}
-      <section className="relative min-h-[92vh] overflow-hidden pt-16">
+      <section className="relative min-h-[95vh] overflow-hidden">
         <div
           className="landing-hero-bg absolute inset-0 will-change-transform"
           style={{ transform: `translate3d(0, ${heroParallaxY * 0.4}px, 0)` }}
+          aria-hidden
+        />
+        <NetworkBackground />
+        <div
+          className="landing-network-grid absolute inset-0 opacity-10"
           aria-hidden
         />
         <div
@@ -224,27 +370,31 @@ export default function Landing() {
           aria-hidden
         />
 
-        <div className="relative z-10 mx-auto grid min-h-[calc(92vh-4rem)] max-w-6xl grid-cols-1 items-center gap-12 px-4 pb-24 pt-20 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:px-8">
+        <div className="relative z-10 mx-auto grid min-h-[calc(95vh-4rem)] max-w-6xl grid-cols-1 items-center gap-12 px-4 pb-16 pt-24 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:px-8">
           <div className="text-center lg:text-left">
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-200/90 sm:text-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-300 drop-shadow-md sm:text-sm">
               {t('landing.hero.badge')}
             </p>
-            <h1 className="mt-6 font-landing-serif text-[2.65rem] font-semibold leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-6xl lg:leading-[1.05]">
-              {t('landing.hero.title')}
+            <h1 className="mt-8 font-serif text-[3.5rem] font-bold leading-[1] tracking-tight text-white sm:text-6xl lg:text-8xl">
+              {t('landing.hero.title').split(' ').map((word, i) => (
+                <span key={i} className={i === 1 ? 'text-brand-400 drop-shadow-[0_0_25px_rgba(96,165,250,0.4)]' : ''}>
+                  {word}{' '}
+                </span>
+              ))}
             </h1>
-            <p className="mx-auto mt-8 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg lg:mx-0">
+            <p className="mx-auto mt-10 max-w-2xl text-lg leading-relaxed text-slate-300 sm:text-xl lg:mx-0">
               {t('landing.hero.subtitle')}
             </p>
-            <div className="mt-12 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
+            <div className="mt-14 flex flex-wrap items-center justify-center gap-5 lg:justify-start">
               <Link
                 to="/signup"
-                className="rounded-full bg-brand-500 px-8 py-3.5 text-base font-medium text-white shadow-xl shadow-brand-600/30 transition-all hover:bg-brand-400 hover:shadow-brand-500/40"
+                className="btn-primary px-10 py-4 text-base font-semibold"
               >
                 {t('landing.hero.getStarted')}
               </Link>
               <Link
                 to="/login"
-                className="rounded-full border border-white/25 bg-white/5 px-8 py-3.5 text-base font-medium text-white backdrop-blur-sm transition-colors hover:border-white/40 hover:bg-white/10"
+                className="btn-secondary px-10 py-4 text-base font-semibold text-white border-white/20 hover:bg-white/10"
               >
                 {t('landing.hero.logIn')}
               </Link>
@@ -252,7 +402,12 @@ export default function Landing() {
           </div>
 
           <div className="flex flex-col items-center justify-center lg:items-end">
-            <PhoneMockup t={t} />
+            <div className="relative">
+              <div className="absolute -inset-20 bg-brand-500/15 rounded-full blur-[100px] landing-glow-pulse pointer-events-none" />
+              <div className="relative z-10 scale-110 lg:scale-125 transition-transform duration-700">
+                <PhoneMockup t={t} />
+              </div>
+            </div>
           </div>
 
           <button
@@ -270,7 +425,7 @@ export default function Landing() {
       {/* Trust */}
       <section
         id="trust"
-        className="border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white py-14 sm:py-16"
+        className="relative border-t border-gray-100 bg-white py-20 md:py-28 dot-pattern-dark"
       >
         <div className="landing-reveal mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center gap-10 sm:gap-12">
@@ -303,10 +458,14 @@ export default function Landing() {
         </div>
       </section>
 
-      <LandingFeatureShowcase t={t} featureIcons={FEATURE_ICONS} />
+      <div className="bg-slate-50 border-t border-gray-100 dot-pattern-dark">
+        <LandingFeatureShowcase t={t} featureIcons={FEATURE_ICONS} />
+      </div>
+
+      <LandingCampaigns t={t} />
 
       {/* Contact */}
-      <section id="contact" className="scroll-mt-24 border-t border-gray-100 bg-gray-50/40 py-20">
+      <section id="contact" className="relative scroll-mt-24 border-t border-gray-100 bg-white py-20 md:py-28 dot-pattern-dark">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="landing-reveal text-center">
             <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">{t('landing.collaborate.title')}</h2>
@@ -389,25 +548,24 @@ export default function Landing() {
       {/* Custom development services */}
       <section
         id="services"
-        className="scroll-mt-24 border-t border-gray-100 bg-gradient-to-b from-slate-50/90 via-white to-brand-50/20 py-20"
+        className="relative scroll-mt-24 border-t border-gray-100 bg-slate-50 py-20 md:py-28 dot-pattern-dark"
       >
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="landing-reveal text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600/90 sm:text-sm">{t('landing.services.eyebrow')}</p>
-            <h2 className="mt-4 font-landing-serif text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
+            <h2 className="mt-4 font-serif text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
               {t('landing.services.title')}
             </h2>
-            <p className="mx-auto mt-5 max-w-3xl text-base leading-relaxed text-gray-600 sm:text-lg">{t('landing.services.subtitle')}</p>
+            <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-gray-600 sm:text-xl font-medium">{t('landing.services.subtitle')}</p>
           </div>
 
           <div className="landing-reveal mt-14 grid gap-8 lg:grid-cols-2 lg:gap-10">
-            <div className="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-8 shadow-sm ring-1 ring-gray-100/80 transition-shadow duration-300 hover:shadow-xl hover:shadow-slate-200/60">
-              <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gradient-to-br from-brand-100/80 to-brand-50 opacity-80 transition-opacity group-hover:opacity-100" aria-hidden />
+            <div className="card group relative overflow-hidden p-10 transition-all hover:scale-[1.01]">
               <div className="relative">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white shadow-lg shadow-brand-600/25">
                   <Globe className="h-6 w-6" strokeWidth={1.75} />
                 </div>
-                <h3 className="mt-6 text-xl font-semibold text-gray-900">{t('landing.services.webTitle')}</h3>
+                <h3 className="mt-6 text-xl font-bold text-gray-900">{t('landing.services.webTitle')}</h3>
                 <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:text-base">{t('landing.services.webDesc')}</p>
                 <ul className="mt-6 space-y-3 text-sm text-gray-700">
                   {['webPoint1', 'webPoint2', 'webPoint3'].map((k) => (
@@ -420,13 +578,12 @@ export default function Landing() {
               </div>
             </div>
 
-            <div className="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-8 shadow-sm ring-1 ring-gray-100/80 transition-shadow duration-300 hover:shadow-xl hover:shadow-slate-200/60">
-              <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gradient-to-br from-indigo-100/90 to-brand-50 opacity-80 transition-opacity group-hover:opacity-100" aria-hidden />
+            <div className="card group relative overflow-hidden p-10 transition-all hover:scale-[1.01]">
               <div className="relative">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-800 text-white shadow-lg shadow-slate-900/20">
                   <Layers className="h-6 w-6" strokeWidth={1.75} />
                 </div>
-                <h3 className="mt-6 text-xl font-semibold text-gray-900">{t('landing.services.appTitle')}</h3>
+                <h3 className="mt-6 text-xl font-bold text-gray-900">{t('landing.services.appTitle')}</h3>
                 <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:text-base">{t('landing.services.appDesc')}</p>
                 <ul className="mt-6 space-y-3 text-sm text-gray-700">
                   {['appPoint1', 'appPoint2', 'appPoint3'].map((k) => (
@@ -448,7 +605,7 @@ export default function Landing() {
             <button
               type="button"
               onClick={openServicesContact}
-              className="mt-6 inline-flex items-center justify-center rounded-full bg-gray-900 px-8 py-3.5 text-sm font-medium text-white shadow-lg shadow-gray-900/15 transition-colors hover:bg-gray-800 sm:text-base"
+              className="mt-6 btn-primary px-10 py-4 text-base"
             >
               {t('landing.services.cta')}
             </button>
@@ -457,7 +614,7 @@ export default function Landing() {
       </section>
 
       {/* Pricing */}
-      <section className="border-t border-gray-100 bg-white py-20" id="pricing">
+      <section className="relative border-t border-gray-100 bg-white py-20 md:py-28 dot-pattern-dark" id="pricing">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="landing-reveal text-center">
             <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">{t('landing.pricing.title')}</h2>
@@ -479,7 +636,7 @@ export default function Landing() {
               <button
                 type="button"
                 onClick={openPricingForm}
-                className="mt-6 block w-full rounded-lg border border-brand-600 py-2.5 text-center text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50"
+                className="mt-6 block w-full btn-secondary py-2.5 text-center text-sm font-medium text-brand-600 transition-colors border-brand-200 hover:bg-brand-50"
               >
                 {t('landing.pricing.contactInitialSetup')}
               </button>
@@ -499,7 +656,7 @@ export default function Landing() {
               <button
                 type="button"
                 onClick={openPricingForm}
-                className="mt-6 block w-full rounded-lg border border-brand-600 py-2.5 text-center text-sm font-medium text-brand-600 transition-colors hover:bg-brand-50"
+                className="mt-6 block w-full btn-primary py-2.5 text-center text-sm font-medium"
               >
                 {t('landing.pricing.contactForPricing')}
               </button>

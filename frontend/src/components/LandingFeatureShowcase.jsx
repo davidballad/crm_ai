@@ -65,7 +65,7 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
   return (
     <section
       ref={sectionRef}
-      className="border-t border-gray-100 py-24 md:py-32"
+      className="border-t border-gray-100 py-16 md:py-24"
       aria-labelledby="offers-heading"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
@@ -101,7 +101,7 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
             <ChevronRight className="h-7 w-7" strokeWidth={1.75} />
           </button>
 
-          <div className="overflow-hidden rounded-3xl border border-gray-200/90 bg-gray-50/40 shadow-[0_20px_60px_-24px_rgba(15,23,42,0.18)] ring-1 ring-gray-100 md:mx-14 lg:mx-20">
+          <div className="card md:mx-14 lg:mx-20">
             <div
               className={`flex ${transitionClass}`}
               style={{
@@ -171,7 +171,7 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
         <div className="landing-reveal mt-14 text-center md:mt-16">
           <Link
             to="/signup"
-            className="inline-flex rounded-full bg-brand-600 px-10 py-3.5 text-base font-medium text-white shadow-lg shadow-brand-600/25 transition-colors hover:bg-brand-500 md:px-12 md:py-4 md:text-lg"
+            className="btn-primary px-12 py-4 text-lg"
           >
             {t('landing.hero.getStarted')}
           </Link>

@@ -164,6 +164,21 @@
       "formError": "Something went wrong. Please try again or email us directly.",
       "formSubjectServices": "Custom websites & applications"
     },
+    "campaigns": {
+      "eyebrow": "Reach Everyone",
+      "title": "AI-Powered Campaigns",
+      "subtitle": "Broadcast to your entire lead list or targeted segments directly via WhatsApp. Automate your outreach with high-converting AI templates.",
+      "tab1": "Promotions",
+      "tab1Title": "Flash Sales & Promotions",
+      "tab1Desc": "Send high-impact media messages with one-click purchase buttons. Track ROI in real-time.",
+      "tab2": "Retention",
+      "tab2Title": "Automated Re-engagement",
+      "tab2Desc": "Identify inactive leads and automatically send tailored follow-ups to bring them back into your funnel.",
+      "tab3": "Announcements",
+      "tab3Title": "Broadcast Alerts",
+      "tab3Desc": "Keep your customers informed with news, updates, and direct service notifications — all in the app they use most.",
+      "cta": "Start your first campaign"
+    },
     "services": {
       "eyebrow": "Beyond the CRM",
       "title": "Custom websites & applications",
