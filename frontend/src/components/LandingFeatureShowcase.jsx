@@ -65,7 +65,7 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
   return (
     <section
       ref={sectionRef}
-      className="border-t border-gray-100 py-16 md:py-24"
+      className="border-t border-gray-100 py-10 md:py-14"
       aria-labelledby="offers-heading"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
@@ -83,7 +83,7 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
           </p>
         </div>
 
-        <div className="landing-reveal relative mt-14 md:mt-16">
+        <div className="landing-reveal relative mt-8 md:mt-10">
           <button
             type="button"
             onClick={() => go(-1)}
@@ -112,18 +112,18 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
               {FeatureIcons.map((Ic, i) => (
                 <article
                   key={i}
-                  className="shrink-0 px-5 py-12 sm:px-10 sm:py-14 md:px-14 md:py-16 lg:px-20 lg:py-20"
+                  className="shrink-0 px-5 py-8 sm:px-8 sm:py-10 md:px-12 md:py-12 lg:px-16 lg:py-14"
                   style={{ width: `${SLIDE_PCT}%` }}
                   aria-hidden={i !== index}
                 >
-                  <div className="mx-auto flex w-full max-w-4xl flex-col items-center text-center md:min-h-[280px] lg:min-h-[320px]">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-100 to-brand-200/70 text-brand-700 shadow-inner md:h-24 md:w-24 lg:h-28 lg:w-28">
-                      <Ic className="h-10 w-10 md:h-12 md:w-12 lg:h-14 lg:w-14" strokeWidth={1.5} />
+                  <div className="mx-auto flex w-full max-w-3xl flex-col items-center text-center md:min-h-[200px] lg:min-h-[230px]">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-100 to-brand-200/70 text-brand-700 shadow-inner md:h-16 md:w-16 lg:h-18 lg:w-18">
+                      <Ic className="h-7 w-7 md:h-8 md:w-8 lg:h-9 lg:w-9" strokeWidth={1.5} />
                     </div>
-                    <h3 className="mt-8 font-landing-serif text-2xl font-semibold leading-snug text-gray-900 sm:text-3xl md:mt-10 md:text-4xl lg:text-[2.35rem]">
+                    <h3 className="mt-5 font-landing-serif text-xl font-semibold leading-snug text-gray-900 sm:text-2xl md:mt-6 md:text-3xl lg:text-[1.85rem]">
                       {t(`landing.offers.feature${i}Title`)}
                     </h3>
-                    <p className="mt-6 max-w-3xl text-base leading-relaxed text-gray-600 sm:text-lg md:mt-8 md:text-xl md:leading-relaxed lg:text-[1.2rem] lg:leading-relaxed">
+                    <p className="mt-4 max-w-2xl text-sm leading-relaxed text-gray-600 sm:text-base md:mt-5 md:text-lg md:leading-relaxed lg:text-base lg:leading-relaxed">
                       {t(`landing.offers.feature${i}Desc`)}
                     </p>
                   </div>
@@ -168,7 +168,7 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
           </div>
         </div>
 
-        <div className="landing-reveal mt-14 text-center md:mt-16">
+        <div className="landing-reveal mt-10 text-center md:mt-12">
           <Link
             to="/signup"
             className="btn-primary px-12 py-4 text-lg"

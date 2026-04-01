@@ -149,6 +149,27 @@
       "feature4Title": "Transacciones y ventas",
       "feature4Desc": "Ventas y resúmenes diarios en una vista. Del carrito de WhatsApp al pago — sin reescribir ni hojas de cálculo."
     },
+    "campaigns": {
+      "eyebrow": "Llega a todos",
+      "title": "Campañas por WhatsApp",
+      "subtitle": "Envía mensajes a toda tu lista de contactos o a segmentos específicos directamente por WhatsApp. Escribe una vez, personaliza para cada cliente.",
+      "tab1": "Promociones",
+      "tab1Title": "Ventas y promociones",
+      "tab1Desc": "Envía mensajes personalizados por WhatsApp a toda tu lista o a un segmento seleccionado. Escribe tu plantilla una vez y llega a cientos de clientes con su nombre ya incluido.",
+      "tab2": "Retención",
+      "tab2Title": "Recupera clientes inactivos",
+      "tab2Desc": "Filtra contactos por estado o nivel de fidelidad — bronce, plata u oro — y envía mensajes dirigidos para recuperar a quienes no han respondido últimamente.",
+      "tab3": "Anuncios",
+      "tab3Title": "Difunde novedades",
+      "tab3Desc": "Comparte noticias, nuevos productos y actualizaciones de servicio directamente por WhatsApp — el canal que tus clientes ya usan todos los días.",
+      "cta": "Inicia tu primera campaña",
+      "previewLabel": "Campaña",
+      "previewSending": "Enviando…",
+      "previewMessage": "Hola [Nombre], tenemos una oferta especial para ti — {{tab}}. Toca para ver los detalles. 🎉",
+      "previewDelivered": "Entregado",
+      "previewSent": "Enviado",
+      "previewCount": "4 de 248 destinatarios"
+    },
     "collaborate": {
       "title": "Colabora con nosotros",
       "subtitle": "¿Interesado en asociarte, revender o soluciones a medida? Contáctanos.",

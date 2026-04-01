@@ -136,7 +136,7 @@ function LandingCampaigns({ t }) {
   ];
 
   return (
-    <section className="relative overflow-hidden bg-[#020617] py-20 md:py-28 dot-pattern vignette-glow">
+    <section className="relative overflow-hidden bg-[#020617] py-12 md:py-20 dot-pattern vignette-glow">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="landing-reveal text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-brand-400 sm:text-sm">{t('landing.campaigns.eyebrow')}</p>
@@ -148,7 +148,7 @@ function LandingCampaigns({ t }) {
           </p>
         </div>
 
-        <div className="mt-16 flex flex-col items-center">
+        <div className="mt-10 flex flex-col items-center">
           {/* Pill Tabs */}
           <div className="flex flex-wrap justify-center gap-2 rounded-full border border-white/5 bg-white/5 p-1.5 backdrop-blur-md sm:gap-4">
             {tabs.map((tab, i) => (
@@ -168,7 +168,7 @@ function LandingCampaigns({ t }) {
           </div>
 
           {/* Tab Content */}
-          <div className="mt-12 w-full max-w-4xl">
+          <div className="mt-8 w-full max-w-4xl">
             <div className="glass-card overflow-hidden p-8 md:p-12">
               <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
                 <div>
@@ -179,25 +179,36 @@ function LandingCampaigns({ t }) {
                   </div>
                 </div>
                 <div className="relative">
-                  <div className="aspect-video w-full rounded-2xl border border-white/10 bg-slate-900/50 p-4 ring-1 ring-white/5">
-                    {/* Simplified AI Campaign Visualizer */}
-                    <div className="h-full w-full space-y-3 overflow-hidden rounded-lg bg-black/40 p-4 font-mono text-[10px] text-brand-400">
-                      <div className="opacity-50"># Preparing broadcast list...</div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-white">→</span> <span>Targeting:</span> <span className="text-emerald-400">Leads with 'Interested' status</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-white">→</span> <span>Template:</span> <span className="text-emerald-400">{tabs[activeTab].title}</span>
-                      </div>
-                      <div className="mt-4 h-1 w-full bg-white/10">
-                        <div className="h-full bg-brand-500 animate-[loading-bar_3s_infinite]" style={{ width: '60%' }} />
-                      </div>
-                      <div className="grid grid-cols-5 gap-2 pt-4">
-                        {[...Array(10)].map((_, i) => (
-                          <div key={i} className="h-8 rounded bg-white/5 animate-pulse" />
-                        ))}
-                      </div>
+                  <div className="w-full rounded-2xl border border-white/10 bg-slate-900/60 p-5 ring-1 ring-white/5">
+                    {/* Campaign broadcast preview */}
+                    <div className="mb-4 flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">{t('landing.campaigns.previewLabel')}</span>
+                      <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-400">{t('landing.campaigns.previewSending')}</span>
                     </div>
+                    <div className="mb-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 leading-relaxed">
+                      {t('landing.campaigns.previewMessage', { tab: tabs[activeTab].title })}
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { name: 'María G.', delivered: true },
+                        { name: 'Carlos R.', delivered: true },
+                        { name: 'Lucía M.', delivered: false },
+                        { name: 'Andrés T.', delivered: false },
+                      ].map((r) => (
+                        <div key={r.name} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-600/40 text-[11px] font-bold text-brand-300">
+                              {r.name[0]}
+                            </div>
+                            <span className="text-sm text-slate-200">{r.name}</span>
+                          </div>
+                          <span className={`text-xs font-medium ${r.delivered ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            {r.delivered ? t('landing.campaigns.previewDelivered') : t('landing.campaigns.previewSent')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-right text-xs text-slate-500">{t('landing.campaigns.previewCount')}</p>
                   </div>
                 </div>
               </div>
@@ -370,12 +381,12 @@ export default function Landing() {
           aria-hidden
         />
 
-        <div className="relative z-10 mx-auto grid min-h-[calc(95vh-4rem)] max-w-6xl grid-cols-1 items-center gap-12 px-4 pb-16 pt-24 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:px-8">
+        <div className="relative z-10 mx-auto grid min-h-[calc(95vh-4rem)] max-w-6xl grid-cols-1 items-center gap-8 px-4 pb-12 pt-20 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8">
           <div className="text-center lg:text-left">
             <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-300 drop-shadow-md sm:text-sm">
               {t('landing.hero.badge')}
             </p>
-            <h1 className="mt-8 font-serif text-[3.5rem] font-bold leading-[1] tracking-tight text-white sm:text-6xl lg:text-8xl">
+            <h1 className="mt-8 font-serif text-[2.5rem] font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
               {t('landing.hero.title').split(' ').map((word, i) => (
                 <span key={i} className={i === 1 ? 'text-brand-400 drop-shadow-[0_0_25px_rgba(96,165,250,0.4)]' : ''}>
                   {word}{' '}
@@ -404,7 +415,7 @@ export default function Landing() {
           <div className="flex flex-col items-center justify-center lg:items-end">
             <div className="relative">
               <div className="absolute -inset-20 bg-brand-500/15 rounded-full blur-[100px] landing-glow-pulse pointer-events-none" />
-              <div className="relative z-10 scale-110 lg:scale-125 transition-transform duration-700">
+              <div className="relative z-10">
                 <PhoneMockup t={t} />
               </div>
             </div>
@@ -425,10 +436,10 @@ export default function Landing() {
       {/* Trust */}
       <section
         id="trust"
-        className="relative border-t border-gray-100 bg-white py-20 md:py-28 dot-pattern-dark"
+        className="relative border-t border-gray-100 bg-white py-12 md:py-16 dot-pattern-dark"
       >
         <div className="landing-reveal mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center gap-10 sm:gap-12">
+          <div className="flex flex-col items-center gap-6 sm:gap-8">
             <div className="flex max-w-xl flex-col items-center gap-3 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100/90 text-emerald-700 ring-1 ring-emerald-200/60">
                 <ShieldCheck className="h-6 w-6" />
@@ -465,7 +476,7 @@ export default function Landing() {
       <LandingCampaigns t={t} />
 
       {/* Contact */}
-      <section id="contact" className="relative scroll-mt-24 border-t border-gray-100 bg-white py-20 md:py-28 dot-pattern-dark">
+      <section id="contact" className="relative scroll-mt-24 border-t border-gray-100 bg-white py-12 md:py-16 dot-pattern-dark">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="landing-reveal text-center">
             <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">{t('landing.collaborate.title')}</h2>
@@ -548,7 +559,7 @@ export default function Landing() {
       {/* Custom development services */}
       <section
         id="services"
-        className="relative scroll-mt-24 border-t border-gray-100 bg-slate-50 py-20 md:py-28 dot-pattern-dark"
+        className="relative scroll-mt-24 border-t border-gray-100 bg-slate-50 py-12 md:py-16 dot-pattern-dark"
       >
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="landing-reveal text-center">
@@ -559,7 +570,7 @@ export default function Landing() {
             <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-gray-600 sm:text-xl font-medium">{t('landing.services.subtitle')}</p>
           </div>
 
-          <div className="landing-reveal mt-14 grid gap-8 lg:grid-cols-2 lg:gap-10">
+          <div className="landing-reveal mt-10 grid gap-6 lg:grid-cols-2 lg:gap-8">
             <div className="card group relative overflow-hidden p-10 transition-all hover:scale-[1.01]">
               <div className="relative">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white shadow-lg shadow-brand-600/25">
@@ -614,13 +625,13 @@ export default function Landing() {
       </section>
 
       {/* Pricing */}
-      <section className="relative border-t border-gray-100 bg-white py-20 md:py-28 dot-pattern-dark" id="pricing">
+      <section className="relative border-t border-gray-100 bg-white py-12 md:py-16 dot-pattern-dark" id="pricing">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="landing-reveal text-center">
             <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">{t('landing.pricing.title')}</h2>
             <p className="mx-auto mt-4 max-w-2xl text-gray-600">{t('landing.pricing.subtitle')}</p>
           </div>
-          <div className="mt-14 mx-auto grid max-w-3xl gap-8 sm:grid-cols-2">
+          <div className="mt-10 mx-auto grid max-w-3xl gap-6 sm:grid-cols-2">
             <div className="landing-reveal rounded-2xl border border-gray-200 bg-gradient-to-b from-white to-gray-50/50 p-8 shadow-sm ring-1 ring-gray-100">
               <h3 className="text-xl font-semibold text-gray-900">{t('landing.pricing.starterName')}</h3>
               <p className="mt-1 text-2xl font-bold text-brand-600">{t('landing.pricing.starterPrice')}</p>
