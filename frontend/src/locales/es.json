@@ -109,7 +109,8 @@
     "nav": {
       "logIn": "Iniciar sesión",
       "signUp": "Registrarse",
-      "pricing": "Precios"
+      "pricing": "Precios",
+      "contact": "Contacto"
     },
     "hero": {
       "badge": "Para tu negocio",
@@ -203,7 +204,9 @@
     "footer": {
       "rights": "Todos los derechos reservados.",
       "privacy": "Política de Privacidad",
-      "terms": "Términos y Condiciones"
+      "terms": "Términos y Condiciones",
+      "address": "Avenida Atahualpa y Victor Hugo, Ambato, Ecuador (CP: 180204)",
+      "unsubscribe": "Para dejar de recibir comunicaciones de marketing, contáctanos a info@clientaai.com o haz clic en 'Darse de baja' en cualquiera de nuestros correos."
     }
   },
   "inventoryForm": {

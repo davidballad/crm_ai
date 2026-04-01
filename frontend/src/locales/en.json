@@ -109,7 +109,8 @@
     "nav": {
       "logIn": "Log in",
       "signUp": "Sign up",
-      "pricing": "Pricing"
+      "pricing": "Pricing",
+      "contact": "Contact"
     },
     "hero": {
       "badge": "For your business",
@@ -203,7 +204,9 @@
     "footer": {
       "rights": "All rights reserved.",
       "privacy": "Privacy Policy",
-      "terms": "Terms & Conditions"
+      "terms": "Terms & Conditions",
+      "address": "Avenida Atahualpa y Victor Hugo, Ambato, Ecuador (Zip: 180204)",
+      "unsubscribe": "To unsubscribe from marketing communications, please contact us at info@clientaai.com or click 'Unsubscribe' in any of our emails."
     }
   },
   "inventoryForm": {

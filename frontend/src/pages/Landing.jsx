@@ -160,6 +160,12 @@ export default function Landing() {
             >
               {t('landing.nav.pricing')}
             </a>
+            <a
+              href="#contact"
+              className="hidden text-sm font-medium text-white/90 transition-colors hover:text-white sm:inline"
+            >
+              {t('landing.nav.contact')}
+            </a>
             <span className="flex gap-1 text-sm text-white/70">
               <button
                 type="button"
@@ -529,11 +535,16 @@ export default function Landing() {
           <div className="mt-6 flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
             <p className="text-center text-sm text-gray-500 sm:text-left">
               © {new Date().getFullYear()} Clienta AI. {t('landing.footer.rights')}
+              <span className="mx-2 hidden sm:inline">·</span>
+              <span className="block sm:inline">{t('landing.footer.address')}</span>
             </p>
             <div className="flex items-center gap-4 text-sm text-gray-500">
               <a href="/privacy-policy.html" className="transition-colors hover:text-gray-700">{t('landing.footer.privacy')}</a>
               <a href="/terms-and-conditions.html" className="transition-colors hover:text-gray-700">{t('landing.footer.terms')}</a>
             </div>
+          </div>
+          <div className="mt-8 border-t border-gray-200/50 pt-8 text-center text-[11px] leading-relaxed text-gray-400">
+            <p className="mx-auto max-w-2xl">{t('landing.footer.unsubscribe')}</p>
           </div>
         </div>
       </footer>
