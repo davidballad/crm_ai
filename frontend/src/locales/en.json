@@ -201,7 +201,9 @@
       "featureSupport": "Priority support"
     },
     "footer": {
-      "rights": "All rights reserved."
+      "rights": "All rights reserved.",
+      "privacy": "Privacy Policy",
+      "terms": "Terms & Conditions"
     }
   },
   "inventoryForm": {

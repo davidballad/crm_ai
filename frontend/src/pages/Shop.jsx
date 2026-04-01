@@ -56,9 +56,31 @@ export default function Shop() {
   const [orderResult, setOrderResult] = useState(null);
   const [filter, setFilter] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('transfer'); // 'transfer' | 'card'
+  const [deliveryMethod, setDeliveryMethod] = useState('delivery'); // 'delivery' | 'pickup'
+  const [deliveryLocation, setDeliveryLocation] = useState('');
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [datafastCheckout, setDatafastCheckout] = useState(null); // { checkoutId, entityId, transactionId }
 
   useEffect(() => {
     if (!token) { setErr(t('shop.missingToken')); setLoading(false); return; }
+
+    // Handle return from Datafast payment widget
+    const resourcePath = params.get('resourcePath');
+    const txnId = params.get('txn_id');
+    if (resourcePath && txnId) {
+      shopFetch('/shop/datafast-result', token, {
+        method: 'POST',
+        body: JSON.stringify({ resource_path: resourcePath, transaction_id: txnId }),
+      }).then(res => {
+        if (res.approved) {
+          setOrderResult({ total: res.total || '0', approved_card: true });
+        } else {
+          setErr('El pago no fue aprobado. Intenta de nuevo o usa transferencia.');
+        }
+      }).catch(() => setErr('No se pudo verificar el pago.'));
+    }
+
     Promise.all([
       shopFetch('/shop/products', token),
       shopFetch('/shop/cart', token),
@@ -103,22 +125,51 @@ export default function Shop() {
     }
   }, [token]);
 
+  const handleGetLocation = useCallback(() => {
+    if (!navigator.geolocation) { setErr('Tu navegador no soporta geolocalización.'); return; }
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setDeliveryLocation(`${pos.coords.latitude},${pos.coords.longitude}`);
+        setLocationLoading(false);
+      },
+      () => { setErr('No se pudo obtener tu ubicación.'); setLocationLoading(false); }
+    );
+  }, []);
+
   const handleCheckout = useCallback(async () => {
     setCheckingOut(true);
     setErr(null);
     try {
       const res = await shopFetch('/shop/checkout', token, {
         method: 'POST',
-        body: JSON.stringify({ order_notes: (orderNotes || '').trim() }),
+        body: JSON.stringify({
+          order_notes: (orderNotes || '').trim(),
+          payment_method: paymentMethod,
+          delivery_method: deliveryMethod,
+          ...(deliveryMethod === 'delivery' && deliveryLocation && { delivery_location: deliveryLocation }),
+        }),
       });
-      setOrderResult(res);
-      setCart([]);
+
+      if (res.payment_method === 'card' && res.datafast_checkout_id) {
+        // Load Datafast widget
+        setDatafastCheckout({
+          checkoutId: res.datafast_checkout_id,
+          entityId: res.datafast_entity_id,
+          transactionId: res.transaction_id,
+        });
+        setCart([]);
+        setCartOpen(false);
+      } else {
+        setOrderResult(res);
+        setCart([]);
+      }
     } catch (e) {
       setErr(e.message);
     } finally {
       setCheckingOut(false);
     }
-  }, [token, orderNotes]);
+  }, [token, orderNotes, paymentMethod, deliveryLocation]);
 
   if (loading) {
     return (
@@ -136,6 +187,29 @@ export default function Shop() {
     );
   }
 
+  if (datafastCheckout) {
+    const shopperResultUrl = encodeURIComponent(
+      `${window.location.origin}/shop?t=${token}&txn_id=${datafastCheckout.transactionId}`
+    );
+    const widgetSrc = `https://test.oppwa.com/v1/paymentWidgets.js?checkoutId=${datafastCheckout.checkoutId}`;
+    return (
+      <div className="flex min-h-screen flex-col bg-gray-50">
+        <div className="flex flex-1 flex-col items-center justify-center p-6">
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm max-w-md w-full">
+            <h1 className="mb-4 text-lg font-bold text-gray-900 text-center">Pago con tarjeta</h1>
+            <form
+              action={`/shop?t=${token}&txn_id=${datafastCheckout.transactionId}`}
+              className="paymentWidgets"
+              data-brands="VISA MASTER DINERS"
+            />
+            <script src={widgetSrc} />
+          </div>
+        </div>
+        <PoweredByClienta liftForCartBar={false} />
+      </div>
+    );
+  }
+
   if (orderResult) {
     return (
       <div className="flex min-h-screen flex-col bg-gray-50">
@@ -145,11 +219,15 @@ export default function Shop() {
               <ShoppingCart className="h-7 w-7" />
             </div>
             <h1 className="text-xl font-bold text-gray-900">{t('shop.orderConfirmed')}</h1>
-            <p className="mt-2 text-gray-600">
-              {t('shop.total')}: <span className="font-semibold">${Number(orderResult.total).toFixed(2)}</span>
-            </p>
+            {orderResult.total && (
+              <p className="mt-2 text-gray-600">
+                {t('shop.total')}: <span className="font-semibold">${Number(orderResult.total).toFixed(2)}</span>
+              </p>
+            )}
             <p className="mt-4 text-sm text-gray-600">
-              {t('shop.orderSentToWhatsapp')}
+              {orderResult.approved_card
+                ? 'Pago con tarjeta aprobado. Te contactaremos por WhatsApp para coordinar la entrega.'
+                : t('shop.orderSentToWhatsapp')}
             </p>
             {orderResult.wa_link && (
               <a
@@ -208,6 +286,13 @@ export default function Shop() {
         </div>
       )}
 
+      {/* Promo banner */}
+      {products.some(p => p.promo_active) && (
+        <div className="bg-orange-500 px-4 py-2.5 text-center text-sm font-medium text-white">
+          🎉 ¡Promoción activa! Precios especiales por tiempo limitado
+        </div>
+      )}
+
       {/* Products */}
       <main className="mx-auto max-w-2xl px-4 pt-4">
         {err && <p className="mb-4 text-sm text-red-600">{err}</p>}
@@ -216,19 +301,35 @@ export default function Shop() {
             const qty = cartQtyMap[p.id] || 0;
             const stock = p.quantity != null ? Number(p.quantity) : 0;
             const unavailable = stock <= 0;
+            const displayPrice = p.promo_active ? Number(p.promo_price) : Number(p.unit_cost);
             return (
               <div
                 key={p.id}
-                className={`flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm ${unavailable ? 'opacity-90' : ''}`}
+                className={`flex flex-col rounded-xl border bg-white overflow-hidden shadow-sm ${unavailable ? 'opacity-90' : ''} ${p.promo_active ? 'border-orange-300' : 'border-gray-200'}`}
               >
                 {p.image_url ? (
-                  <img src={p.image_url} alt={p.name} className="h-32 w-full object-cover" />
+                  <div className="relative">
+                    <img src={p.image_url} alt={p.name} className="h-32 w-full object-cover" />
+                    {p.promo_active && (
+                      <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">PROMO</span>
+                    )}
+                  </div>
                 ) : (
-                  <div className="flex h-32 items-center justify-center bg-gray-100 text-gray-400 text-xs">{t('shop.noImage')}</div>
+                  <div className={`flex h-32 items-center justify-center text-gray-400 text-xs ${p.promo_active ? 'bg-orange-50' : 'bg-gray-100'}`}>
+                    {p.promo_active && <span className="absolute rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">PROMO</span>}
+                    {t('shop.noImage')}
+                  </div>
                 )}
                 <div className="flex flex-1 flex-col p-3">
                   <h3 className="text-sm font-medium text-gray-900 leading-tight">{p.name}</h3>
-                  <p className="mt-1 text-sm font-semibold text-brand-600">${Number(p.unit_cost).toFixed(2)}</p>
+                  {p.promo_active ? (
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                      <span className="text-sm font-bold text-orange-600">${displayPrice.toFixed(2)}</span>
+                      <span className="text-xs text-gray-400 line-through">${Number(p.unit_cost).toFixed(2)}</span>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-sm font-semibold text-brand-600">${displayPrice.toFixed(2)}</p>
+                  )}
                   <div className="mt-auto pt-2">
                     {unavailable ? (
                       <button
@@ -314,13 +415,74 @@ export default function Shop() {
                     value={orderNotes}
                     onChange={e => setOrderNotes(e.target.value.slice(0, ORDER_NOTES_MAX_LEN))}
                     placeholder={t('shop.orderNotesPlaceholder')}
-                    rows={3}
+                    rows={2}
                     maxLength={ORDER_NOTES_MAX_LEN}
-                    className="mb-3 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                    className="mb-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                   />
                   <p className="mb-3 text-right text-xs text-gray-500">
                     {orderNotes.length}/{ORDER_NOTES_MAX_LEN}
                   </p>
+
+                  {/* Delivery method toggle */}
+                  <div className="mb-3">
+                    <p className="mb-1.5 text-xs font-medium text-gray-700">¿Cómo recibir tu pedido?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryMethod('delivery')}
+                        className={`rounded-lg border py-2.5 text-xs font-medium transition-colors ${deliveryMethod === 'delivery' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                      >
+                        🚗 Entrega a domicilio
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setDeliveryMethod('pickup'); setDeliveryLocation(''); }}
+                        className={`rounded-lg border py-2.5 text-xs font-medium transition-colors ${deliveryMethod === 'pickup' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                      >
+                        🏪 Retiro en tienda
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Location sharing (delivery only) */}
+                  {deliveryMethod === 'delivery' && (
+                    <div className="mb-3">
+                      {deliveryLocation ? (
+                        <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+                          <span className="text-xs text-green-700">📍 Ubicación capturada</span>
+                          <button type="button" onClick={() => setDeliveryLocation('')} className="text-xs text-gray-400 hover:text-red-500">Quitar</button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleGetLocation}
+                          disabled={locationLoading}
+                          className="w-full rounded-lg border border-gray-300 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                        >
+                          {locationLoading ? 'Obteniendo ubicación...' : '📍 Compartir mi ubicación (opcional)'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Payment method selector */}
+                  <div className="mb-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('transfer')}
+                      className={`rounded-lg border py-2.5 text-xs font-medium transition-colors ${paymentMethod === 'transfer' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      🏦 Transferencia
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('card')}
+                      className={`rounded-lg border py-2.5 text-xs font-medium transition-colors ${paymentMethod === 'card' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      💳 Tarjeta
+                    </button>
+                  </div>
+
                   <button
                     type="button"
                     onClick={handleCheckout}

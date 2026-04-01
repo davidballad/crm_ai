@@ -1,15 +1,94 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useProducts, useDeleteProduct, useImportProducts } from '../hooks/useProducts';
+import { useProducts, useDeleteProduct, useImportProducts, useUpdateProduct } from '../hooks/useProducts';
 import { downloadImportTemplate, downloadInventoryExport, getUploadImageUrls, updateProduct } from '../api/inventory';
 import LowStockBadge from '../components/LowStockBadge';
-import { Plus, Search, Pencil, Trash2, Package, Upload, Download, ImagePlus } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Package, Upload, Download, ImagePlus, Tag, X, Clock } from 'lucide-react';
+
+function isPromoActive(p) {
+  const end = p.promo_end_at;
+  return !!(end && p.promo_price != null && new Date(end) > new Date());
+}
+
+function PromoModal({ product, onClose }) {
+  const updateMutation = useUpdateProduct();
+  const active = isPromoActive(product);
+  const [promoPrice, setPromoPrice] = useState(product.promo_price != null ? String(product.promo_price) : '');
+  const [promoEndAt, setPromoEndAt] = useState(product.promo_end_at ? product.promo_end_at.slice(0, 16) : '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateMutation.mutateAsync({
+        id: product.id,
+        data: {
+          promo_price: promoPrice ? Number(promoPrice) : null,
+          promo_end_at: promoEndAt ? promoEndAt + ':00' : null,
+        },
+      });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClear = async () => {
+    setSaving(true);
+    try {
+      await updateMutation.mutateAsync({ id: product.id, data: { promo_price: null, promo_end_at: null } });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Oferta — {product.name}</h2>
+            {active && <p className="text-xs text-orange-600 mt-0.5">Oferta activa hasta {new Date(product.promo_end_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}</p>}
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="space-y-3 px-5 py-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Precio regular: ${product.unit_cost != null ? Number(product.unit_cost).toFixed(2) : '—'}</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Precio de oferta ($)</label>
+            <input type="number" step="0.01" min="0" value={promoPrice} onChange={e => setPromoPrice(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+              placeholder="0.00" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Válido hasta</label>
+            <input type="datetime-local" value={promoEndAt} onChange={e => setPromoEndAt(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500" />
+          </div>
+        </div>
+        <div className="flex gap-2 border-t border-gray-100 px-5 py-4">
+          {active && (
+            <button onClick={handleClear} disabled={saving} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60">
+              Quitar oferta
+            </button>
+          )}
+          <button onClick={handleSave} disabled={saving || !promoPrice || !promoEndAt}
+            className="flex-1 rounded-lg bg-orange-500 px-3 py-2 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-60">
+            {saving ? 'Guardando…' : 'Guardar oferta'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function InventoryList() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [importResult, setImportResult] = useState(null);
   const [imageUploadResult, setImageUploadResult] = useState(null);
+  const [promoProduct, setPromoProduct] = useState(null);
   const fileInputRef = useRef(null);
   const imageFilesInputRef = useRef(null);
   const { data, isLoading, error } = useProducts(category ? { category } : undefined);
@@ -185,6 +264,41 @@ export default function InventoryList() {
         </div>
       )}
 
+      {/* Active promos section */}
+      {products.filter(isPromoActive).length > 0 && (
+        <div className="mb-5 rounded-xl border border-orange-200 bg-orange-50 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Tag className="h-4 w-4 text-orange-500" />
+            <span className="text-sm font-semibold text-orange-800">Ofertas activas en la tienda</span>
+          </div>
+          <div className="space-y-2">
+            {products.filter(isPromoActive).map(p => (
+              <div key={p.id} className="flex items-center justify-between rounded-lg bg-white border border-orange-100 px-3 py-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  {p.image_url && <img src={p.image_url} alt="" className="h-8 w-8 rounded object-cover shrink-0" />}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
+                    <p className="text-xs text-gray-500">
+                      <span className="line-through mr-1">${Number(p.unit_cost).toFixed(2)}</span>
+                      <span className="text-orange-600 font-semibold">${Number(p.promo_price).toFixed(2)}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1 text-xs text-orange-600">
+                    <Clock className="h-3 w-3" />
+                    {new Date(p.promo_end_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}
+                  </div>
+                  <button onClick={() => setPromoProduct(p)} className="rounded-lg border border-orange-200 px-2 py-1 text-xs text-orange-700 hover:bg-orange-100">
+                    Editar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
@@ -257,10 +371,24 @@ export default function InventoryList() {
                     {p.unit_cost != null ? `$${Number(p.unit_cost).toFixed(2)}` : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <LowStockBadge quantity={p.quantity} threshold={p.reorder_threshold ?? 10} />
+                    <div className="flex items-center gap-2">
+                      <LowStockBadge quantity={p.quantity} threshold={p.reorder_threshold ?? 10} />
+                      {isPromoActive(p) && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                          <Tag className="h-3 w-3" /> Oferta
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => setPromoProduct(p)}
+                        className={`rounded-lg p-1.5 hover:bg-orange-50 ${isPromoActive(p) ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'}`}
+                        title="Gestionar oferta"
+                      >
+                        <Tag className="h-4 w-4" />
+                      </button>
                       <Link
                         to={`/app/inventory/${p.id}`}
                         className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
@@ -281,6 +409,8 @@ export default function InventoryList() {
           </table>
         </div>
       )}
+
+      {promoProduct && <PromoModal product={promoProduct} onClose={() => setPromoProduct(null)} />}
     </div>
   );
 }

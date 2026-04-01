@@ -114,7 +114,7 @@ def patch_campaign(tenant_id: str, campaign_id: str, event: dict[str, Any]) -> d
     except Exception:
         return error("Cuerpo JSON inválido", 400)
 
-    allowed = {"name", "message_template", "segment_filters", "status", "sent_count", "failed_count", "scheduled_at"}
+    allowed = {"name", "message_template", "segment_filters", "status", "sent_count", "failed_count", "error_message", "scheduled_at"}
     updates: dict[str, Any] = {k: v for k, v in body.items() if k in allowed}
     if "status" in updates and updates["status"] not in VALID_STATUSES:
         return error(f"status debe ser uno de: {', '.join(sorted(VALID_STATUSES))}", 400)

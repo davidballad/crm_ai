@@ -6,8 +6,10 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import sys
 import time
+import urllib.parse
 import urllib.request
 from decimal import Decimal
 from typing import Any
@@ -19,12 +21,17 @@ from shared.models import Transaction, TransactionItem
 from shared.response import created, error, server_error, success
 from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
 
+from datetime import datetime, timezone
+
 GRAPH_API_VERSION = "v21.0"
 TOKEN_TTL_SECONDS = 86400  # 24 h
 PAYMENT_STATUS_AWAITING = "awaiting_verification"
+PAYMENT_STATUS_PENDING_CARD = "pending_card"
 ORDER_NOTES_MAX_LEN = 300
 TIER_BRONZE_MAX = Decimal("30")
 TIER_SILVER_MAX = Decimal("100")
+DATAFAST_TEST_CHECKOUT_URL = "https://test.oppwa.com/v1/checkouts"
+DATAFAST_APPROVED_PATTERN = re.compile(r"^(000\.100\.[01][0-9]{2}|000\.000\.000)$")
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +129,30 @@ def _generate_token(event: dict[str, Any]) -> dict[str, Any]:
     return success(body={"token": token})
 
 
+def _is_promo_active(product_item: dict[str, Any]) -> bool:
+    """Return True if the product has an active promo (promo_price set and not yet expired)."""
+    end = (product_item.get("promo_end_at") or "").strip()
+    promo_price = product_item.get("promo_price")
+    if not end or promo_price is None:
+        return False
+    try:
+        end_dt = datetime.fromisoformat(end)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) < end_dt
+    except ValueError:
+        return False
+
+
+def _effective_price(product_item: dict[str, Any]) -> Decimal:
+    """Return promo_price if active, else unit_cost."""
+    if _is_promo_active(product_item):
+        p = product_item.get("promo_price")
+        if p is not None:
+            return Decimal(str(p))
+    return Decimal(str(product_item.get("unit_cost") or "0"))
+
+
 def _product_stock_qty(product_item: dict[str, Any]) -> int:
     q = product_item.get("quantity", 0)
     if isinstance(q, Decimal):
@@ -140,7 +171,8 @@ def _list_products(tenant_id: str) -> dict[str, Any]:
     while True:
         items, last_key = query_items(pk=pk, sk_prefix="PRODUCT#", limit=100, last_key=last_key)
         for item in items:
-            all_products.append({
+            promo_active = _is_promo_active(item)
+            entry: dict[str, Any] = {
                 "id": item.get("sk", "").split("#")[-1] if "#" in item.get("sk", "") else item.get("id"),
                 "name": item.get("name") or item.get("product_name") or "Item",
                 "category": item.get("category") or "",
@@ -148,7 +180,12 @@ def _list_products(tenant_id: str) -> dict[str, Any]:
                 "image_url": item.get("image_url") or "",
                 "unit": item.get("unit") or "each",
                 "quantity": _product_stock_qty(item),
-            })
+                "promo_active": promo_active,
+            }
+            if promo_active:
+                entry["promo_price"] = str(item.get("promo_price") or "0")
+                entry["promo_end_at"] = item.get("promo_end_at") or ""
+            all_products.append(entry)
         if not last_key:
             break
     return success(body={"products": all_products})
@@ -182,7 +219,7 @@ def _update_cart(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> 
     if not product_item:
         return error("Product not found", 404)
     product_name = product_item.get("name") or product_item.get("product_name") or "Item"
-    unit_price = product_item.get("unit_cost") or Decimal("0")
+    unit_price = _effective_price(product_item)
     stock = _product_stock_qty(product_item)
 
     cart_sk = _cart_sk(customer_phone)
@@ -310,11 +347,98 @@ def _send_delivery_choice_buttons(tenant: dict[str, Any], to_phone: str, transac
         return False
 
 
+def _create_datafast_checkout(tenant: dict[str, Any], amount: Decimal, transaction_id: str) -> dict[str, Any] | None:
+    """Create a Datafast hosted-widget checkout. Returns the API response dict or None on failure."""
+    entity_id = (tenant.get("datafast_entity_id") or "").strip()
+    api_token = (tenant.get("datafast_api_token") or "").strip()
+    if not entity_id or not api_token:
+        return None
+
+    tax_rate = Decimal(str(tenant.get("tax_rate") or "0"))
+    if tax_rate > 0:
+        base_imp = (amount / (1 + tax_rate / Decimal("100"))).quantize(Decimal("0.01"))
+        iva_amount = (amount - base_imp).quantize(Decimal("0.01"))
+    else:
+        base_imp = amount
+        iva_amount = Decimal("0.00")
+
+    data: dict[str, str] = {
+        "entityId": entity_id,
+        "amount": f"{amount:.2f}",
+        "currency": "USD",
+        "paymentType": "DB",
+        "merchantTransactionId": transaction_id,
+        "customParameters[SHOPPER_VAL_BASE0]": "0.00",
+        "customParameters[SHOPPER_VAL_BASEIMP]": f"{base_imp:.2f}",
+        "customParameters[SHOPPER_VAL_IVA]": f"{iva_amount:.2f}",
+        "customParameters[SHOPPER_MID]": "1000000406",
+        "customParameters[SHOPPER_TID]": "PD100406",
+        "customParameters[SHOPPER_ECI]": "0103910",
+        "customParameters[SHOPPER_PSERV]": "17913101",
+        "testMode": "EXTERNAL",
+    }
+    form_data = "&".join(
+        f"{urllib.parse.quote(k, safe='')}={urllib.parse.quote(v, safe='')}"
+        for k, v in data.items()
+    )
+    req = urllib.request.Request(
+        DATAFAST_TEST_CHECKOUT_URL,
+        data=form_data.encode(),
+        headers={
+            "Authorization": f"Bearer {api_token}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode())
+    except Exception:
+        return None
+
+
+def _verify_datafast_payment(tenant: dict[str, Any], resource_path: str) -> dict[str, Any] | None:
+    """Query Datafast with resourcePath to get the payment outcome. Returns response dict or None."""
+    entity_id = (tenant.get("datafast_entity_id") or "").strip()
+    api_token = (tenant.get("datafast_api_token") or "").strip()
+    if not entity_id or not api_token:
+        return None
+    url = f"https://test.oppwa.com{resource_path}?entityId={urllib.parse.quote(entity_id, safe='')}"
+    req = urllib.request.Request(
+        url,
+        headers={"Authorization": f"Bearer {api_token}"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode())
+    except Exception:
+        return None
+
+
+def _find_transaction_by_id(pk: str, txn_id: str) -> tuple[dict[str, Any] | None, str | None]:
+    """Scan TXN# sort keys to find a transaction by its ID. Returns (item, sk) or (None, None)."""
+    last_key: dict[str, Any] | None = None
+    while True:
+        items, last_key = query_items(pk=pk, sk_prefix="TXN#", limit=100, last_key=last_key)
+        for item in items:
+            if item.get("id") == txn_id:
+                return item, item.get("sk")
+        if not last_key:
+            break
+    return None, None
+
+
 def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dict[str, Any]:
     """POST /shop/checkout — creates transaction from cart, sends WhatsApp summary, clears cart."""
     body = parse_body(event)
     customer_name = (body.get("customer_name") or "Customer").strip()
     order_notes = (body.get("order_notes") or "").strip()
+    payment_method = (body.get("payment_method") or "transfer").strip().lower()
+    delivery_location = (body.get("delivery_location") or "").strip()
+    delivery_method = (body.get("delivery_method") or "delivery").strip().lower()  # "delivery" | "pickup"
+    if delivery_method not in ("delivery", "pickup"):
+        delivery_method = "delivery"
     if len(order_notes) > ORDER_NOTES_MAX_LEN:
         return error(f"order_notes must be <= {ORDER_NOTES_MAX_LEN} characters", 400)
 
@@ -337,7 +461,7 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
                 avail = _product_stock_qty(prod_chk)
                 if qty > avail:
                     return error(
-                        f"Insufficient stock for {i.get('product_name', 'item')}: only {avail} available",
+                        f"Sin stock suficiente para {i.get('product_name', 'item')}: solo {avail} disponibles",
                         400,
                     )
         price = Decimal(str(i.get("unit_price", "0")))
@@ -388,15 +512,18 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         except DynamoDBError as e:
             return server_error(str(e))
 
+    pay_status = PAYMENT_STATUS_PENDING_CARD if payment_method == "card" else PAYMENT_STATUS_AWAITING
     txn = Transaction(
         items=txn_items,
         total=total,
-        payment_method="whatsapp",
+        payment_method=payment_method,
         contact_id=contact_id,
-        delivery_status="awaiting_customer_choice",
+        delivery_method=delivery_method,
+        delivery_status="pending",
+        delivery_location=delivery_location or None,
         customer_phone=customer_phone,
         order_notes=order_notes or None,
-        payment_verification_status=PAYMENT_STATUS_AWAITING,
+        payment_verification_status=pay_status,
         status="pending",
     )
     txn.id = generate_id()
@@ -420,12 +547,7 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         except DynamoDBError:
             pass
 
-    # Ask delivery vs pickup first (payment instructions are sent later by the WhatsApp workflow,
-    # after the customer chooses delivery/pickup and (for delivery) provides location/window).
     tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
-    _send_delivery_choice_buttons(tenant, customer_phone, txn.id)
-
-    # Build wa.me link for frontend
     business_phone = tenant.get("phone_number") or ""
     wa_link = ""
     if business_phone:
@@ -433,12 +555,174 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         if bp:
             wa_link = f"https://wa.me/{bp}"
 
+    delivery_emoji = "🚗 Entrega a domicilio" if delivery_method == "delivery" else "🏪 Retiro en tienda"
+    pay_label = "Tarjeta" if payment_method == "card" else "Transferencia bancaria"
+    item_lines = "\n".join(f"  • {ti.product_name} x{ti.quantity}" for ti in txn_items)
+    confirmation_msg = (
+        f"✅ ¡Tu pedido fue confirmado!\n\n"
+        f"📦 Productos:\n{item_lines}\n\n"
+        f"💰 Total: ${total:.2f}\n"
+        f"{delivery_emoji}\n"
+        f"💳 Pago: {pay_label}\n"
+        f"📋 Pedido #{txn.id[:8].upper()}"
+    )
+
+    # Card payment: create Datafast checkout; send WA confirmation after payment verified
+    if payment_method == "card":
+        df_result = _create_datafast_checkout(tenant, total, txn.id)
+        checkout_id = (df_result or {}).get("id")
+        if not checkout_id:
+            return error("No se pudo iniciar el pago con tarjeta. Intenta con transferencia.", 502)
+        entity_id = (tenant.get("datafast_entity_id") or "").strip()
+        return created({
+            "transaction_id": txn.id,
+            "total": str(total),
+            "items_count": len(txn_items),
+            "wa_link": wa_link,
+            "payment_method": "card",
+            "datafast_checkout_id": checkout_id,
+            "datafast_entity_id": entity_id,
+        })
+
+    # Bank transfer: send order confirmation via WhatsApp
+    _send_whatsapp_message(tenant, customer_phone, confirmation_msg)
     return created({
         "transaction_id": txn.id,
         "total": str(total),
         "items_count": len(txn_items),
         "wa_link": wa_link,
+        "payment_method": "transfer",
     })
+
+
+def _datafast_result(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /shop/datafast-result — verify Datafast payment outcome and update transaction."""
+    body = parse_body(event)
+    resource_path = (body.get("resource_path") or "").strip()
+    transaction_id = (body.get("transaction_id") or "").strip()
+    if not resource_path or not transaction_id:
+        return error("resource_path and transaction_id required", 400)
+
+    pk = build_pk(tenant_id)
+    tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
+    df_response = _verify_datafast_payment(tenant, resource_path)
+    if not df_response:
+        return error("No se pudo verificar el pago. Intenta de nuevo.", 502)
+
+    result_code = (df_response.get("result") or {}).get("code", "")
+    approved = DATAFAST_APPROVED_PATTERN.match(result_code) is not None
+
+    txn_item, sk_txn = _find_transaction_by_id(pk, transaction_id)
+    if not txn_item or not sk_txn:
+        return error("Transaction not found", 404)
+
+    now = now_iso()
+    if approved:
+        delivery_method = txn_item.get("delivery_method", "delivery")
+        delivery_emoji = "🚗 Entrega a domicilio" if delivery_method == "delivery" else "🏪 Retiro en tienda"
+        items_summary = "\n".join(
+            f"  • {it.get('product_name', 'Item')} x{it.get('quantity', 1)}"
+            for it in (txn_item.get("items") or [])
+        )
+        total_str = str(txn_item.get("total", "0"))
+        txn_short = transaction_id[:8].upper()
+        confirmation_msg = (
+            f"✅ ¡Pago confirmado y pedido listo!\n\n"
+            f"📦 Productos:\n{items_summary}\n\n"
+            f"💰 Total: ${total_str}\n"
+            f"{delivery_emoji}\n"
+            f"💳 Pago: Tarjeta\n"
+            f"📋 Pedido #{txn_short}"
+        )
+        update_item(pk, sk_txn, {
+            "payment_verification_status": "verified",
+            "updated_at": now,
+        })
+        _send_whatsapp_message(tenant, customer_phone, confirmation_msg)
+        return success({"approved": True, "transaction_id": transaction_id})
+    else:
+        update_item(pk, sk_txn, {
+            "payment_verification_status": "failed",
+            "updated_at": now,
+        })
+        return success({"approved": False, "result_code": result_code})
+
+
+def _shop_meta(tenant_id: str) -> dict[str, Any]:
+    """GET /shop/meta — lightweight tenant metadata for Open Graph tags."""
+    pk = build_pk(tenant_id)
+    tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
+    return success({
+        "business_name": tenant.get("business_name") or "Tienda",
+        "business_type": tenant.get("business_type") or "",
+        "phone_number": _normalize_phone(tenant.get("phone_number") or ""),
+    })
+
+
+def _shop_store_page(tenant_id: str) -> dict[str, Any]:
+    """GET /store/{tenant_id} — server-rendered HTML landing page with OG tags for social sharing."""
+    pk = build_pk(tenant_id)
+    tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
+    if not tenant:
+        html = "<html><body><h1>Tienda no encontrada</h1></body></html>"
+        return {
+            "statusCode": 404,
+            "headers": {"Content-Type": "text/html; charset=utf-8"},
+            "body": html,
+        }
+
+    business_name = tenant.get("business_name") or "Tienda"
+    phone_raw = _normalize_phone(tenant.get("phone_number") or "")
+    wa_link = f"https://wa.me/{phone_raw}?text=Hola" if phone_raw else "#"
+    store_url = f"https://www.clientaai.com/store/{tenant_id}"
+    description = f"Compra nuestros productos directamente desde WhatsApp."
+
+    html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{business_name}</title>
+  <meta name="description" content="{business_name} · {description}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{business_name}">
+  <meta property="og:title" content="{business_name}">
+  <meta property="og:description" content="{description}">
+  <meta property="og:url" content="{store_url}">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{business_name}">
+  <meta name="twitter:description" content="{description}">
+  <style>
+    *{{box-sizing:border-box;margin:0;padding:0}}
+    body{{font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}}
+    .card{{background:#fff;border-radius:20px;padding:2.5rem 2rem;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.2)}}
+    .emoji{{font-size:3rem;margin-bottom:1rem;display:block}}
+    h1{{font-size:1.75rem;font-weight:700;color:#1a1a1a;margin-bottom:.5rem}}
+    .sub{{color:#666;font-size:.95rem;margin-bottom:2rem;line-height:1.5}}
+    .btn{{display:flex;align-items:center;justify-content:center;gap:.6rem;background:#25D366;color:#fff;text-decoration:none;padding:1rem 1.5rem;border-radius:14px;font-weight:600;font-size:1rem}}
+    .btn:hover{{background:#128C7E}}
+    .footer{{margin-top:1.5rem;font-size:.75rem;color:#aaa}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="emoji">&#128722;</span>
+    <h1>{business_name}</h1>
+    <p class="sub">Haz clic para ver nuestros productos y hacer tu pedido por WhatsApp.</p>
+    <a href="{wa_link}" class="btn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+      Ver productos en WhatsApp
+    </a>
+    <p class="footer">Powered by Clienta AI</p>
+  </div>
+</body>
+</html>"""
+
+    return {
+        "statusCode": 200,
+        "headers": {"Content-Type": "text/html; charset=utf-8"},
+        "body": html,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -455,6 +739,21 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if method == "POST" and "/shop/token" in path:
             return _generate_token(event)
 
+        # Public metadata endpoint (no auth) — used for OG tag injection
+        if method == "GET" and "/shop/meta" in path:
+            result = _extract_token(event)
+            if not result:
+                return error("Invalid or expired shop token", 401)
+            return _shop_meta(result[0])
+
+        # Public store landing page — server-rendered HTML with OG tags for social sharing
+        if method == "GET" and "/store/" in path:
+            path_parts = path.rstrip("/").split("/")
+            tid = path_parts[-1] if path_parts else ""
+            if not tid:
+                return error("Missing tenant id", 400)
+            return _shop_store_page(tid)
+
         # All other routes require a valid shop token
         result = _extract_token(event)
         if not result:
@@ -469,6 +768,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             return _update_cart(tenant_id, customer_phone, event)
         if method == "POST" and "/shop/checkout" in path:
             return _checkout(tenant_id, customer_phone, event)
+        if method == "POST" and "/shop/datafast-result" in path:
+            return _datafast_result(tenant_id, customer_phone, event)
 
         return error("Not found", 404)
     except DynamoDBError as e:

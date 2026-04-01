@@ -56,6 +56,8 @@ class Product(_BaseModel):
     unit: str = "each"
     image_url: str | None = None
     notes: str | None = None
+    promo_price: Decimal | None = None
+    promo_end_at: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -122,6 +124,8 @@ class Tenant(_BaseModel):
     meta_access_token: str | None = None
     ig_business_account_id: str | None = None
     ig_access_token: str | None = None
+    datafast_entity_id: str | None = None
+    datafast_api_token: str | None = None
     ai_system_prompt: str | None = None
     bank_name: str | None = None
     person_name: str | None = None
@@ -257,6 +261,7 @@ class Campaign(_BaseModel):
     status: str = "draft"                 # draft | sending | sent | failed
     sent_count: int = 0
     failed_count: int = 0
+    error_message: str | None = None
     scheduled_at: str | None = None
     n8n_webhook_url: str | None = None
     created_at: str | None = None

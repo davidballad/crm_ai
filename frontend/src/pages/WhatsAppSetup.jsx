@@ -28,6 +28,11 @@ export default function WhatsAppSetup() {
   const [igSaving, setIgSaving] = useState(false);
   const [igSuccess, setIgSuccess] = useState('');
   const [igError, setIgError] = useState('');
+  const [datafastEntityId, setDatafastEntityId] = useState('');
+  const [datafastApiToken, setDatafastApiToken] = useState('');
+  const [datafastSaving, setDatafastSaving] = useState(false);
+  const [datafastSuccess, setDatafastSuccess] = useState('');
+  const [datafastError, setDatafastError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -60,7 +65,8 @@ export default function WhatsAppSetup() {
       setSequences(config.follow_up_sequences || []);
       if (config.tax_rate != null) setTaxRateInput(Number(config.tax_rate));
       setIgBusinessAccountId(config.ig_business_account_id || '');
-      // Do NOT set igAccessToken or metaAccessToken — never returned by API
+      setDatafastEntityId(config.datafast_entity_id || '');
+      // Do NOT set igAccessToken, metaAccessToken, or datafastApiToken — never returned by API
     }
   }, [config]);
 
@@ -272,6 +278,91 @@ export default function WhatsAppSetup() {
           {igSaving ? 'Guardando...' : 'Guardar Instagram'}
         </button>
       </div>
+
+      {/* Datafast card payment integration */}
+      <div className="mt-6 card max-w-xl">
+        <h2 className="mb-1 text-sm font-semibold text-gray-900">Pago con tarjeta (Datafast)</h2>
+        <p className="mb-4 text-xs text-gray-500">
+          Permite que tus clientes paguen con tarjeta de crédito/débito en tu tienda online. Obtén tu Entity ID y token desde el portal Datafast.
+        </p>
+
+        {datafastSuccess && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{datafastSuccess}</div>}
+        {datafastError && <div className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">{datafastError}</div>}
+
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Entity ID</label>
+            <input
+              type="text"
+              value={datafastEntityId}
+              onChange={(e) => setDatafastEntityId(e.target.value)}
+              placeholder="Ej: 8a8294185..."
+              className="input-field w-full font-mono text-sm"
+            />
+            <p className="mt-1 text-xs text-gray-400">Portal Datafast → tu cuenta de comercio → Entity ID</p>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Token de acceso</label>
+            <input
+              type="password"
+              value={datafastApiToken}
+              onChange={(e) => setDatafastApiToken(e.target.value)}
+              placeholder="Dejar en blanco para mantener el actual"
+              className="input-field w-full font-mono text-sm"
+              autoComplete="off"
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={datafastSaving}
+          onClick={async () => {
+            setDatafastSaving(true);
+            setDatafastSuccess('');
+            setDatafastError('');
+            try {
+              await patchTenantConfig({
+                ...(datafastEntityId.trim() && { datafast_entity_id: datafastEntityId.trim() }),
+                ...(datafastApiToken.trim() && { datafast_api_token: datafastApiToken.trim() }),
+              });
+              setDatafastSuccess('Configuración de Datafast guardada.');
+              setDatafastApiToken('');
+            } catch {
+              setDatafastError('No se pudo guardar. Intenta de nuevo.');
+            } finally {
+              setDatafastSaving(false);
+            }
+          }}
+          className="mt-3 btn-primary text-sm"
+        >
+          {datafastSaving ? 'Guardando...' : 'Guardar Datafast'}
+        </button>
+      </div>
+
+      {/* Shareable store link */}
+      {config?.tenant_id && (
+        <div className="mt-6 card max-w-xl">
+          <h2 className="mb-1 text-sm font-semibold text-gray-900">Link de tu tienda para redes sociales</h2>
+          <p className="mb-3 text-xs text-gray-500">
+            Comparte este link en Instagram, Facebook o WhatsApp. Cuando alguien lo abra, verá tu negocio y podrá contactarte directamente.
+          </p>
+          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+            <code className="flex-1 truncate text-xs text-gray-700">
+              https://www.clientaai.com/store/{config.tenant_id}
+            </code>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(`https://www.clientaai.com/store/${config.tenant_id}`);
+              }}
+              className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm ring-1 ring-gray-200 hover:bg-gray-100"
+            >
+              Copiar
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="card max-w-xl">
         {isConnected && !showForm ? (

@@ -132,6 +132,14 @@ resource "aws_apigatewayv2_integration" "campaigns" {
   payload_format_version = "2.0"
 }
 
+resource "aws_apigatewayv2_integration" "agents" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.services["agents"].invoke_arn
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
 # -----------------------------------------------------------------------------
 # Routes (with JWT authorizer except onboarding/tenant)
 # -----------------------------------------------------------------------------
@@ -631,6 +639,19 @@ resource "aws_apigatewayv2_route" "campaigns_send" {
   target    = "integrations/${aws_apigatewayv2_integration.campaigns.id}"
 }
 
+# AI Agents routes (JWT auth, Pro-gated inside Lambda)
+resource "aws_apigatewayv2_route" "agents_run" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /agents/{agent_type}/run"
+  target    = "integrations/${aws_apigatewayv2_integration.agents.id}"
+}
+
+resource "aws_apigatewayv2_route" "agents_history" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /agents/history"
+  target    = "integrations/${aws_apigatewayv2_integration.agents.id}"
+}
+
 # Contact form (public, no auth)
 resource "aws_apigatewayv2_route" "contact" {
   api_id    = aws_apigatewayv2_api.main.id
@@ -669,6 +690,24 @@ resource "aws_apigatewayv2_route" "shop_checkout" {
   target    = "integrations/${aws_apigatewayv2_integration.shop.id}"
 }
 
+resource "aws_apigatewayv2_route" "shop_datafast_result" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /shop/datafast-result"
+  target    = "integrations/${aws_apigatewayv2_integration.shop.id}"
+}
+
+resource "aws_apigatewayv2_route" "shop_meta" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /shop/meta"
+  target    = "integrations/${aws_apigatewayv2_integration.shop.id}"
+}
+
+resource "aws_apigatewayv2_route" "shop_store_page" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /store/{tenant_id}"
+  target    = "integrations/${aws_apigatewayv2_integration.shop.id}"
+}
+
 # -----------------------------------------------------------------------------
 # API Gateway Stage (default)
 # -----------------------------------------------------------------------------
@@ -689,7 +728,7 @@ resource "aws_apigatewayv2_stage" "default" {
 # -----------------------------------------------------------------------------
 
 resource "aws_lambda_permission" "api_gateway" {
-  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact", "shop", "campaigns"])
+  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact", "shop", "campaigns", "agents"])
 
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"

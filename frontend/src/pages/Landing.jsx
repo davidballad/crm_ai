@@ -526,9 +526,15 @@ export default function Landing() {
               <span>{t('landing.trust.whatsAppByMeta')}</span>
             </a>
           </div>
-          <p className="mt-6 text-center text-sm text-gray-500 sm:text-left">
-            © {new Date().getFullYear()} Clienta AI. {t('landing.footer.rights')}
-          </p>
+          <div className="mt-6 flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+            <p className="text-center text-sm text-gray-500 sm:text-left">
+              © {new Date().getFullYear()} Clienta AI. {t('landing.footer.rights')}
+            </p>
+            <div className="flex items-center gap-4 text-sm text-gray-500">
+              <a href="/privacy-policy.html" className="transition-colors hover:text-gray-700">{t('landing.footer.privacy')}</a>
+              <a href="/terms-and-conditions.html" className="transition-colors hover:text-gray-700">{t('landing.footer.terms')}</a>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

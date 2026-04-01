@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useProduct, useCreateProduct, useUpdateProduct } from '../hooks/useProducts';
 import { getUploadImageUrl } from '../api/inventory';
-import { ArrowLeft, Upload } from 'lucide-react';
+import { ArrowLeft, Upload, Tag } from 'lucide-react';
 
 const EMPTY = {
   name: '',
@@ -16,6 +16,8 @@ const EMPTY = {
   image_url: '',
   notes: '',
   tags: '',
+  promo_price: '',
+  promo_end_at: '',
 };
 
 export default function InventoryForm() {
@@ -47,6 +49,8 @@ export default function InventoryForm() {
         image_url: product.image_url || '',
         notes: product.notes || '',
         tags: Array.isArray(product.tags) ? product.tags.join(', ') : (product.tags || ''),
+        promo_price: product.promo_price != null ? String(product.promo_price) : '',
+        promo_end_at: product.promo_end_at || '',
       });
     }
   }, [existing]);
@@ -90,6 +94,8 @@ export default function InventoryForm() {
       reorder_threshold: Number(form.reorder_threshold),
       image_url: form.image_url?.trim() || undefined,
       tags: rawTags.length > 0 ? rawTags : undefined,
+      promo_price: form.promo_price ? Number(form.promo_price) : null,
+      promo_end_at: form.promo_end_at || null,
     };
 
     try {
@@ -240,6 +246,44 @@ export default function InventoryForm() {
             />
             <p className="mt-1 text-xs text-gray-500">{t('inventoryForm.tagsHint')}</p>
           </div>
+        </div>
+
+        {/* Promo section */}
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Tag className="h-4 w-4 text-orange-500" />
+            <span className="text-sm font-semibold text-orange-800">Promoción</span>
+            {form.promo_price && form.promo_end_at && new Date(form.promo_end_at) > new Date() && (
+              <span className="rounded-full bg-orange-200 px-2 py-0.5 text-xs font-medium text-orange-700">Activa</span>
+            )}
+          </div>
+          <p className="text-xs text-orange-600">Muestra este producto con precio especial en la tienda. Se desactiva automáticamente al vencer.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Precio promocional ($)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.promo_price}
+                onChange={update('promo_price')}
+                className="input-field"
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Válido hasta</label>
+              <input
+                type="datetime-local"
+                value={form.promo_end_at ? form.promo_end_at.slice(0, 16) : ''}
+                onChange={(e) => setForm({ ...form, promo_end_at: e.target.value ? e.target.value + ':00' : '' })}
+                className="input-field"
+              />
+            </div>
+          </div>
+          {form.promo_price && !form.promo_end_at && (
+            <p className="text-xs text-orange-600">⚠️ Agrega una fecha de vencimiento para activar la promo.</p>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 pt-2">

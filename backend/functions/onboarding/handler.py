@@ -459,6 +459,7 @@ TENANT_CONFIG_FIELDS = (
     "bank_name", "person_name", "account_type", "account_id", "identification_number",
     "follow_up_sequences", "tax_rate",
     "ig_business_account_id", "ig_access_token",
+    "datafast_entity_id", "datafast_api_token",
 )
 
 
@@ -603,6 +604,7 @@ def get_tenant_config(tenant_id: str, _event: dict[str, Any]) -> dict[str, Any]:
     # Redact tokens — frontend must never receive them
     config.pop("meta_access_token", None)
     config.pop("ig_access_token", None)
+    config.pop("datafast_api_token", None)
     return success(body=config)
 
 

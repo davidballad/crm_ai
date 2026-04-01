@@ -201,7 +201,9 @@
       "featureSupport": "Soporte prioritario"
     },
     "footer": {
-      "rights": "Todos los derechos reservados."
+      "rights": "Todos los derechos reservados.",
+      "privacy": "Política de Privacidad",
+      "terms": "Términos y Condiciones"
     }
   },
   "inventoryForm": {
