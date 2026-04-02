@@ -11,6 +11,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import boto3
 from decimal import Decimal
 from typing import Any
 
@@ -193,7 +194,14 @@ def _list_products(tenant_id: str) -> dict[str, Any]:
             all_products.append(entry)
         if not last_key:
             break
-    return success(body={"products": all_products, "datafast_enabled": datafast_enabled})
+    bank_info = {
+        "bank_name": tenant.get("bank_name") or "",
+        "person_name": tenant.get("person_name") or "",
+        "account_type": tenant.get("account_type") or "",
+        "account_id": tenant.get("account_id") or "",
+        "identification_number": tenant.get("identification_number") or ""
+    }
+    return success(body={"products": all_products, "datafast_enabled": datafast_enabled, "bank_info": bank_info})
 
 
 def _get_cart(tenant_id: str, customer_phone: str) -> dict[str, Any]:
@@ -421,6 +429,34 @@ def _verify_datafast_payment(tenant: dict[str, Any], resource_path: str) -> dict
         return None
 
 
+
+def _get_upload_url(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /shop/upload-url — returns presigned S3 PUT URL for payment receipts."""
+    bucket = os.environ.get("DATA_BUCKET")
+    if not bucket:
+        return server_error("DATA_BUCKET not configured")
+    try:
+        body = parse_body(event)
+    except Exception:
+        return error("Invalid JSON", 400)
+    
+    ext = (body.get("file_ext") or "jpg").strip().lower()
+    if ext not in ("jpg", "jpeg", "png", "pdf"):
+        ext = "jpg"
+        
+    s3_key = f"payment-proofs/{tenant_id}/{customer_phone}/{generate_id()}.{ext}"
+    try:
+        s3 = boto3.client("s3", endpoint_url=os.environ.get("AWS_ENDPOINT_URL_S3"))
+        url = s3.generate_presigned_url(
+            "put_object",
+            Params={"Bucket": bucket, "Key": s3_key, "ContentType": f"image/{ext}" if ext != "pdf" else "application/pdf"},
+            ExpiresIn=300,
+        )
+        return success(body={"upload_url": url, "s3_key": s3_key})
+    except Exception as e:
+        return server_error(f"S3 Error: {e}")
+
+
 def _find_transaction_by_id(pk: str, txn_id: str) -> tuple[dict[str, Any] | None, str | None]:
     """Scan TXN# sort keys to find a transaction by its ID. Returns (item, sk) or (None, None)."""
     last_key: dict[str, Any] | None = None
@@ -442,6 +478,7 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
     payment_method = (body.get("payment_method") or "transfer").strip().lower()
     delivery_location = (body.get("delivery_location") or "").strip()
     delivery_method = (body.get("delivery_method") or "delivery").strip().lower()  # "delivery" | "pickup"
+    payment_proof_s3_key = (body.get("payment_proof_s3_key") or "").strip()
     if delivery_method not in ("delivery", "pickup"):
         delivery_method = "delivery"
     if len(order_notes) > ORDER_NOTES_MAX_LEN:
@@ -529,6 +566,7 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         customer_phone=customer_phone,
         order_notes=order_notes or None,
         payment_verification_status=pay_status,
+        payment_proof_s3_key=payment_proof_s3_key or None,
         status="pending",
     )
     txn.id = generate_id()
@@ -796,6 +834,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             return _get_cart(tenant_id, customer_phone)
         if method == "POST" and "/shop/cart" in path:
             return _update_cart(tenant_id, customer_phone, event)
+        if method == "POST" and "/shop/upload-url" in path:
+            return _get_upload_url(tenant_id, customer_phone, event)
         if method == "POST" and "/shop/checkout" in path:
             return _checkout(tenant_id, customer_phone, event)
         if method == "POST" and "/shop/datafast-result" in path:

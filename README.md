@@ -30,6 +30,12 @@ clienta-ai/
       onboarding/          # Tenant & user provisioning
       users/               # Multi-user management (invite, roles)
       payments/            # Square payment processing + webhooks
+      contacts/            # CRM Contacts & Leads management
+      contact/             # Public landing page contact form (SES)
+      agents/              # AI Social Media Campaign kit generation
+      shop/                # Public WhatsApp-token storefront logic
+      campaigns/           # Broadcast campaign management
+      messages/            # WhatsApp chat history & thread management
     shared/                # Shared utilities (db, auth, responses, models)
     tests/                 # Backend tests
   frontend/
@@ -69,6 +75,11 @@ cd terraform && terraform init -reconfigure -backend-config=config/prod/backend.
 | User              | `TENANT#<id>`     | `USER#<id>`                 | --                              |
 | Payment           | `TENANT#<id>`     | `PAYMENT#<id>`              | `SQUARE_PAYMENT#<sq_id>`        |
 | Square Connection | `TENANT#<id>`     | `SQUARE#<id>`               | `SQUARE_MERCHANT#<merchant_id>` |
+| Contact / Lead    | `TENANT#<id>`     | `CONTACT#<id>`              | --                              |
+| WhatsApp Message  | `TENANT#<id>`     | `MESSAGE#<id>`              | --                              |
+| Conv. Summary     | `TENANT#<id>`     | `CONVO#<phone>`             | --                              |
+| AI Campaign       | `TENANT#<id>`     | `AI_CAMPAIGN#<id>`          | --                              |
+| Shop Cart         | `TENANT#<id>`     | `CART#<phone>`              | --                              |
 
 ## License
 

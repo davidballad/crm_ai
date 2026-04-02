@@ -1,7 +1,7 @@
 PACKAGES_DIR = terraform/packages
 LAYER_DIR    = build/layer
 REQS         = backend/requirements-lambda.txt
-FUNCTIONS    = inventory transactions purchases ai_insights onboarding users contacts messages payments campaigns
+FUNCTIONS    = inventory transactions purchases ai_insights onboarding users contacts contact messages payments campaigns agents shop
 
 # Use Python 3.12 Amazon Linux 2 image so cryptography gets Linux binaries (required for Lambda)
 LAYER_DOCKER_IMAGE = public.ecr.aws/sam/build-python3.12:latest

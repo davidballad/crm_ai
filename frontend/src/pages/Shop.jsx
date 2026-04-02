@@ -62,6 +62,8 @@ export default function Shop() {
   const [deliveryLocation, setDeliveryLocation] = useState('');
   const [locationLoading, setLocationLoading] = useState(false);
   const [datafastCheckout, setDatafastCheckout] = useState(null); // { checkoutId, entityId, transactionId }
+  const [bankInfo, setBankInfo] = useState(null);
+  const [receiptFile, setReceiptFile] = useState(null);
 
   useEffect(() => {
     if (!token) { setErr(t('shop.missingToken')); setLoading(false); return; }
@@ -88,6 +90,7 @@ export default function Shop() {
     ]).then(([p, c]) => {
       setProducts(p.products || []);
       setDatafastEnabled(p.datafast_enabled === true);
+      if (p.bank_info) setBankInfo(p.bank_info);
       setCart(c.items || []);
     }).catch(e => setErr(e.message)).finally(() => setLoading(false));
   }, [token]);
@@ -141,9 +144,32 @@ export default function Shop() {
   }, []);
 
   const handleCheckout = useCallback(async () => {
+    if (paymentMethod === 'transfer' && !receiptFile) {
+        setErr('Por favor sube el comprobante de tu transferencia para poder procesar la orden.');
+        return;
+    }
+
     setCheckingOut(true);
     setErr(null);
     try {
+      let s3Key = null;
+
+      if (paymentMethod === 'transfer' && receiptFile) {
+        const uploadRes = await shopFetch('/shop/upload-url', token, {
+          method: 'POST',
+          body: JSON.stringify({ file_ext: receiptFile.name.split('.').pop() })
+        });
+        
+        const putRes = await fetch(uploadRes.upload_url, {
+          method: 'PUT',
+          body: receiptFile,
+          headers: { 'Content-Type': receiptFile.type || 'application/octet-stream' }
+        });
+        
+        if (!putRes.ok) throw new Error('Error subiendo el comprobante de pago.');
+        s3Key = uploadRes.s3_key;
+      }
+
       const res = await shopFetch('/shop/checkout', token, {
         method: 'POST',
         body: JSON.stringify({
@@ -151,6 +177,7 @@ export default function Shop() {
           payment_method: paymentMethod,
           delivery_method: deliveryMethod,
           ...(deliveryMethod === 'delivery' && deliveryLocation && { delivery_location: deliveryLocation }),
+          ...(s3Key && { payment_proof_s3_key: s3Key })
         }),
       });
 
@@ -172,7 +199,7 @@ export default function Shop() {
     } finally {
       setCheckingOut(false);
     }
-  }, [token, orderNotes, paymentMethod, deliveryLocation]);
+  }, [token, orderNotes, paymentMethod, deliveryLocation, receiptFile]);
 
   if (loading) {
     return (
@@ -465,6 +492,30 @@ export default function Shop() {
                           {locationLoading ? 'Obteniendo ubicación...' : '📍 Compartir mi ubicación (opcional)'}
                         </button>
                       )}
+                    </div>
+                  )}
+
+                  {/* Bank Transfer Details & Upload */}
+                  {paymentMethod === 'transfer' && bankInfo && (
+                    <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                      <h4 className="mb-2 text-sm font-bold text-blue-900">Datos para transferencia</h4>
+                      <div className="space-y-1 text-xs text-blue-800">
+                        {bankInfo.bank_name && <p><strong>Banco:</strong> {bankInfo.bank_name}</p>}
+                        {bankInfo.account_type && <p><strong>Tipo:</strong> {bankInfo.account_type}</p>}
+                        {bankInfo.account_id && <p><strong>Cuenta:</strong> {bankInfo.account_id}</p>}
+                        {bankInfo.person_name && <p><strong>Nombre:</strong> {bankInfo.person_name}</p>}
+                        {bankInfo.identification_number && <p><strong>Cédula/RUC:</strong> {bankInfo.identification_number}</p>}
+                      </div>
+                      
+                      <div className="mt-4 border-t border-blue-100 pt-4">
+                        <label className="mb-2 block text-xs font-semibold text-blue-900">Sube tu comprobante de pago *</label>
+                        <input 
+                          type="file" 
+                          accept="image/*,.pdf" 
+                          onChange={(e) => setReceiptFile(e.target.files[0] || null)}
+                          className="w-full text-xs text-blue-700 file:cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-blue-700"
+                        />
+                      </div>
                     </div>
                   )}
 

@@ -71,3 +71,4 @@ docs/images/
 htmlcov/
 .coverage
 coverage.xml
+sanity_check_report.md
