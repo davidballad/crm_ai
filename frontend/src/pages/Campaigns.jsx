@@ -313,12 +313,6 @@ function CampaignKit({ result }) {
           </button>
         </div>
       )}
-      {!image_url && (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 py-8 text-center text-sm text-gray-400">
-          La imagen no pudo generarse. El copy está listo para usar.
-        </div>
-      )}
-
       {/* Copy */}
       {copy && (
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
@@ -536,9 +530,9 @@ function AdsTab() {
       <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-5 py-4 flex items-start gap-3">
         <Sparkles className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-indigo-900">Campañas para Instagram y Facebook</p>
+          <p className="text-sm font-medium text-indigo-900">Campañas para Redes Sociales</p>
           <p className="text-sm text-indigo-700 mt-0.5">
-            La IA analiza tus datos y genera copy + imagen lista para publicar. Incluye el enlace de WhatsApp para que los clientes te contacten directo.
+            La IA analiza tus datos y genera el copy profesional diseñado para convertir. Incluye tu enlace directo de WhatsApp para maximizar las ventas por mensajes.
           </p>
         </div>
       </div>

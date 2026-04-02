@@ -132,7 +132,7 @@ def _gemini_client():
 
 def _call_gemini(prompt: str) -> dict:
     client = _gemini_client()
-    model_id = os.environ.get("GEMINI_MODEL_ID", "gemini-2.5-flash")
+    model_id = os.environ.get("GEMINI_MODEL_ID", "gemma-3-1b")
     response = client.models.generate_content(
         model=model_id,
         contents=prompt,
@@ -148,18 +148,26 @@ def _generate_image(image_prompt: str, tenant_id: str, scenario: str) -> str | N
     """Generate image with Imagen 3, upload to S3, return public URL."""
     try:
         client = _gemini_client()
+        # Using the state-of-the-art Imagen 4 Fast model for ultra-fast ad visuals
+        model_id = "imagen-4.0-fast-001"
+        
         result = client.models.generate_images(
-            model="imagen-3.0-generate-001",
+            model=model_id,
             prompt=image_prompt,
             config={"number_of_images": 1, "aspect_ratio": "1:1"},
         )
         images = getattr(result, "generated_images", None) or []
         if not images:
+            print(f"DEBUG Error: AI generated NO images for prompt: {image_prompt[:100]}...")
             return None
+        
         image_bytes = getattr(images[0].image, "image_bytes", None)
         if not image_bytes:
+            print("DEBUG Error: AI image object has NO bytes")
             return None
-    except Exception:
+            
+    except Exception as e:
+        print(f"DEBUG Error: AI Image generation failed fundamentally: {str(e)}")
         return None
 
     # Upload to S3
@@ -167,19 +175,27 @@ def _generate_image(image_prompt: str, tenant_id: str, scenario: str) -> str | N
         import boto3
         bucket = os.environ.get("DATA_BUCKET", "")
         if not bucket:
+            print("DEBUG Error: DATA_BUCKET environment variable is MISSING or EMPTY")
             return None
+            
         s3 = boto3.client("s3")
         now_ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         key = f"agents/{tenant_id}/{scenario}/{now_ts}.png"
+        
         s3.put_object(
             Bucket=bucket,
             Key=key,
             Body=image_bytes,
             ContentType="image/png",
         )
+        
         region = os.environ.get("AWS_REGION", "us-east-1")
-        return f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
-    except Exception:
+        image_url = f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
+        print(f"DEBUG Success: Image uploaded to {image_url}")
+        return image_url
+        
+    except Exception as e:
+        print(f"DEBUG Error: S3 upload failed: {str(e)}")
         return None
 
 
@@ -379,7 +395,7 @@ def _run_scenario(tenant_id: str, scenario: str, product_id: str | None = None) 
     gate = _require_pro(tenant_id)
     if gate:
         return gate
-
+    
     if scenario not in VALID_SCENARIOS:
         return error(f"Escenario '{scenario}' no válido. Usa: inactive, featured, o vip.", 400)
 
@@ -395,17 +411,15 @@ def _run_scenario(tenant_id: str, scenario: str, product_id: str | None = None) 
     except Exception as e:
         return server_error(f"Error generando copy: {e}")
 
-    # Generate image from Imagen
-    image_prompt = copy_data.pop("image_prompt", "")
+    # Simplified: focus on high-quality ad copy only
     image_url = None
-    if image_prompt:
-        image_url = _generate_image(image_prompt, tenant_id, scenario)
-
-    # Build wa.me link
+    wa_link = ""
+    
     tenant = data["tenant"]
     phone = (tenant.get("phone_number") or "").strip().lstrip("+")
     phone_clean = "".join(c for c in phone if c.isdigit())
-    wa_link = f"https://wa.me/{phone_clean}?text=Hola" if phone_clean else ""
+    if phone_clean:
+        wa_link = f"https://wa.me/{phone_clean}?text=Hola"
 
     # Save to history
     try:

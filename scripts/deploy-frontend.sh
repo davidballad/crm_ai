@@ -17,7 +17,10 @@ INFRA_DIR="$PROJECT_ROOT/terraform"
 if [ -z "${FRONTEND_BUCKET:-}" ]; then
     echo "Reading Terraform outputs..."
     FRONTEND_BUCKET=$(cd "$INFRA_DIR" && terraform output -raw frontend_bucket 2>/dev/null || echo "")
-    CLOUDFRONT_ID=$(cd "$INFRA_DIR" && terraform output -raw cloudfront_domain 2>/dev/null || echo "")
+    # Check if we should also get the distribution ID
+    if [ -z "${CLOUDFRONT_DISTRIBUTION_ID:-}" ]; then
+        CLOUDFRONT_DISTRIBUTION_ID=$(cd "$INFRA_DIR" && terraform output -raw cloudfront_distribution_id 2>/dev/null || echo "")
+    fi
 fi
 
 if [ -z "$FRONTEND_BUCKET" ]; then
