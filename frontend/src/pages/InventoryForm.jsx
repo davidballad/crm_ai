@@ -216,19 +216,19 @@ export default function InventoryForm() {
                 placeholder={t('inventoryForm.placeholderImageUrl')}
               />
             )}
-            {form.image_url && (
-              <div className="mt-2 flex items-center gap-2">
-                <img
-                  src={form.image_url}
-                  alt=""
-                  className="h-20 w-20 rounded border border-gray-200 object-cover"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                  }}
-                />
-                <span className="text-xs text-gray-500">{t('inventoryForm.imageStoredHint')}</span>
-              </div>
-            )}
+            <div className="mt-2 flex items-center gap-2">
+              <img
+                src={form.image_url || '/placeholder-product.png'}
+                alt=""
+                className="h-20 w-20 rounded border border-gray-200 object-cover"
+                onError={(e) => {
+                  e.target.src = '/placeholder-product.png';
+                }}
+              />
+              <span className="text-xs text-gray-500">
+                {form.image_url ? t('inventoryForm.imageStoredHint') : 'Previsualización (se usará el icono por defecto)'}
+              </span>
+            </div>
           </div>
 
           <div className="sm:col-span-2">

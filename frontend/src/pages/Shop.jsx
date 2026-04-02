@@ -337,19 +337,17 @@ export default function Shop() {
                 key={p.id}
                 className={`flex flex-col rounded-xl border bg-white overflow-hidden shadow-sm ${unavailable ? 'opacity-90' : ''} ${p.promo_active ? 'border-orange-300' : 'border-gray-200'}`}
               >
-                {p.image_url ? (
-                  <div className="relative">
-                    <img src={p.image_url} alt={p.name} className="h-32 w-full object-cover" />
-                    {p.promo_active && (
-                      <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">PROMO</span>
-                    )}
-                  </div>
-                ) : (
-                  <div className={`flex h-32 items-center justify-center text-gray-400 text-xs ${p.promo_active ? 'bg-orange-50' : 'bg-gray-100'}`}>
-                    {p.promo_active && <span className="absolute rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">PROMO</span>}
-                    {t('shop.noImage')}
-                  </div>
-                )}
+                <div className="relative">
+                  <img 
+                    src={p.image_url || '/placeholder-product.png'} 
+                    alt={p.name} 
+                    className="h-32 w-full object-cover" 
+                    onError={(e) => { e.target.src = '/placeholder-product.png'; }}
+                  />
+                  {p.promo_active && (
+                    <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">PROMO</span>
+                  )}
+                </div>
                 <div className="flex flex-1 flex-col p-3">
                   <h3 className="text-sm font-medium text-gray-900 leading-tight">{p.name}</h3>
                   {p.promo_active ? (

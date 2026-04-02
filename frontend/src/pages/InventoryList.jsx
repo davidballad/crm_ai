@@ -359,9 +359,12 @@ export default function InventoryList() {
                 <tr key={p.id || p.sk} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      {p.image_url ? (
-                        <img src={p.image_url} alt="" className="h-9 w-9 shrink-0 rounded border border-gray-200 object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
-                      ) : null}
+                      <img 
+                        src={p.image_url || '/placeholder-product.png'} 
+                        alt="" 
+                        className="h-9 w-9 shrink-0 rounded border border-gray-200 object-cover" 
+                        onError={(e) => { e.target.src = '/placeholder-product.png'; }} 
+                      />
                       <span className="font-medium text-gray-900">{p.name}</span>
                     </div>
                   </td>
