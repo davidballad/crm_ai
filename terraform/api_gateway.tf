@@ -690,6 +690,12 @@ resource "aws_apigatewayv2_route" "shop_checkout" {
   target    = "integrations/${aws_apigatewayv2_integration.shop.id}"
 }
 
+resource "aws_apigatewayv2_route" "shop_upload_url" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /shop/upload-url"
+  target    = "integrations/${aws_apigatewayv2_integration.shop.id}"
+}
+
 resource "aws_apigatewayv2_route" "shop_datafast_result" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "POST /shop/datafast-result"
