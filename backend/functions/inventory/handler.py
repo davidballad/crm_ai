@@ -426,6 +426,10 @@ def create_product(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         item["image_url"] = product_data.image_url
     if product_data.notes is not None:
         item["notes"] = product_data.notes
+    if product_data.promo_price is not None:
+        item["promo_price"] = product_data.promo_price
+    if product_data.promo_end_at is not None:
+        item["promo_end_at"] = product_data.promo_end_at
     tags = _build_product_tags(
         manual_tags=product_data.tags,
         name=product_data.name,
@@ -488,10 +492,13 @@ def update_product(
     allowed = {
         "name", "category", "quantity", "unit_cost", "reorder_threshold",
         "supplier_id", "sku", "unit", "image_url", "notes", "tags",
+        "promo_price", "promo_end_at",
     }
+    # promo fields can be explicitly set to null (to clear a promo)
+    nullable_allowed = {"promo_price", "promo_end_at"}
     updates: dict[str, Any] = {}
     for key, value in body.items():
-        if key in allowed and value is not None:
+        if key in allowed and (value is not None or key in nullable_allowed):
             updates[key] = value
 
     updates["updated_at"] = now_iso()

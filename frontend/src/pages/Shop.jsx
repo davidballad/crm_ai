@@ -56,7 +56,8 @@ export default function Shop() {
   const [orderResult, setOrderResult] = useState(null);
   const [filter, setFilter] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('transfer'); // 'transfer' | 'card'
+  const [paymentMethod, setPaymentMethod] = useState('transfer'); // 'transfer' | 'card' | 'cash'
+  const [datafastEnabled, setDatafastEnabled] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState('delivery'); // 'delivery' | 'pickup'
   const [deliveryLocation, setDeliveryLocation] = useState('');
   const [locationLoading, setLocationLoading] = useState(false);
@@ -86,6 +87,7 @@ export default function Shop() {
       shopFetch('/shop/cart', token),
     ]).then(([p, c]) => {
       setProducts(p.products || []);
+      setDatafastEnabled(p.datafast_enabled === true);
       setCart(c.items || []);
     }).catch(e => setErr(e.message)).finally(() => setLoading(false));
   }, [token]);
@@ -109,9 +111,10 @@ export default function Shop() {
     return ['', ...Array.from(s).sort()];
   }, [products]);
 
-  const filtered = useMemo(() =>
-    filter ? products.filter(p => p.category === filter) : products,
-  [products, filter]);
+  const filtered = useMemo(() => {
+    const list = filter ? products.filter(p => p.category === filter) : products;
+    return [...list].sort((a, b) => (b.promo_active ? 1 : 0) - (a.promo_active ? 1 : 0));
+  }, [products, filter]);
 
   const updateCart = useCallback(async (product_id, action, quantity = 1) => {
     try {
@@ -466,7 +469,7 @@ export default function Shop() {
                   )}
 
                   {/* Payment method selector */}
-                  <div className="mb-3 grid grid-cols-2 gap-2">
+                  <div className={`mb-3 grid gap-2 ${datafastEnabled ? 'grid-cols-3' : 'grid-cols-2'}`}>
                     <button
                       type="button"
                       onClick={() => setPaymentMethod('transfer')}
@@ -476,11 +479,20 @@ export default function Shop() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPaymentMethod('card')}
-                      className={`rounded-lg border py-2.5 text-xs font-medium transition-colors ${paymentMethod === 'card' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                      onClick={() => setPaymentMethod('cash')}
+                      className={`rounded-lg border py-2.5 text-xs font-medium transition-colors ${paymentMethod === 'cash' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                     >
-                      💳 Tarjeta
+                      💵 Efectivo
                     </button>
+                    {datafastEnabled && (
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('card')}
+                        className={`rounded-lg border py-2.5 text-xs font-medium transition-colors ${paymentMethod === 'card' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                      >
+                        💳 Tarjeta
+                      </button>
+                    )}
                   </div>
 
                   <button

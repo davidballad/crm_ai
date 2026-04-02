@@ -166,6 +166,11 @@ def _product_stock_qty(product_item: dict[str, Any]) -> int:
 def _list_products(tenant_id: str) -> dict[str, Any]:
     """GET /shop/products — public product list for this tenant."""
     pk = build_pk(tenant_id)
+    tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
+    datafast_enabled = bool(
+        (tenant.get("datafast_entity_id") or "").strip()
+        and (tenant.get("datafast_api_token") or "").strip()
+    )
     all_products: list[dict[str, Any]] = []
     last_key: dict[str, Any] | None = None
     while True:
@@ -188,7 +193,7 @@ def _list_products(tenant_id: str) -> dict[str, Any]:
             all_products.append(entry)
         if not last_key:
             break
-    return success(body={"products": all_products})
+    return success(body={"products": all_products, "datafast_enabled": datafast_enabled})
 
 
 def _get_cart(tenant_id: str, customer_phone: str) -> dict[str, Any]:
@@ -556,24 +561,49 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
             wa_link = f"https://wa.me/{bp}"
 
     delivery_emoji = "🚗 Entrega a domicilio" if delivery_method == "delivery" else "🏪 Retiro en tienda"
-    pay_label = "Tarjeta" if payment_method == "card" else "Transferencia bancaria"
+    if payment_method == "card":
+        pay_label = "Tarjeta"
+    elif payment_method == "cash":
+        pay_label = "Efectivo"
+    else:
+        pay_label = "Transferencia bancaria"
     item_lines = "\n".join(f"  • {ti.product_name} x{ti.quantity}" for ti in txn_items)
+    if payment_method == "cash":
+        payment_note = "Tu pedido está listo. El pago se realizará en efectivo al momento de la entrega o retiro. 🙌"
+    else:
+        bank_parts = []
+        if tenant.get("bank_name"):
+            bank_parts.append(f"  🏦 Banco: {tenant['bank_name']}")
+        if tenant.get("person_name"):
+            bank_parts.append(f"  👤 Nombre: {tenant['person_name']}")
+        if tenant.get("account_type"):
+            bank_parts.append(f"  📋 Tipo: {tenant['account_type']}")
+        if tenant.get("account_id"):
+            bank_parts.append(f"  🔢 Cuenta: {tenant['account_id']}")
+        if tenant.get("identification_number"):
+            bank_parts.append(f"  🪪 Cédula/RUC: {tenant['identification_number']}")
+        bank_info = ("\n\n🏦 *Datos bancarios:*\n" + "\n".join(bank_parts)) if bank_parts else ""
+        payment_note = f"Para completar tu pedido, por favor envíanos el comprobante de tu transferencia respondiendo este mensaje. 🙌{bank_info}"
     confirmation_msg = (
         f"✅ ¡Tu pedido fue confirmado!\n\n"
         f"📦 Productos:\n{item_lines}\n\n"
         f"💰 Total: ${total:.2f}\n"
         f"{delivery_emoji}\n"
         f"💳 Pago: {pay_label}\n"
-        f"📋 Pedido #{txn.id[:8].upper()}"
+        f"📋 Pedido #{txn.id[:8].upper()}\n\n"
+        f"{payment_note}"
     )
 
     # Card payment: create Datafast checkout; send WA confirmation after payment verified
     if payment_method == "card":
+        df_entity_id = (tenant.get("datafast_entity_id") or "").strip()
+        df_api_token = (tenant.get("datafast_api_token") or "").strip()
+        if not df_entity_id or not df_api_token:
+            return error("El pago con tarjeta no está habilitado en este momento. Usa transferencia.", 422)
         df_result = _create_datafast_checkout(tenant, total, txn.id)
         checkout_id = (df_result or {}).get("id")
         if not checkout_id:
-            return error("No se pudo iniciar el pago con tarjeta. Intenta con transferencia.", 502)
-        entity_id = (tenant.get("datafast_entity_id") or "").strip()
+            return error("No se pudo conectar con el procesador de pagos. Intenta con transferencia.", 502)
         return created({
             "transaction_id": txn.id,
             "total": str(total),
@@ -581,17 +611,17 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
             "wa_link": wa_link,
             "payment_method": "card",
             "datafast_checkout_id": checkout_id,
-            "datafast_entity_id": entity_id,
+            "datafast_entity_id": df_entity_id,
         })
 
-    # Bank transfer: send order confirmation via WhatsApp
+    # Transfer / cash: send order confirmation via WhatsApp
     _send_whatsapp_message(tenant, customer_phone, confirmation_msg)
     return created({
         "transaction_id": txn.id,
         "total": str(total),
         "items_count": len(txn_items),
         "wa_link": wa_link,
-        "payment_method": "transfer",
+        "payment_method": payment_method,
     })
 
 

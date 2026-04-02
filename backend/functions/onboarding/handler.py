@@ -90,7 +90,7 @@ def _build_summary_html(business_name: str, date: str, revenue: float, orders: i
 
 
 def send_daily_summary(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """POST /onboarding/daily-summary — send daily email digest to tenant owner. Service key only."""
+    """POST /onboarding/daily-summary — return daily summary data for email. Service key only. (Email sent by n8n)"""
     from datetime import datetime, timedelta, timezone
 
     if not validate_service_key(event):
@@ -105,10 +105,6 @@ def send_daily_summary(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     business_name = config.get("business_name") or "Tu negocio"
     if not owner_email:
         return success({"skipped": True, "reason": "no owner_email"})
-
-    from_addr = os.environ.get("CONTACT_FROM_EMAIL", "")
-    if not from_addr:
-        return error("CONTACT_FROM_EMAIL not configured", 500)
 
     yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
 
@@ -152,22 +148,15 @@ def send_daily_summary(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         f"Productos con stock bajo: {len(low_stock)}"
     )
 
-    try:
-        _get_ses().send_email(
-            Source=from_addr,
-            Destination={"ToAddresses": [owner_email]},
-            Message={
-                "Subject": {"Data": f"Resumen diario — {business_name} ({yesterday})", "Charset": "UTF-8"},
-                "Body": {
-                    "Html": {"Data": html_body, "Charset": "UTF-8"},
-                    "Text": {"Data": plain_body, "Charset": "UTF-8"},
-                },
-            },
-        )
-    except ClientError as e:
-        return server_error(f"SES error: {e}")
-
-    return success({"sent": True, "to": owner_email, "date": yesterday})
+    return success({
+        "ready_to_send": True,
+        "recipient": owner_email,
+        "business_name": business_name,
+        "date": yesterday,
+        "subject": f"Resumen diario — {business_name} ({yesterday})",
+        "html_body": html_body,
+        "plain_body": plain_body,
+    })
 
 _s3_client = None
 
