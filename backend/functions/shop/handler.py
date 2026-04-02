@@ -441,18 +441,21 @@ def _get_upload_url(tenant_id: str, customer_phone: str, event: dict[str, Any]) 
         return error("Invalid JSON", 400)
     
     ext = (body.get("file_ext") or "jpg").strip().lower()
-    if ext not in ("jpg", "jpeg", "png", "pdf"):
+    if ext not in ("jpg", "jpeg", "png"):
         ext = "jpg"
+
+    # MIME type: image/jpeg (not image/jpg)
+    content_type = "image/jpeg" if ext in ("jpg", "jpeg") else "image/png"
         
     s3_key = f"payment-proofs/{tenant_id}/{customer_phone}/{generate_id()}.{ext}"
     try:
         s3 = boto3.client("s3", endpoint_url=os.environ.get("AWS_ENDPOINT_URL_S3"))
         url = s3.generate_presigned_url(
             "put_object",
-            Params={"Bucket": bucket, "Key": s3_key, "ContentType": f"image/{ext}" if ext != "pdf" else "application/pdf"},
+            Params={"Bucket": bucket, "Key": s3_key, "ContentType": content_type},
             ExpiresIn=300,
         )
-        return success(body={"upload_url": url, "s3_key": s3_key})
+        return success(body={"upload_url": url, "s3_key": s3_key, "content_type": content_type})
     except Exception as e:
         return server_error(f"S3 Error: {e}")
 
@@ -609,19 +612,7 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
     if payment_method == "cash":
         payment_note = "Tu pedido está listo. El pago se realizará en efectivo al momento de la entrega o retiro. 🙌"
     else:
-        bank_parts = []
-        if tenant.get("bank_name"):
-            bank_parts.append(f"  🏦 Banco: {tenant['bank_name']}")
-        if tenant.get("person_name"):
-            bank_parts.append(f"  👤 Nombre: {tenant['person_name']}")
-        if tenant.get("account_type"):
-            bank_parts.append(f"  📋 Tipo: {tenant['account_type']}")
-        if tenant.get("account_id"):
-            bank_parts.append(f"  🔢 Cuenta: {tenant['account_id']}")
-        if tenant.get("identification_number"):
-            bank_parts.append(f"  🪪 Cédula/RUC: {tenant['identification_number']}")
-        bank_info = ("\n\n🏦 *Datos bancarios:*\n" + "\n".join(bank_parts)) if bank_parts else ""
-        payment_note = f"Para completar tu pedido, por favor envíanos el comprobante de tu transferencia respondiendo este mensaje. 🙌{bank_info}"
+        payment_note = "Gracias por tu pedido. Te contactaremos por WhatsApp para confirmar. 🙌"
     confirmation_msg = (
         f"✅ ¡Tu pedido fue confirmado!\n\n"
         f"📦 Productos:\n{item_lines}\n\n"

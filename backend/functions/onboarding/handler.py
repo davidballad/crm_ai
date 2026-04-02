@@ -449,6 +449,7 @@ TENANT_CONFIG_FIELDS = (
     "follow_up_sequences", "tax_rate",
     "ig_business_account_id", "ig_access_token",
     "datafast_entity_id", "datafast_api_token",
+    "support_phone",
 )
 
 

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  Megaphone, Plus, Send, Trash2, ChevronDown, ChevronUp, Users, Clock,
+  Megaphone, Plus, Minus, Send, Trash2, ChevronDown, ChevronUp, Users, Clock,
   CheckCircle, AlertCircle, Loader2, Sparkles, Lock, Download, Link,
   UserMinus, Star, ShoppingBag,
 } from 'lucide-react';
@@ -9,6 +10,8 @@ import { useCampaigns, useCreateCampaign, useSendCampaign, useDeleteCampaign } f
 import { useProducts } from '../hooks/useProducts';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
+import { useTenantConfig } from '../hooks/useTenantConfig';
+import { patchTenantConfig } from '../api/onboarding';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -554,6 +557,154 @@ function AdsTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Follow-up tab (Seguimiento)
+// ---------------------------------------------------------------------------
+
+
+function FollowUpTab() {
+  const { t } = useTranslation();
+  const { data: config } = useTenantConfig();
+  const [sequences, setSequences] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState('');
+
+  const DEFAULT_SEQUENCES = [
+    { delay_hours: 2, message: '', mark_abandoned_after: false },
+    { delay_hours: 22, message: '', mark_abandoned_after: true }
+  ];
+
+  useEffect(() => {
+    if (config?.follow_up_sequences && config.follow_up_sequences.length > 0) {
+      setSequences(config.follow_up_sequences);
+    } else if (config && (!config.follow_up_sequences || config.follow_up_sequences.length === 0)) {
+      setSequences(DEFAULT_SEQUENCES);
+    }
+  }, [config]);
+
+  const handleAddStep = () => {
+    setSequences([...sequences, { delay_hours: 2, message: '', mark_abandoned_after: false }]);
+  };
+
+  const handleRemoveStep = (index) => {
+    setSequences(sequences.filter((_, i) => i !== index));
+  };
+
+  const handleChange = (index, field, value) => {
+    setSequences(sequences.map((s, i) => i === index ? { ...s, [field]: value } : s));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSuccess('');
+    try {
+      await patchTenantConfig({ follow_up_sequences: sequences });
+      setSuccess(t('whatsapp.sequencesSaved') || 'Secuencias guardadas correctamente.');
+    } catch {
+      /* ignore */
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 max-w-xl">
+      <div className="rounded-xl border border-blue-100 bg-blue-50 px-5 py-4 flex items-start gap-3">
+        <Clock className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-blue-900">{t('whatsapp.followupTitle')}</p>
+          <p className="text-sm text-blue-700 mt-0.5">{t('whatsapp.followupDesc')}</p>
+        </div>
+      </div>
+
+      {success && <div className="rounded-lg bg-green-100 px-4 py-3 text-sm text-green-700 flex items-center gap-2"><CheckCircle className="h-4 w-4" /> {success}</div>}
+
+      <div className="space-y-3">
+        {sequences.map((seq, i) => (
+          <div key={i} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-700">{t('whatsapp.step')} {i + 1}</span>
+              <button onClick={() => handleRemoveStep(i)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700">{t('whatsapp.waitHours')}</label>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleChange(i, 'delay_hours', Math.max(1, (seq.delay_hours || 0) - 1))}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition-colors"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      min="1"
+                      value={seq.delay_hours}
+                      onChange={(e) => handleChange(i, 'delay_hours', Number(e.target.value))}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <span className="sr-only">horas</span>
+                  </div>
+                  <button
+                    onClick={() => handleChange(i, 'delay_hours', (seq.delay_hours || 0) + 1)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-end pb-2">
+                <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!seq.mark_abandoned_after}
+                    onChange={(e) => handleChange(i, 'mark_abandoned_after', e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  {t('whatsapp.markAbandoned')}
+                </label>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <label className="mb-1 block text-xs font-medium text-gray-700">{t('whatsapp.messageLabel')}</label>
+              <textarea
+                value={seq.message || ''}
+                onChange={(e) => handleChange(i, 'message', e.target.value)}
+                rows={3}
+                placeholder={t('whatsapp.placeholderFollowup')}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {sequences.length === 0 && (
+        <div className="rounded-xl border-2 border-dashed border-gray-200 py-12 text-center">
+          <Clock className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+          <p className="text-gray-500 text-sm font-medium">No hay pasos configurados</p>
+          <p className="text-xs text-gray-400">Agrega un paso para empezar a recuperar carritos.</p>
+        </div>
+      )}
+
+      <div className="flex gap-3 pt-2">
+        <button onClick={handleAddStep} className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          <Plus className="h-4 w-4" /> {t('whatsapp.addStep')}
+        </button>
+        <button onClick={handleSave} disabled={saving} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60 transition-colors shadow-sm">
+          {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> {t('whatsapp.saving')}</> : t('whatsapp.saveSequences')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -587,12 +738,16 @@ export default function Campaigns() {
           className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'ads' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
           <Sparkles className="h-4 w-4" /> Anuncios IA
         </button>
+        <button onClick={() => setActiveTab('followup')}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'followup' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          <Clock className="h-4 w-4" /> Seguimiento
+        </button>
       </div>
 
       {/* Content */}
-      {activeTab === 'ads'
-        ? <AdsTab />
-        : <WhatsAppTab onNewCampaign={() => setShowCreate(true)} />}
+      {activeTab === 'ads' && <AdsTab />}
+      {activeTab === 'whatsapp' && <WhatsAppTab onNewCampaign={() => setShowCreate(true)} />}
+      {activeTab === 'followup' && <FollowUpTab />}
 
       {showCreate && <CreateCampaignModal onClose={() => setShowCreate(false)} />}
     </div>

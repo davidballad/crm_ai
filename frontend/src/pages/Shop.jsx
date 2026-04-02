@@ -163,7 +163,7 @@ export default function Shop() {
         const putRes = await fetch(uploadRes.upload_url, {
           method: 'PUT',
           body: receiptFile,
-          headers: { 'Content-Type': receiptFile.type || 'application/octet-stream' }
+          headers: { 'Content-Type': uploadRes.content_type || receiptFile.type || 'image/jpeg' }
         });
         
         if (!putRes.ok) throw new Error('Error subiendo el comprobante de pago.');
@@ -507,12 +507,26 @@ export default function Shop() {
                       
                       <div className="mt-4 border-t border-blue-100 pt-4">
                         <label className="mb-2 block text-xs font-semibold text-blue-900">Sube tu comprobante de pago *</label>
-                        <input 
-                          type="file" 
-                          accept="image/*,.pdf" 
-                          onChange={(e) => setReceiptFile(e.target.files[0] || null)}
-                          className="w-full text-xs text-blue-700 file:cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-blue-700"
-                        />
+                        <p className="mb-2 text-[11px] text-blue-600">📸 Toma una foto o selecciona una captura de pantalla</p>
+                        {receiptFile ? (
+                          <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-3 py-2.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-green-600">✅</span>
+                              <span className="text-xs text-green-700 truncate">{receiptFile.name}</span>
+                            </div>
+                            <button type="button" onClick={() => setReceiptFile(null)} className="text-xs text-gray-400 hover:text-red-500 shrink-0 ml-2">Quitar</button>
+                          </div>
+                        ) : (
+                          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-blue-300 bg-blue-50/50 py-4 text-sm font-medium text-blue-700 transition-colors hover:border-blue-400 hover:bg-blue-100/50 active:bg-blue-100">
+                            📷 Tomar foto o elegir imagen
+                            <input 
+                              type="file" 
+                              accept="image/jpeg,image/png" 
+                              onChange={(e) => setReceiptFile(e.target.files[0] || null)}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
                       </div>
                     </div>
                   )}

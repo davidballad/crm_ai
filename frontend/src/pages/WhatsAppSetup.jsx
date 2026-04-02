@@ -17,9 +17,6 @@ export default function WhatsAppSetup() {
   const [accountType, setAccountType] = useState('');
   const [accountId, setAccountId] = useState('');
   const [identificationNumber, setIdentificationNumber] = useState('');
-  const [sequences, setSequences] = useState([]);
-  const [seqSaving, setSeqSaving] = useState(false);
-  const [seqSuccess, setSeqSuccess] = useState('');
   const [taxRateInput, setTaxRateInput] = useState(15);
   const [taxSaving, setTaxSaving] = useState(false);
   const [taxSuccess, setTaxSuccess] = useState('');
@@ -33,6 +30,9 @@ export default function WhatsAppSetup() {
   const [datafastSaving, setDatafastSaving] = useState(false);
   const [datafastSuccess, setDatafastSuccess] = useState('');
   const [datafastError, setDatafastError] = useState('');
+  const [supportPhone, setSupportPhone] = useState('');
+  const [supportPhoneSaving, setSupportPhoneSaving] = useState(false);
+  const [supportPhoneSuccess, setSupportPhoneSuccess] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -62,7 +62,7 @@ export default function WhatsAppSetup() {
       setAccountType(config.account_type || '');
       setAccountId(config.account_id || '');
       setIdentificationNumber(config.identification_number || '');
-      setSequences(config.follow_up_sequences || []);
+      setSupportPhone(config.support_phone || '');
       if (config.tax_rate != null) setTaxRateInput(Number(config.tax_rate));
       setIgBusinessAccountId(config.ig_business_account_id || '');
       setDatafastEntityId(config.datafast_entity_id || '');
@@ -125,94 +125,6 @@ export default function WhatsAppSetup() {
         </div>
       </div>
 
-      {/* Follow-up sequence editor */}
-      <div className="mt-6 card max-w-xl">
-        <h2 className="mb-1 text-sm font-semibold text-gray-900">Secuencias de seguimiento</h2>
-        <p className="mb-4 text-xs text-gray-500">
-          Define mensajes automáticos que se envían si un cliente no completa su pedido. El flujo de n8n los ejecutará en orden.
-        </p>
-
-        {seqSuccess && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{seqSuccess}</div>}
-
-        <div className="space-y-3">
-          {sequences.map((seq, i) => (
-            <div key={i} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-semibold text-gray-700">Paso {i + 1}</span>
-                <button
-                  type="button"
-                  onClick={() => setSequences((s) => s.filter((_, j) => j !== i))}
-                  className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Esperar (horas)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={seq.delay_hours}
-                    onChange={(e) => setSequences((s) => s.map((item, j) => j === i ? { ...item, delay_hours: Number(e.target.value) } : item))}
-                    className="input-field w-full"
-                  />
-                </div>
-                <div className="flex items-end">
-                  <label className="flex items-center gap-2 text-xs text-gray-600">
-                    <input
-                      type="checkbox"
-                      checked={!!seq.mark_abandoned_after}
-                      onChange={(e) => setSequences((s) => s.map((item, j) => j === i ? { ...item, mark_abandoned_after: e.target.checked } : item))}
-                      className="rounded"
-                    />
-                    Marcar como abandonado
-                  </label>
-                </div>
-              </div>
-              <div className="mt-2">
-                <label className="mb-1 block text-xs font-medium text-gray-600">Mensaje (usa {'{{name}}'} para el nombre)</label>
-                <textarea
-                  value={seq.message || ''}
-                  onChange={(e) => setSequences((s) => s.map((item, j) => j === i ? { ...item, message: e.target.value } : item))}
-                  rows={2}
-                  className="input-field w-full resize-y text-sm"
-                  placeholder="Hola {{name}}, ¿sigues interesado?"
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-3 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setSequences((s) => [...s, { delay_hours: 2, message: '', mark_abandoned_after: false }])}
-            className="btn-secondary inline-flex items-center gap-1.5 text-sm"
-          >
-            <Plus className="h-4 w-4" /> Agregar paso
-          </button>
-          <button
-            type="button"
-            disabled={seqSaving}
-            onClick={async () => {
-              setSeqSaving(true);
-              setSeqSuccess('');
-              try {
-                await patchTenantConfig({ follow_up_sequences: sequences });
-                setSeqSuccess('Secuencias guardadas correctamente.');
-              } catch {
-                /* ignore */
-              } finally {
-                setSeqSaving(false);
-              }
-            }}
-            className="btn-primary text-sm"
-          >
-            {seqSaving ? 'Guardando...' : 'Guardar secuencias'}
-          </button>
-        </div>
-      </div>
 
       {/* Instagram integration */}
       <div className="mt-6 card max-w-xl">
@@ -340,6 +252,52 @@ export default function WhatsAppSetup() {
         </button>
       </div>
 
+      {/* Support phone for bot escalation */}
+      <div className="mt-6 card max-w-xl">
+        <h2 className="mb-1 text-sm font-semibold text-gray-900">{t('whatsapp.handoffTitle')}</h2>
+        <p className="mb-4 text-xs text-gray-500">
+          {t('whatsapp.handoffDesc')}
+        </p>
+
+        {supportPhoneSuccess && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{supportPhoneSuccess}</div>}
+
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">
+            {t('whatsapp.handoffLabel')}
+          </label>
+          <input
+            type="text"
+            value={supportPhone}
+            onChange={(e) => setSupportPhone(normalizePhoneNumber(e.target.value))}
+            placeholder="Ej: 593999999999"
+            className="input-field w-full font-mono text-sm"
+            inputMode="numeric"
+            pattern="[0-9]*"
+          />
+          <p className="mt-1 text-xs text-gray-400">{t('whatsapp.handoffHint')}</p>
+        </div>
+
+        <button
+          type="button"
+          disabled={supportPhoneSaving}
+          onClick={async () => {
+            setSupportPhoneSaving(true);
+            setSupportPhoneSuccess('');
+            try {
+              await patchTenantConfig({ support_phone: supportPhone.trim() });
+              setSupportPhoneSuccess(t('whatsapp.handoffSuccess'));
+            } catch {
+              /* ignore */
+            } finally {
+              setSupportPhoneSaving(false);
+            }
+          }}
+          className="mt-3 btn-primary text-sm"
+        >
+          {supportPhoneSaving ? t('whatsapp.saving') : t('whatsapp.handoffSave')}
+        </button>
+      </div>
+
       {/* Shareable store link */}
       {config?.tenant_id && (
         <div className="mt-6 card max-w-xl">
@@ -394,7 +352,7 @@ export default function WhatsAppSetup() {
             <p className="mt-1 text-sm text-gray-500">Token configurado (no se muestra por seguridad).</p>
             {config.ai_system_prompt && (
               <p className="mt-2 text-sm text-gray-500 line-clamp-2">
-                Prompt de IA: {config.ai_system_prompt}
+                {t('whatsapp.aiPromptPrefix')}: {config.ai_system_prompt}
               </p>
             )}
             {(config.bank_name || config.person_name || config.account_type || config.account_id || config.identification_number) && (
@@ -456,7 +414,7 @@ export default function WhatsAppSetup() {
 
           <div>
             <label htmlFor="business_phone_number" className="mb-1 block text-sm font-medium text-gray-700">
-              {t('whatsapp.supportPhoneLabel')}
+              {t('whatsapp.mainPhoneLabel')}
             </label>
             <input
               id="business_phone_number"
@@ -469,7 +427,7 @@ export default function WhatsAppSetup() {
               pattern="[0-9]*"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Formato: codigo de pais + numero, solo digitos (sin +, espacios o guiones).
+              {t('whatsapp.mainPhoneHint')}
             </p>
           </div>
 
