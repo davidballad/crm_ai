@@ -220,8 +220,18 @@ function CampaignRow({ campaign }) {
 }
 
 function WhatsAppTab({ onNewCampaign }) {
-  const { data, isLoading, error } = useCampaigns();
+  const { data, isLoading, error, refetch } = useCampaigns();
   const campaigns = data?.campaigns || [];
+
+  // Quick fix: auto-refresh every 5s if any campaign is "sending"
+  const hasSending = campaigns.some(c => c.status === 'sending');
+  useEffect(() => {
+    let interval;
+    if (hasSending) {
+      interval = setInterval(() => refetch(), 5000);
+    }
+    return () => clearInterval(interval);
+  }, [hasSending, refetch]);
 
   if (isLoading) return (
     <div className="flex h-40 items-center justify-center">
