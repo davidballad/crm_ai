@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import urllib.request
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -318,6 +319,7 @@ def create_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         "channel": body.get("channel", "whatsapp"),
         "category": body.get("category"), # Removed hardcoded default
         "created_ts": created_ts,
+        "ttl": int(time.time() + (90 * 24 * 3600)), # 90 days expiry
     }
     direction = (body.get("direction") or "").strip().lower() or None
     
@@ -439,6 +441,7 @@ def send_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         "text": text,
         "category": body.get("category"),
         "created_ts": created_ts,
+        "ttl": int(time.time() + (90 * 24 * 3600)), # 90 days expiry
         # GSI1 for fast search
         "gsi1pk": f"PHONE#{normalize_phone(to_number)}",
         "gsi1sk": f"MSG#{created_ts}#{message_id}"

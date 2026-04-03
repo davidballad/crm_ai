@@ -69,25 +69,22 @@ _PHONE_LOOKUP_MAX_PAGES = 40
 
 
 def _find_contact_item_by_phone(tenant_id: str, phone_digits: str) -> dict[str, Any] | None:
-    """Find first existing contact item by normalized phone for this tenant."""
+    """Find existing contact item by GSI1 lookup (instant) instead of multi-page scan."""
     if not phone_digits:
         return None
-    pk = build_pk(tenant_id)
-    last_key: dict[str, Any] | None = None
-    for _ in range(_PHONE_LOOKUP_MAX_PAGES):
-        items, last_eval = query_items(
-            pk=pk,
-            sk_prefix=CONTACT_SK_PREFIX,
-            limit=LIMIT_MAX,
-            last_key=last_key,
+    try:
+        # Use GSI1 for high-performance lookup
+        items, _ = query_items(
+            pk=f"PHONE#{phone_digits}",
+            sk_prefix="CONTACT",
+            limit=1,
+            index_name="GSI1",
+            pk_attr="gsi1pk",
+            sk_attr="gsi1sk",
         )
-        for item in items:
-            if normalize_phone(item.get("phone")) == phone_digits:
-                return item
-        if not last_eval:
-            return None
-        last_key = last_eval
-    return None
+        return items[0] if items else None
+    except DynamoDBError:
+        return None
 
 
 def _decode_next_token(token: str | None) -> dict[str, Any] | None:
@@ -405,6 +402,11 @@ def create_contact(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         item["conversation_mode"] = contact_data.conversation_mode
     elif "conversation_mode" not in item:
         item["conversation_mode"] = "bot"
+    
+    # GSI1 for instant phone-based lookup
+    if item.get("phone"):
+        item["gsi1pk"] = f"PHONE#{normalize_phone(item['phone'])}"
+        item["gsi1sk"] = "CONTACT"
 
     try:
         put_item(item)
@@ -475,6 +477,11 @@ def patch_contact(
         amount = _to_decimal_amount(updates.get("total_spent"))
         if amount is not None:
             updates["tier"] = _tier_from_total_spent(amount)
+
+    # Sync GSI1 if phone changes
+    if "phone" in updates:
+        updates["gsi1pk"] = f"PHONE#{normalize_phone(updates['phone'])}"
+        updates["gsi1sk"] = "CONTACT"
 
     try:
         updated_item = update_item(pk=pk, sk=sk, updates=updates)

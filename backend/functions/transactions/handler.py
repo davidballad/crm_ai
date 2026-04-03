@@ -303,14 +303,48 @@ def record_sale(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     table = get_table()
     table_name = table.name
 
-    txn_record: dict[str, Any] = {
-        "pk": pk,
-        "sk": sk,
-        **transaction.to_dynamo(),
+    # Stats Updates
+    today = today_str()
+    stats_daily_pk = pk
+    stats_daily_sk = f"STATS#DAILY#{today}"
+    stats_totals_pk = pk
+    stats_totals_sk = "STATS#TOTALS"
+
+    txn_record = {
+        "pk": pk, 
+        "sk": sk, 
+        "gsi1pk": f"TXN#{transaction_id}",
+        "gsi1sk": "TXN",
+        **transaction.to_dynamo()
     }
 
     transact_items: list[dict[str, Any]] = [
-        {"Put": {"TableName": table_name, "Item": txn_record}}
+        {"Put": {"TableName": table_name, "Item": txn_record}},
+        {
+            "Update": {
+                "TableName": table_name,
+                "Key": {"pk": stats_daily_pk, "sk": stats_daily_sk},
+                "UpdateExpression": "ADD revenue :r, order_count :o, items_sold :i SET updated_at = :now",
+                "ExpressionAttributeValues": {
+                    ":r": txn_record.get("total", 0),
+                    ":o": 1,
+                    ":i": sum(int(getattr(i, "quantity", 0) if not hasattr(i, "get") else i.get("quantity", 0)) for i in transaction.items),
+                    ":now": created_at,
+                },
+            }
+        },
+        {
+            "Update": {
+                "TableName": table_name,
+                "Key": {"pk": stats_totals_pk, "sk": stats_totals_sk},
+                "UpdateExpression": "ADD total_revenue :r, order_count :o SET updated_at = :now",
+                "ExpressionAttributeValues": {
+                    ":r": txn_record.get("total", 0),
+                    ":o": 1,
+                    ":now": created_at,
+                },
+            }
+        }
     ]
 
     for item in transaction.items:
@@ -361,43 +395,46 @@ def record_sale(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_transaction(tenant_id: str, transaction_id: str) -> dict[str, Any]:
-    """Get a single transaction by ID (queries with pagination until found)."""
-    pk = build_pk(tenant_id)
-    last_key: dict[str, Any] | None = None
-
-    while True:
-        items, last_key = query_items(
-            pk, sk_prefix="TXN#", limit=100, last_key=last_key
+    """Get a single transaction by ID (instant GSI lookup)."""
+    try:
+        # High-performance GSI1 lookup
+        items, _ = query_items(
+            pk=f"TXN#{transaction_id}",
+            sk_prefix="TXN",
+            limit=1,
+            index_name="GSI1",
+            pk_attr="gsi1pk",
+            sk_attr="gsi1sk",
         )
-        for item in items:
-            txn = Transaction.from_dynamo(item)
-            if txn.id == transaction_id:
-                enriched_item = _auto_attach_proof_from_messages(tenant_id, item)
-                return success(_transaction_response(enriched_item, include_proof_url=True))
-        if not last_key:
-            break
-
-    return not_found("Transaction not found")
+        if not items:
+            return not_found("Transaction not found")
+        
+        item = items[0]
+        enriched_item = _auto_attach_proof_from_messages(tenant_id, item)
+        return success(_transaction_response(enriched_item, include_proof_url=True))
+    except Exception as e:
+        return server_error(str(e))
 
 
 def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]) -> dict[str, Any]:
     """PATCH /transactions/{id} — update transaction status and payment verification."""
     pk = build_pk(tenant_id)
 
-    # Find transaction by scanning TXN# sort keys
-    last_key: dict[str, Any] | None = None
-    target_sk = None
-    while True:
-        items, last_key = query_items(pk, sk_prefix="TXN#", limit=100, last_key=last_key)
-        for item in items:
-            if item.get("id") == transaction_id:
-                target_sk = item["sk"]
-                break
-        if target_sk or not last_key:
-            break
-
-    if not target_sk:
-        return not_found("Transaction not found")
+    # Instant lookup using GSI1
+    try:
+        items, _ = query_items(
+            pk=f"TXN#{transaction_id}",
+            sk_prefix="TXN",
+            limit=1,
+            index_name="GSI1",
+            pk_attr="gsi1pk",
+            sk_attr="gsi1sk",
+        )
+        if not items:
+            return not_found("Transaction not found")
+        target_sk = items[0]["sk"]
+    except Exception as e:
+        return server_error(str(e))
 
     try:
         body = parse_body(event)
@@ -483,17 +520,19 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
 
 
 def _find_transaction_item_by_id(tenant_id: str, transaction_id: str) -> dict[str, Any] | None:
-    """Find and return raw transaction item by transaction id."""
-    pk = build_pk(tenant_id)
-    last_key: dict[str, Any] | None = None
-    while True:
-        items, last_key = query_items(pk, sk_prefix="TXN#", limit=100, last_key=last_key)
-        for item in items:
-            if item.get("id") == transaction_id:
-                return item
-        if not last_key:
-            break
-    return None
+    """Find transaction by ID using instant GSI1 lookup."""
+    try:
+        items, _ = query_items(
+            pk=f"TXN#{transaction_id}",
+            sk_prefix="TXN",
+            limit=1,
+            index_name="GSI1",
+            pk_attr="gsi1pk",
+            sk_attr="gsi1sk",
+        )
+        return items[0] if items else None
+    except Exception:
+        return None
 
 
 def cancel_transaction(tenant_id: str, transaction_id: str) -> dict[str, Any]:
@@ -575,7 +614,7 @@ def _line_quantity(line: Any) -> int:
 
 
 def get_revenue_range(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """GET /transactions/revenue?start=YYYY-MM-DD&end=YYYY-MM-DD — per-day revenue array."""
+    """GET /transactions/revenue — per-day revenue using pre-calculated STATS items (High Performance)."""
     from datetime import date, timedelta
 
     query_params = _get_query_params(event)
@@ -588,112 +627,58 @@ def get_revenue_range(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     except ValueError:
         return error("start y end deben tener formato YYYY-MM-DD", 400)
 
-    if (end - start).days > 365:
-        return error("El rango de fechas no puede superar 365 días", 400)
-
-    if start > end:
-        return error("start debe ser anterior o igual a end", 400)
-
-    # Pre-fill all days with zeros
-    daily: dict[str, dict] = {}
+    pk = build_pk(tenant_id)
+    result: list[dict[str, Any]] = []
+    
+    # Iterate through each day and fetch the pre-calculated summary
     current = start
     while current <= end:
-        daily[str(current)] = {
-            "date": str(current),
+        day_str = str(current)
+        stats_sk = f"STATS#DAILY#{day_str}"
+        
+        day_data = {
+            "date": day_str,
             "revenue": 0.0,
             "order_count": 0,
             "items_sold": 0,
         }
+        
+        try:
+            stats_item = get_item(pk, stats_sk)
+            if stats_item:
+                day_data["revenue"] = float(stats_item.get("revenue", 0))
+                day_data["order_count"] = int(stats_item.get("order_count", 0))
+                day_data["items_sold"] = int(stats_item.get("items_sold", 0))
+        except Exception:
+            pass
+            
+        result.append(day_data)
         current += timedelta(days=1)
 
-    pk = build_pk(tenant_id)
-    sk_start = f"TXN#{start_date}"
-    sk_end = f"TXN#{end_date}\uffff"
-
-    try:
-        table = get_table()
-        key_condition = Key("pk").eq(pk) & Key("sk").between(sk_start, sk_end)
-        last_key = None
-        while True:
-            params: dict[str, Any] = {
-                "KeyConditionExpression": key_condition,
-                "Limit": 500,
-            }
-            if last_key:
-                params["ExclusiveStartKey"] = last_key
-            resp = table.query(**params)
-            for item in resp.get("Items", []):
-                try:
-                    txn = Transaction.from_dynamo(item)
-                    # SK pattern: TXN#YYYY-MM-DD#<id>
-                    sk_parts = item.get("sk", "").split("#")
-                    day_str = sk_parts[1][:10] if len(sk_parts) >= 2 else ""
-
-                    if day_str in daily:
-                        daily[day_str]["revenue"] = round(
-                            daily[day_str]["revenue"] + float(txn.total), 2
-                        )
-                        daily[day_str]["order_count"] += 1
-                        for line in txn.items or []:
-                            daily[day_str]["items_sold"] += _line_quantity(line)
-                except Exception:
-                    continue
-            last_key = resp.get("LastEvaluatedKey")
-            if not last_key:
-                break
-
-        result = sorted(daily.values(), key=lambda x: x["date"])
-        return success({"revenue": result, "start": start_date, "end": end_date})
-    except ClientError as e:
-        return error(str(e), 400)
-    except Exception as e:
-        return server_error(str(e))
+    return success({"revenue": result, "start": start_date, "end": end_date})
 
 
 def get_daily_summary(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """Get daily transaction summary for a given date."""
+    """Get daily transaction summary using pre-calculated STATS item."""
     try:
         query_params = _get_query_params(event)
         date_str = query_params.get("date", today_str())
-
         pk = build_pk(tenant_id)
-        sk_prefix = f"TXN#{date_str}"
-
-        items, _ = query_items(pk, sk_prefix=sk_prefix, limit=500)
-
-        total_revenue = Decimal("0")
-        transaction_count = 0
-        items_sold = 0
-        revenue_by_payment_method: dict[str, Decimal] = {}
-
-        for item in items:
-            try:
-                txn = Transaction.from_dynamo(item)
-                total_revenue += txn.total
-                transaction_count += 1
-                revenue_by_payment_method[txn.payment_method] = (
-                    revenue_by_payment_method.get(txn.payment_method, Decimal("0")) + txn.total
-                )
-                for line in txn.items or []:
-                    items_sold += _line_quantity(line)
-            except Exception:
-                continue
+        
+        stats_sk = f"STATS#DAILY#{date_str}"
+        stats_item = get_item(pk, stats_sk) or {}
 
         summary: dict[str, Any] = {
             "date": date_str,
-            "total_revenue": float(total_revenue),
-            "transaction_count": transaction_count,
-            "items_sold": items_sold,
-            "revenue_by_payment_method": {
-                k: float(v) for k, v in revenue_by_payment_method.items()
-            },
+            "total_revenue": float(stats_item.get("revenue", 0)),
+            "transaction_count": int(stats_item.get("order_count", 0)),
+            "items_sold": int(stats_item.get("items_sold", 0)),
+            "revenue_by_payment_method": {}, # Note: daily stats only tracks totals for now
         }
 
         return success(summary)
-    except DynamoDBError as e:
-        return server_error(str(e))
     except Exception as e:
-        return server_error(f"Summary error: {type(e).__name__}: {str(e)}")
+        return server_error(f"Summary error: {str(e)}")
 
 
 # -----------------------------------------------------------------------------
@@ -969,7 +954,13 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     transaction.payment_reference = _build_payment_reference(transaction.id)
     transaction.created_at = now
     sk_txn = _transaction_sk(transaction.created_at, transaction.id)
-    txn_record = {"pk": pk, "sk": sk_txn, **transaction.to_dynamo()}
+    txn_record: dict[str, Any] = {
+        "pk": pk,
+        "sk": sk_txn,
+        "gsi1pk": f"TXN#{transaction.id}",
+        "gsi1sk": "TXN",
+        **transaction.to_dynamo(),
+    }
     table = get_table()
     table.put_item(Item=txn_record)
     put_item({"pk": pk, "sk": cart_sk, "items": [], "updated_at": now})

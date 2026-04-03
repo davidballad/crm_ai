@@ -278,19 +278,26 @@ def _update_cart(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> 
 
 
 def _find_contact_by_phone(tenant_id: str, phone: str) -> tuple[dict[str, Any] | None, str | None]:
-    pk = build_pk(tenant_id)
+    """Find contact using instant GSI1 lookup."""
+    from shared.db import query_items
     normalized = normalize_phone(phone)
     if not normalized:
         return None, None
-    last_key: dict[str, Any] | None = None
-    while True:
-        items, last_key = query_items(pk=pk, sk_prefix="CONTACT#", limit=100, last_key=last_key)
-        for item in items:
-            if normalize_phone(item.get("phone")) == normalized:
-                cid = item.get("contact_id") or (item.get("sk", "").split("#")[-1] if "CONTACT#" in item.get("sk", "") else None)
-                return item, cid
-        if not last_key:
-            break
+    try:
+        items, _ = query_items(
+            pk=f"PHONE#{normalized}",
+            sk_prefix="CONTACT",
+            limit=1,
+            index_name="GSI1",
+            pk_attr="gsi1pk",
+            sk_attr="gsi1sk"
+        )
+        if items:
+            item = items[0]
+            cid = item.get("contact_id") or (item.get("sk", "").split("#")[-1] if "CONTACT#" in item.get("sk", "") else None)
+            return item, cid
+    except Exception:
+        pass
     return None, None
 
 
@@ -374,6 +381,7 @@ def _record_message(tenant_id: str, to_phone: str, text: str) -> None:
         text=text,
         category="activo",
         created_ts=created_ts,
+        ttl=int(time.time() + (90 * 24 * 3600)), # 90 days expiry
     ).to_dynamo()
     
     msg_item["gsi1pk"] = f"PHONE#{norm_phone}"
@@ -560,15 +568,21 @@ def _get_upload_url(tenant_id: str, customer_phone: str, event: dict[str, Any]) 
 
 
 def _find_transaction_by_id(pk: str, txn_id: str) -> tuple[dict[str, Any] | None, str | None]:
-    """Scan TXN# sort keys to find a transaction by its ID. Returns (item, sk) or (None, None)."""
-    last_key: dict[str, Any] | None = None
-    while True:
-        items, last_key = query_items(pk=pk, sk_prefix="TXN#", limit=100, last_key=last_key)
-        for item in items:
-            if item.get("id") == txn_id:
-                return item, item.get("sk")
-        if not last_key:
-            break
+    """Find transaction using instant GSI1 lookup."""
+    from shared.db import query_items
+    try:
+        items, _ = query_items(
+            pk=f"TXN#{txn_id}",
+            sk_prefix="TXN",
+            limit=1,
+            index_name="GSI1",
+            pk_attr="gsi1pk",
+            sk_attr="gsi1sk"
+        )
+        if items:
+            return items[0], items[0].get("sk")
+    except Exception:
+        pass
     return None, None
 
 
@@ -641,6 +655,8 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
                 {
                     "pk": pk,
                     "sk": build_sk("CONTACT", contact_id),
+                    "gsi1pk": f"PHONE#{normalize_phone(customer_phone)}",
+                    "gsi1sk": "CONTACT",
                     "tenant_id": tenant_id,
                     "contact_id": contact_id,
                     "name": customer_name,
@@ -674,8 +690,55 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
     txn.id = generate_id()
     txn.created_at = now
     sk_txn = f"TXN#{txn.created_at}#{txn.id}"
+    
+    # Stats Updates
+    from shared.utils import today_str
+    today = today_str()
+    stats_daily_pk = pk
+    stats_daily_sk = f"STATS#DAILY#{today}"
+    stats_totals_pk = pk
+    stats_totals_sk = "STATS#TOTALS"
+
+    table_name = os.environ.get("TABLE_NAME")
+    dynamodb = boto3.resource("dynamodb")
+    table = dynamodb.Table(table_name)
+
+    txn_record = {
+        "pk": pk, 
+        "sk": sk_txn, 
+        "gsi1pk": f"TXN#{txn.id}",
+        "gsi1sk": "TXN",
+        **txn.to_dynamo()
+    }
+    
+    # TransactWrite to keep stats in sync
     from shared.db import get_table
-    get_table().put_item(Item={"pk": pk, "sk": sk_txn, **txn.to_dynamo()})
+    transact_items = [
+        {"Put": {"TableName": table_name, "Item": txn_record}},
+        {
+            "Update": {
+                "TableName": table_name,
+                "Key": {"pk": stats_daily_pk, "sk": stats_daily_sk},
+                "UpdateExpression": "ADD revenue :r, order_count :o SET updated_at = :now",
+                "ExpressionAttributeValues": {":r": total, ":o": 1, ":now": now},
+            }
+        },
+        {
+            "Update": {
+                "TableName": table_name,
+                "Key": {"pk": stats_totals_pk, "sk": stats_totals_sk},
+                "UpdateExpression": "ADD total_revenue :r, order_count :o SET updated_at = :now",
+                "ExpressionAttributeValues": {":r": total, ":o": 1, ":now": now},
+            }
+        }
+    ]
+    
+    try:
+        dynamodb.meta.client.transact_write_items(TransactItems=transact_items)
+    except Exception as e:
+        # Fallback to single put if transaction fails (should not happen normally)
+        get_table().put_item(Item=txn_record)
+
     put_item({"pk": pk, "sk": cart_sk, "items": [], "updated_at": now})
 
     # Decrement inventory
