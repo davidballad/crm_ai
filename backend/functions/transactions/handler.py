@@ -18,8 +18,8 @@ from shared.db import query_items, transact_write, get_table, update_item, get_i
 from shared.db import DynamoDBError
 from shared.auth import require_auth
 from shared.response import success, created, not_found, error, server_error, no_content
-from shared.models import Transaction, TransactionItem
-from shared.utils import generate_id, now_iso, today_str, build_pk, build_sk, parse_body
+from shared.models import Transaction, TransactionItem, ConversationSummary, Message
+from shared.utils import generate_id, now_iso, today_str, build_pk, build_sk, parse_body, normalize_phone
 
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
@@ -106,8 +106,7 @@ def _transaction_sk(timestamp: str, transaction_id: str) -> str:
     return f"TXN#{timestamp}#{transaction_id}"
 
 
-def _normalize_phone(phone: str | None) -> str:
-    return "".join(ch for ch in str(phone or "") if ch.isdigit())
+# Using shared normalize_phone for consistency
 
 
 def _build_payment_reference(transaction_id: str) -> str:
@@ -146,7 +145,7 @@ def _auto_attach_proof_from_messages(tenant_id: str, transaction_item: dict[str,
     if transaction_item.get("payment_verification_status") != PAYMENT_STATUS_AWAITING:
         return transaction_item
 
-    customer_phone = _normalize_phone(transaction_item.get("customer_phone"))
+    customer_phone = normalize_phone(transaction_item.get("customer_phone"))
     if not customer_phone:
         return transaction_item
 
@@ -162,7 +161,7 @@ def _auto_attach_proof_from_messages(tenant_id: str, transaction_item: dict[str,
             message_type = metadata.get("message_type")
             if not media_id or message_type not in {"image", "document", "video"}:
                 continue
-            if _normalize_phone(item.get("from_number")) != customer_phone:
+            if normalize_phone(item.get("from_number")) != customer_phone:
                 continue
             created_ts = item.get("created_ts") or ""
             if created_after and created_ts and created_ts < created_after:
@@ -433,11 +432,17 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
     if "delivery_status" in updates and updates["delivery_status"] not in DELIVERY_STATUS_VALUES:
         return error("delivery_status has an invalid value", 400)
 
+
+
     if not updates:
         return error("Nothing to update", 400)
 
     try:
         updated_item = update_item(pk=pk, sk=target_sk, updates=updates)
+        
+        # Move conversation to 'vendido' if payment is verified (Sale confirmed!)
+        if updates.get("payment_verification_status") == PAYMENT_STATUS_VERIFIED:
+            _mark_conversation_category(pk, updated_item.get("customer_phone") or "", "vendido")
     except DynamoDBError as e:
         return server_error(str(e))
 
@@ -461,7 +466,7 @@ def patch_transaction(tenant_id: str, transaction_id: str, event: dict[str, Any]
             )
         else:
             # Move conversation to the Sales/Ventas kanban column once pickup is confirmed.
-            _mark_conversation_category(pk, updated_item.get("customer_phone") or "", "ventas")
+            _mark_conversation_category(pk, updated_item.get("customer_phone") or "", "vendido")
             _send_whatsapp_text(
                 tenant_id=tenant_id,
                 to_phone=updated_item.get("customer_phone"),
@@ -782,17 +787,12 @@ def add_cart_item(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     return success(body={"items": items, "updated_at": now})
 
 
-def _normalize_phone(s: str | None) -> str:
-    """Normalize phone for comparison (digits only)."""
-    raw = (s or "").strip()
-    if not raw:
-        return ""
-    # Keep digits only so formats like "+1 (555) 123-4567" match "15551234567"
-    return "".join(ch for ch in raw if ch.isdigit())
+
+# Removed local _normalize_phone stub
 
 
 def _looks_like_phone(s: str | None) -> bool:
-    n = _normalize_phone(s)
+    n = normalize_phone(s)
     # WhatsApp numbers are typically 8+ digits; avoid treating ULIDs/ids as phones
     return len(n) >= 8
 
@@ -802,7 +802,7 @@ def _find_contact_by_phone(tenant_id: str, phone: str) -> tuple[dict[str, Any] |
     if not phone:
         return None, None
     pk = build_pk(tenant_id)
-    normalized = _normalize_phone(phone)
+    normalized = normalize_phone(phone)
     last_key: dict[str, Any] | None = None
     while True:
         items, last_key = query_items(
@@ -812,7 +812,7 @@ def _find_contact_by_phone(tenant_id: str, phone: str) -> tuple[dict[str, Any] |
             last_key=last_key,
         )
         for item in items:
-            if _normalize_phone(item.get("phone")) == normalized:
+            if normalize_phone(item.get("phone")) == normalized:
                 cid = item.get("contact_id") or (item.get("sk", "").split("#")[-1] if "CONTACT#" in item.get("sk", "") else None)
                 return item, cid
         if not last_key:
@@ -821,33 +821,39 @@ def _find_contact_by_phone(tenant_id: str, phone: str) -> tuple[dict[str, Any] |
 
 
 def _mark_conversation_category(pk: str, customer_phone: str, category: str) -> None:
-    """Find the latest message for a customer phone and set its category."""
-    normalized = _normalize_phone(customer_phone)
+    """Update conversation summary and newest message category for a customer."""
+    normalized = normalize_phone(customer_phone)
     if not normalized or not category:
         return
     try:
-        latest_msg: dict[str, Any] | None = None
-        last_key: dict[str, Any] | None = None
-        while True:
-            items, last_key = query_items(pk=pk, sk_prefix="MESSAGE#", limit=100, last_key=last_key)
-            for item in items:
-                item_from = _normalize_phone(item.get("from_number"))
-                item_to = _normalize_phone(item.get("to_number"))
-                if item_from == normalized or item_to == normalized:
-                    if latest_msg is None or (item.get("created_ts") or "") > (latest_msg.get("created_ts") or ""):
-                        latest_msg = item
-            if not last_key:
-                break
-        if latest_msg:
-            update_item(pk=pk, sk=latest_msg["sk"], updates={"category": category})
+        # 1. Update summary (critical for Kanban column change)
+        convo_sk = f"CONVO#{normalized}"
+        update_item(pk=pk, sk=convo_sk, updates={"category": category, "updated_at": now_iso()})
 
-            # Keep conversation summary in sync with the latest message category.
-            convo_sk = f"CONVO#{normalized}"
-            convo_item = get_item(pk=pk, sk=convo_sk)
-            if convo_item:
-                update_item(pk=pk, sk=convo_sk, updates={"category": category, "updated_at": now_iso()})
-    except DynamoDBError:
-        pass  # Non-fatal: message update failure shouldn't block checkout
+        # 2. Update ONLY the latest message for this phone (Efficiency: newest first, stop at first match)
+        # We query the main table with MESSAGE# prefix but newest-first.
+        last_key: dict[str, Any] | None = None
+        found = False
+        # Limit search to recent messages to prevent full table scan if none match
+        for _ in range(5): # Check up to 500 recent messages
+            items, last_key = query_items(
+                pk=pk, 
+                sk_prefix="MESSAGE#", 
+                limit=100, 
+                last_key=last_key,
+                scan_index_forward=False
+            )
+            for item in items:
+                if normalize_phone(item.get("from_number")) == normalized or \
+                   normalize_phone(item.get("to_number")) == normalized:
+                    update_item(pk=pk, sk=item["sk"], updates={"category": category, "updated_at": now_iso()})
+                    found = True
+                    break
+            if found or not last_key:
+                break
+    except Exception:
+        # Best effort, don't fail the transaction update if message update fails
+        pass
 
 
 def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
@@ -993,7 +999,7 @@ def cart_checkout(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
 def _find_latest_awaiting_transaction_item(tenant_id: str, customer_phone: str) -> dict[str, Any] | None:
     pk = build_pk(tenant_id)
-    normalized = _normalize_phone(customer_phone)
+    normalized = normalize_phone(customer_phone)
     if not normalized:
         return None
     last_key: dict[str, Any] | None = None
@@ -1004,7 +1010,7 @@ def _find_latest_awaiting_transaction_item(tenant_id: str, customer_phone: str) 
         for item in items:
             if item.get("payment_verification_status") != PAYMENT_STATUS_AWAITING:
                 continue
-            if _normalize_phone(item.get("customer_phone")) == normalized:
+            if normalize_phone(item.get("customer_phone")) == normalized:
                 created_at = str(item.get("created_at") or "")
                 if created_at >= latest_created_at:
                     latest_created_at = created_at
@@ -1036,15 +1042,50 @@ def _fetch_whatsapp_media(tenant_access_token: str, media_id: str) -> tuple[byte
     return data, content_type, mime_type
 
 
+def _upsert_conversation_summary(
+    pk: str,
+    tenant_id: str,
+    customer_phone: str,
+    direction: str,
+    text: str,
+    created_ts: str,
+) -> None:
+    """Refined helper for in-workflow conversation summary updates (mirrored from messages handler)."""
+    sk = f"CONVO#{normalize_phone(customer_phone)}"
+    updates: dict[str, Any] = {
+        "tenant_id": tenant_id,
+        "customer_phone": normalize_phone(customer_phone),
+        "channel": "whatsapp",
+        "category": "activo",
+        "updated_at": now_iso(),
+        "last_message_ts": created_ts,
+        "last_direction": direction,
+        "last_text": text[:4000] if text else None,
+    }
+    if direction == "inbound":
+        updates["last_inbound_ts"] = created_ts
+    else:
+        updates["last_outbound_ts"] = created_ts
+
+    existing = get_item(pk=pk, sk=sk)
+    if not existing:
+        put_item({"pk": pk, "sk": sk, **ConversationSummary.from_dynamo(updates).to_dynamo()})
+    else:
+        if (existing.get("last_message_ts") or "") <= created_ts:
+            update_item(pk=pk, sk=sk, updates=updates)
+
+
 def _send_whatsapp_text(tenant_id: str, to_phone: str | None, message: str) -> bool:
-    """Best-effort WhatsApp outbound text for transactional updates."""
+    """Sends WhatsApp outbound text and RECORDS it in the MESSAGES table for CRM visibility."""
     if not to_phone or not message:
         return False
-    tenant = get_item(build_pk(tenant_id), build_sk("TENANT", tenant_id)) or {}
+    pk = build_pk(tenant_id)
+    tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
     access_token = tenant.get("meta_access_token")
     phone_number_id = tenant.get("meta_phone_number_id")
     if not access_token or not phone_number_id:
         return False
+
     payload = json.dumps(
         {
             "messaging_product": "whatsapp",
@@ -1062,6 +1103,32 @@ def _send_whatsapp_text(tenant_id: str, to_phone: str | None, message: str) -> b
     )
     try:
         urllib.request.urlopen(req, timeout=15)
+        
+        # Persist message to DynamoDB for visibility in MessagesInbox.jsx
+        message_id = generate_id()
+        created_ts = now_iso()
+        msg_sk = build_sk("MESSAGE", message_id)
+        norm_phone = normalize_phone(to_phone)
+        
+        msg_item = Message(
+            tenant_id=tenant_id,
+            message_id=message_id,
+            channel="whatsapp",
+            direction="outbound",
+            from_number=(tenant.get("phone_number") or "").strip() or None,
+            to_number=to_phone,
+            text=message,
+            category="activo",
+            created_ts=created_ts,
+        ).to_dynamo()
+        
+        # GSI1 for fast retrieval in thread
+        msg_item["gsi1pk"] = f"PHONE#{norm_phone}"
+        msg_item["gsi1sk"] = f"MSG#{created_ts}#{message_id}"
+        
+        put_item({"pk": pk, "sk": msg_sk, **msg_item})
+        _upsert_conversation_summary(pk, tenant_id, norm_phone, "outbound", message, created_ts)
+        
         return True
     except Exception:
         return False
@@ -1198,6 +1265,7 @@ def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]
     # DELETE /transactions/{id} - cancel transaction (restock + remove)
     if method == "DELETE" and path.startswith("/transactions/"):
         txn_id = path_params.get("id") or path.split("/")[-1]
+        print(f"DEBUG: DELETE /transactions/{txn_id} called. Origin IP: {event.get('requestContext', {}).get('http', {}).get('sourceIp')}, Headers: {json.dumps(event.get('headers', {}))}")
         return cancel_transaction(tenant_id, txn_id)
 
     # Cart (WhatsApp order flow)

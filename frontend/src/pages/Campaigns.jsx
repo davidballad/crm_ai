@@ -269,7 +269,7 @@ const SCENARIOS = [
   {
     id: 'featured',
     label: 'Producto destacado',
-    description: 'Promociona tu producto más vendido con imagen y copy',
+    description: 'Promociona tu producto más vendido con un copy persuasivo',
     icon: ShoppingBag,
     color: 'bg-purple-50 text-purple-600 border-purple-100',
   },
@@ -283,19 +283,7 @@ const SCENARIOS = [
 ];
 
 function CampaignKit({ result }) {
-  const { copy, image_url, wa_link } = result;
-
-  const handleDownload = async () => {
-    if (!image_url) return;
-    const res = await fetch(image_url);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'campaign-image.png';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const { copy, wa_link } = result;
 
   const handleCopyLink = () => {
     if (wa_link) navigator.clipboard.writeText(wa_link);
@@ -303,16 +291,6 @@ function CampaignKit({ result }) {
 
   return (
     <div className="mt-4 space-y-4">
-      {/* Image */}
-      {image_url && (
-        <div className="relative rounded-xl overflow-hidden border border-gray-200">
-          <img src={image_url} alt="Marketing image" className="w-full object-cover max-h-72" />
-          <button onClick={handleDownload}
-            className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-medium text-gray-800 shadow hover:bg-white transition-colors">
-            <Download className="h-3.5 w-3.5" /> Descargar
-          </button>
-        </div>
-      )}
       {/* Copy */}
       {copy && (
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
@@ -487,19 +465,14 @@ function AiCampaignHistory({ refreshKey }) {
 
 function HistoryCard({ campaign }) {
   const [expanded, setExpanded] = useState(false);
-  const { copy, image_url, wa_link, scenario, created_at } = campaign;
+  const { copy, wa_link, scenario, created_at } = campaign;
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3">
-        {image_url && (
-          <img src={image_url} alt="" className="h-12 w-12 rounded-lg object-cover shrink-0 border border-gray-200" />
-        )}
-        {!image_url && (
-          <div className="h-12 w-12 rounded-lg bg-gray-100 shrink-0 flex items-center justify-center">
-            <Sparkles className="h-5 w-5 text-gray-400" />
-          </div>
-        )}
+        <div className="h-10 w-10 rounded-lg bg-indigo-50 shrink-0 flex items-center justify-center">
+          <Sparkles className="h-5 w-5 text-indigo-400" />
+        </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-900 truncate">{copy?.headline || '—'}</p>
           <p className="text-xs text-gray-400">
@@ -514,7 +487,7 @@ function HistoryCard({ campaign }) {
       {expanded && (
         <div className="border-t border-gray-100">
           <div className="px-4 py-3">
-            <CampaignKit result={{ copy, image_url, wa_link }} />
+            <CampaignKit result={{ copy, wa_link }} />
           </div>
         </div>
       )}
@@ -530,9 +503,9 @@ function AdsTab() {
       <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-5 py-4 flex items-start gap-3">
         <Sparkles className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
         <div>
-          <p className="text-sm font-medium text-indigo-900">Campañas para Redes Sociales</p>
+          <p className="text-sm font-medium text-indigo-900">Campañas para Instagram y Facebook</p>
           <p className="text-sm text-indigo-700 mt-0.5">
-            La IA analiza tus datos y genera el copy profesional diseñado para convertir. Incluye tu enlace directo de WhatsApp para maximizar las ventas por mensajes.
+            La IA analiza tus datos y genera el copy profesional listo para publicar. Incluye el enlace de WhatsApp para que los clientes te contacten directo.
           </p>
         </div>
       </div>

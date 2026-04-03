@@ -68,21 +68,23 @@ def query_items(
     last_key: dict[str, Any] | None = None,
     *,
     scan_index_forward: bool = True,
+    index_name: str | None = None,
+    pk_attr: str = "pk",
+    sk_attr: str = "sk",
 ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
-    """Query items by pk with optional sk begins_with. Returns (items, last_evaluated_key).
-
-    scan_index_forward=False returns newest sort keys first (for time-ordered MESSAGE#… keys).
-    """
+    """Query items with pagination. Supports GSI via index_name/pk_attr/sk_attr."""
     try:
         table = get_table()
-        key_condition = Key("pk").eq(pk)
+        key_condition = Key(pk_attr).eq(pk)
         if sk_prefix is not None:
-            key_condition = key_condition & Key("sk").begins_with(sk_prefix)
+            key_condition = key_condition & Key(sk_attr).begins_with(sk_prefix)
         params: dict[str, Any] = {
             "KeyConditionExpression": key_condition,
             "Limit": limit,
             "ScanIndexForward": scan_index_forward,
         }
+        if index_name:
+            params["IndexName"] = index_name
         if last_key is not None:
             params["ExclusiveStartKey"] = last_key
 

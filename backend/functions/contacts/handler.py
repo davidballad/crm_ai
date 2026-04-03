@@ -15,7 +15,7 @@ from shared.db import delete_item, get_item, get_table, put_item, query_items, u
 from shared.db import DynamoDBError
 from shared.models import Contact
 from shared.response import created, error, no_content, not_found, server_error, success
-from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
+from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body, normalize_phone
 
 CONTACT_SK_PREFIX = "CONTACT#"
 LIMIT_DEFAULT = 50
@@ -60,11 +60,8 @@ def _tier_from_total_spent(total_spent: Decimal) -> str:
     return "gold"
 
 
-def _normalize_phone_digits(value: str | None) -> str:
-    """Digits only — matches WhatsApp `from_number` and avoids +/spaces mismatches."""
-    if value is None:
-        return ""
-    return "".join(ch for ch in str(value) if ch.isdigit())
+
+# Using shared.utils.normalize_phone
 
 
 # When filtering by phone, paginate until match (contacts may not be on first page).
@@ -85,7 +82,7 @@ def _find_contact_item_by_phone(tenant_id: str, phone_digits: str) -> dict[str, 
             last_key=last_key,
         )
         for item in items:
-            if _normalize_phone_digits(item.get("phone")) == phone_digits:
+            if normalize_phone(item.get("phone")) == phone_digits:
                 return item
         if not last_eval:
             return None
@@ -192,7 +189,7 @@ def list_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     try:
         if phone_filter:
             # Paginate until we find a matching phone (or exhaust pages).
-            want_digits = _normalize_phone_digits(phone_filter)
+            want_digits = normalize_phone(phone_filter)
             if not want_digits:
                 return success(body={"contacts": []})
             found: list[dict[str, Any]] = []
@@ -206,7 +203,7 @@ def list_contacts(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
                 )
                 for item in items:
                     c = Contact.from_dynamo(item).to_dict()
-                    if _normalize_phone_digits(c.get("phone")) == want_digits:
+                    if normalize_phone(c.get("phone")) == want_digits:
                         found.append(c)
                         break
                 if found:
@@ -364,7 +361,7 @@ def create_contact(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         # Keep tier consistent with spend when creating contact with historical spend.
         contact_data.tier = _tier_from_total_spent(contact_data.total_spent)
 
-    phone_digits = _normalize_phone_digits(contact_data.phone)
+    phone_digits = normalize_phone(contact_data.phone)
     if phone_digits:
         # Idempotency guard: avoid duplicate leads for the same WhatsApp number.
         try:
@@ -392,7 +389,7 @@ def create_contact(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         "created_ts": created_ts,
     }
     if contact_data.phone is not None:
-        nd = _normalize_phone_digits(contact_data.phone)
+        nd = normalize_phone(contact_data.phone)
         item["phone"] = nd if nd else str(contact_data.phone).strip()
     if contact_data.total_spent is not None:
         item["total_spent"] = contact_data.total_spent
@@ -458,7 +455,7 @@ def patch_contact(
     for key, value in body.items():
         if key in allowed:
             if key == "phone" and value is not None:
-                nd = _normalize_phone_digits(str(value))
+                nd = normalize_phone(str(value))
                 updates[key] = nd if nd else str(value).strip()
             else:
                 updates[key] = value

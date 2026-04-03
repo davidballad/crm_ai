@@ -599,11 +599,10 @@ def get_tenant_config(tenant_id: str, _event: dict[str, Any]) -> dict[str, Any]:
 
 
 def resolve_phone(event: dict[str, Any]) -> dict[str, Any]:
-    """GET /onboarding/resolve-phone — resolve meta phone_number_id to tenant config.
+    """GET /onboarding/resolve-phone — resolve x-phone_number_id to tenant config.
 
     Requires service key auth (X-Service-Key header). No JWT needed.
     """
-    print("[resolve_phone] ENTRY", flush=True)
     if not validate_service_key(event):
         headers = event.get("headers") or {}
         provided_key = headers.get("x-service-key") or headers.get("X-Service-Key") or ""
@@ -719,7 +718,6 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Route onboarding requests."""
     path = _get_path(event)
     method = _get_method(event)
-    print("[onboarding] method=%s path=%s" % (method, path), flush=True)
 
     # No auth: tenant creation
     if method == "POST" and ("/onboarding/tenant" in path):

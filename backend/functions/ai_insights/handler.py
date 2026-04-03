@@ -459,12 +459,6 @@ def get_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     try:
         item = get_item(pk=pk, sk=sk)
     except Exception as e:
-        import traceback
-        try:
-            print(f"GET /insights get_item error: {e}")
-            print(traceback.format_exc())
-        except Exception:
-            pass
         return server_error(str(e))
 
     if not item:
@@ -570,14 +564,7 @@ def generate_insights(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         return created(body)
 
     except Exception as e:
-        import traceback
-        err_msg = f"Insights error: {type(e).__name__}: {str(e)}"
-        try:
-            print(err_msg)
-            print(traceback.format_exc())
-        except Exception:
-            pass
-        return server_error(err_msg)
+        return server_error(f"Insights error: {type(e).__name__}: {str(e)}")
 
 
 # ---------------------------------------------------------------------------

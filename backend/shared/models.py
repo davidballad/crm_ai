@@ -247,7 +247,7 @@ class Message(_BaseModel):
     text: str | None = None
     metadata: dict[str, Any] | None = None
     contact_id: str | None = None
-    category: str = "active"
+    category: str = "activo"
     processed_flags: list[str] | None = None
     created_ts: str | None = None
 
@@ -276,7 +276,7 @@ class ConversationSummary(_BaseModel):
     tenant_id: str
     customer_phone: str
     channel: str = "whatsapp"
-    category: str = "active"
+    category: str = "activo"
     last_message_ts: str | None = None
     last_inbound_ts: str | None = None
     last_outbound_ts: str | None = None

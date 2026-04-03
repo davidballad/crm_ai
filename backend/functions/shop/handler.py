@@ -18,9 +18,9 @@ from typing import Any
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from shared.db import DynamoDBError, get_item, put_item, query_items, update_item
-from shared.models import Transaction, TransactionItem
+from shared.models import Transaction, TransactionItem, ConversationSummary, Message
 from shared.response import created, error, server_error, success
-from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
+from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body, normalize_phone
 
 from datetime import datetime, timezone
 
@@ -94,9 +94,7 @@ def _cart_sk(customer_id: str) -> str:
     return f"CART#{cid}"
 
 
-def _normalize_phone(s: str | None) -> str:
-    raw = (s or "").strip()
-    return "".join(ch for ch in raw if ch.isdigit())
+# Using shared normalize_phone for consistency
 
 
 def _tier_from_total_spent(total_spent: Decimal) -> str:
@@ -109,7 +107,7 @@ def _tier_from_total_spent(total_spent: Decimal) -> str:
 
 
 def _looks_like_phone(s: str | None) -> bool:
-    return len(_normalize_phone(s)) >= 8
+    return len(normalize_phone(s)) >= 8
 
 
 # ---------------------------------------------------------------------------
@@ -281,12 +279,14 @@ def _update_cart(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> 
 
 def _find_contact_by_phone(tenant_id: str, phone: str) -> tuple[dict[str, Any] | None, str | None]:
     pk = build_pk(tenant_id)
-    normalized = _normalize_phone(phone)
+    normalized = normalize_phone(phone)
+    if not normalized:
+        return None, None
     last_key: dict[str, Any] | None = None
     while True:
         items, last_key = query_items(pk=pk, sk_prefix="CONTACT#", limit=100, last_key=last_key)
         for item in items:
-            if _normalize_phone(item.get("phone")) == normalized:
+            if normalize_phone(item.get("phone")) == normalized:
                 cid = item.get("contact_id") or (item.get("sk", "").split("#")[-1] if "CONTACT#" in item.get("sk", "") else None)
                 return item, cid
         if not last_key:
@@ -294,10 +294,103 @@ def _find_contact_by_phone(tenant_id: str, phone: str) -> tuple[dict[str, Any] |
     return None, None
 
 
+def _upsert_conversation_summary(
+    pk: str,
+    tenant_id: str,
+    customer_phone: str,
+    direction: str,
+    text: str,
+    created_ts: str,
+    category: str | None = None,
+) -> None:
+    """Refined helper for in-workflow conversation summary updates (mirrored from messages handler)."""
+    sk = f"CONVO#{normalize_phone(customer_phone)}"
+    updates: dict[str, Any] = {
+        "tenant_id": tenant_id,
+        "customer_phone": normalize_phone(customer_phone),
+        "channel": "whatsapp",
+        "updated_at": now_iso(),
+        "last_message_ts": created_ts,
+        "last_direction": direction,
+        "last_text": text[:4000] if text else None,
+    }
+    if category:
+        updates["category"] = category
+    if direction == "inbound":
+        updates["last_inbound_ts"] = created_ts
+    else:
+        updates["last_outbound_ts"] = created_ts
+
+    existing = get_item(pk=pk, sk=sk)
+    if not existing:
+        put_item({"pk": pk, "sk": sk, **ConversationSummary.from_dynamo(updates).to_dynamo()})
+    else:
+        # Move conversation forward if this message is newer OR if we are explicitly setting category
+        if (existing.get("last_message_ts") or "") <= created_ts or category:
+            update_item(pk=pk, sk=sk, updates=updates)
+
+
+def _mark_conversation_category(pk: str, customer_phone: str, category: str) -> None:
+    """Update conversation summary and newest message category for a customer."""
+    normalized = normalize_phone(customer_phone)
+    if not normalized or not category:
+        return
+    try:
+        # 1. Update summary (critical for Kanban column change)
+        convo_sk = f"CONVO#{normalized}"
+        update_item(pk=pk, sk=convo_sk, updates={"category": category, "updated_at": now_iso()})
+
+        # 2. Update ONLY the latest message for this phone (Efficiency: newest first, stop at first match)
+        last_key: dict[str, Any] | None = None
+        found = False
+        for _ in range(3): # Check up to 300 recent messages
+            items, last_key = query_items(pk=pk, sk_prefix="MESSAGE#", limit=100, last_key=last_key, scan_index_forward=False)
+            for item in items:
+                if normalize_phone(item.get("from_number")) == normalized or normalize_phone(item.get("to_number")) == normalized:
+                    update_item(pk=pk, sk=item["sk"], updates={"category": category, "updated_at": now_iso()})
+                    found = True
+                    break
+            if found or not last_key:
+                break
+    except Exception:
+        pass
+
+
+def _record_message(tenant_id: str, to_phone: str, text: str) -> None:
+    """Best-effort persistence of outbound WhatsApp messages to DynamoDB."""
+    pk = build_pk(tenant_id)
+    tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
+    message_id = generate_id()
+    created_ts = now_iso()
+    norm_phone = normalize_phone(to_phone)
+    
+    msg_item = Message(
+        tenant_id=tenant_id,
+        message_id=message_id,
+        channel="whatsapp",
+        direction="outbound",
+        from_number=(tenant.get("phone_number") or "").strip() or None,
+        to_number=to_phone,
+        text=text,
+        category="activo",
+        created_ts=created_ts,
+    ).to_dynamo()
+    
+    msg_item["gsi1pk"] = f"PHONE#{norm_phone}"
+    msg_item["gsi1sk"] = f"MSG#{created_ts}#{message_id}"
+    
+    try:
+        put_item({"pk": pk, "sk": build_sk("MESSAGE", message_id), **msg_item})
+        _upsert_conversation_summary(pk, tenant_id, norm_phone, "outbound", text, created_ts)
+    except Exception:
+        pass
+
+
 def _send_whatsapp_message(tenant: dict[str, Any], to_phone: str, text: str) -> bool:
-    """Send a WhatsApp text message via Meta Cloud API. Returns True on success."""
+    """Send a WhatsApp text message via Meta Cloud API and RECORD it in CRM."""
     token = tenant.get("meta_access_token")
     phone_number_id = tenant.get("meta_phone_number_id")
+    tenant_id = (tenant.get("tenant_id") or tenant.get("id") or "").strip()
     if not token or not phone_number_id:
         return False
     to_clean = to_phone.lstrip("+").strip()
@@ -316,18 +409,22 @@ def _send_whatsapp_message(tenant: dict[str, Any], to_phone: str, text: str) -> 
     )
     try:
         urllib.request.urlopen(req, timeout=15)
+        if tenant_id:
+            _record_message(tenant_id, to_phone, text)
         return True
     except Exception:
         return False
 
 
 def _send_delivery_choice_buttons(tenant: dict[str, Any], to_phone: str, transaction_id: str) -> bool:
-    """Ask customer whether order is delivery or pickup using reply buttons."""
+    """Ask customer whether order is delivery or pickup using reply buttons and RECORD it."""
     token = tenant.get("meta_access_token")
     phone_number_id = tenant.get("meta_phone_number_id")
+    tenant_id = (tenant.get("tenant_id") or tenant.get("id") or "").strip()
     if not token or not phone_number_id:
         return False
     to_clean = to_phone.lstrip("+").strip()
+    body_text = "Esta orden es para entrega o retiro?"
     payload = json.dumps(
         {
             "messaging_product": "whatsapp",
@@ -336,7 +433,7 @@ def _send_delivery_choice_buttons(tenant: dict[str, Any], to_phone: str, transac
             "type": "interactive",
             "interactive": {
                 "type": "button",
-                "body": {"text": "Esta orden es para entrega o retiro?"},
+                "body": {"text": body_text},
                 "footer": {"text": f"Ref: {transaction_id[:8]}"},
                 "action": {
                     "buttons": [
@@ -355,6 +452,8 @@ def _send_delivery_choice_buttons(tenant: dict[str, Any], to_phone: str, transac
     )
     try:
         urllib.request.urlopen(req, timeout=15)
+        if tenant_id:
+            _record_message(tenant_id, to_phone, body_text)
         return True
     except Exception:
         return False
@@ -597,7 +696,7 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
     business_phone = tenant.get("phone_number") or ""
     wa_link = ""
     if business_phone:
-        bp = _normalize_phone(business_phone)
+        bp = normalize_phone(business_phone)
         if bp:
             wa_link = f"https://wa.me/{bp}"
 
@@ -697,6 +796,7 @@ def _datafast_result(tenant_id: str, customer_phone: str, event: dict[str, Any])
             "payment_verification_status": "verified",
             "updated_at": now,
         })
+        _mark_conversation_category(pk, customer_phone, "vendido")
         _send_whatsapp_message(tenant, customer_phone, confirmation_msg)
         return success({"approved": True, "transaction_id": transaction_id})
     else:
@@ -714,7 +814,7 @@ def _shop_meta(tenant_id: str) -> dict[str, Any]:
     return success({
         "business_name": tenant.get("business_name") or "Tienda",
         "business_type": tenant.get("business_type") or "",
-        "phone_number": _normalize_phone(tenant.get("phone_number") or ""),
+        "phone_number": normalize_phone(tenant.get("phone_number") or ""),
     })
 
 
@@ -731,7 +831,7 @@ def _shop_store_page(tenant_id: str) -> dict[str, Any]:
         }
 
     business_name = tenant.get("business_name") or "Tienda"
-    phone_raw = _normalize_phone(tenant.get("phone_number") or "")
+    phone_raw = normalize_phone(tenant.get("phone_number") or "")
     wa_link = f"https://wa.me/{phone_raw}?text=Hola" if phone_raw else "#"
     store_url = f"https://www.clientaai.com/store/{tenant_id}"
     description = f"Compra nuestros productos directamente desde WhatsApp."

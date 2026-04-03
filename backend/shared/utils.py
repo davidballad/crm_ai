@@ -38,3 +38,11 @@ def build_pk(tenant_id: str) -> str:
 def build_sk(entity_type: str, entity_id: str) -> str:
     """Return sort key: <entity_type>#<entity_id>."""
     return f"{entity_type}#{entity_id}"
+
+
+def normalize_phone(s: str | None) -> str:
+    """Normalize phone for comparison (digits only)."""
+    raw = (s or "").strip()
+    if not raw:
+        return ""
+    return "".join(ch for ch in raw if ch.isdigit())

@@ -14,7 +14,7 @@ from shared.auth import extract_tenant_id
 from shared.db import DynamoDBError, get_item, put_item, query_items, update_item
 from shared.models import ConversationSummary, Message
 from shared.response import created, error, not_found, server_error, success
-from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
+from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body, normalize_phone
 
 GRAPH_API_VERSION = "v21.0"
 
@@ -23,27 +23,19 @@ CONVO_SK_PREFIX = "CONVO#"
 LIMIT_DEFAULT = 50
 LIMIT_MAX = 100
 CONTACT_HISTORY_MAX_PAGES = 40
-VALID_CATEGORIES = {"active", "incomplete", "abandoned", "closed", "ventas"}
+VALID_CATEGORIES = {"activo", "inactivo", "vendido", "cerrado"}
 VALID_DIRECTIONS = {"inbound", "outbound"}
-
-
-def _normalize_phone(s: str | None) -> str:
-    """Normalize phone for comparison (digits only)."""
-    raw = (s or "").strip()
-    if not raw:
-        return ""
-    return "".join(ch for ch in raw if ch.isdigit())
 
 
 def _customer_phone_for_message(direction: str | None, from_number: str | None, to_number: str | None) -> str:
     """Pick the 'customer phone' for a message, used to key conversation summary."""
     d = (direction or "").strip().lower()
     if d == "inbound":
-        return _normalize_phone(from_number)
+        return normalize_phone(from_number)
     if d == "outbound":
-        return _normalize_phone(to_number)
+        return normalize_phone(to_number)
     # Fallback: prefer from_number
-    return _normalize_phone(from_number) or _normalize_phone(to_number)
+    return normalize_phone(from_number) or normalize_phone(to_number)
 
 
 def _upsert_conversation_summary(
@@ -154,7 +146,7 @@ def list_conversations(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     params = event.get("queryStringParameters") or {}
     next_token = params.get("next_token")
     category = (params.get("category") or "").strip().lower()
-    phone = _normalize_phone(params.get("phone"))
+    phone = normalize_phone(params.get("phone"))
     try:
         limit = min(int(params.get("limit", LIMIT_DEFAULT)), LIMIT_MAX)
     except (TypeError, ValueError):
@@ -165,10 +157,8 @@ def list_conversations(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     try:
         items, last_eval = query_items(pk=pk, sk_prefix=CONVO_SK_PREFIX, limit=limit, last_key=last_key)
         convos = [ConversationSummary.from_dynamo(item).to_dict() for item in items]
-        if category:
-            convos = [c for c in convos if c.get("category") == category]
         if phone:
-            convos = [c for c in convos if _normalize_phone(c.get("customer_phone")) == phone]
+            convos = [c for c in convos if normalize_phone(c.get("customer_phone")) == phone]
         body: dict[str, Any] = {"conversations": convos}
         if _encode_next_token(last_eval):
             body["next_token"] = _encode_next_token(last_eval)
@@ -178,7 +168,7 @@ def list_conversations(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
 
 def list_conversation_messages(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dict[str, Any]:
-    """GET /conversations/{phone}/messages — thread messages for a customer phone (fast UI, avoids fetching all messages)."""
+    """GET /conversations/{phone}/messages — thread messages for a phone (fast indexed GSI lookup)."""
     params = event.get("queryStringParameters") or {}
     next_token = params.get("next_token")
     try:
@@ -186,40 +176,30 @@ def list_conversation_messages(tenant_id: str, customer_phone: str, event: dict[
     except (TypeError, ValueError):
         limit = LIMIT_DEFAULT
 
-    phone_norm = _normalize_phone(customer_phone)
+    phone_norm = normalize_phone(customer_phone)
     if not phone_norm:
         return error("phone is required", 400)
 
-    pk = build_pk(tenant_id)
     last_key = _decode_next_token(next_token)
-
-    out: list[dict[str, Any]] = []
     try:
-        # Newest messages first (descending SK) so we fill the thread with recent history, not the oldest N.
-        while len(out) < limit:
-            items, last_eval = query_items(
-                pk=pk,
-                sk_prefix=MESSAGE_SK_PREFIX,
-                limit=LIMIT_MAX,
-                last_key=last_key,
-                scan_index_forward=False,
-            )
-            for item in items:
-                from_n = _normalize_phone(item.get("from_number"))
-                to_n = _normalize_phone(item.get("to_number"))
-                if from_n == phone_norm or to_n == phone_norm:
-                    out.append(Message.from_dynamo(item).to_dict())
-                    if len(out) >= limit:
-                        break
-            if not last_eval:
-                last_key = None
-                break
-            last_key = last_eval
-
-        out.sort(key=lambda m: (m.get("created_ts") or ""))
-        body: dict[str, Any] = {"messages": out}
-        if _encode_next_token(last_key):
-            body["next_token"] = _encode_next_token(last_key)
+        # High-performance GSI1 query: directly fetch messages for this specific phone.
+        items, last_eval = query_items(
+            pk=f"PHONE#{phone_norm}",
+            sk_prefix="MSG#",
+            limit=limit,
+            last_key=last_key,
+            scan_index_forward=False,  # Newest first
+            index_name="GSI1",
+            pk_attr="gsi1pk",
+            sk_attr="gsi1sk",
+        )
+        # Convert items to dicts and sort chronologically for UI display.
+        messages = [Message.from_dynamo(item).to_dict() for item in items]
+        messages.sort(key=lambda m: (m.get("created_ts") or ""))
+        
+        body: dict[str, Any] = {"messages": messages}
+        if _encode_next_token(last_eval):
+            body["next_token"] = _encode_next_token(last_eval)
         return success(body=body)
     except DynamoDBError as e:
         return server_error(str(e))
@@ -239,7 +219,7 @@ def list_contact_messages(tenant_id: str, contact_id: str, event: dict[str, Any]
     try:
         contact_item = get_item(pk=pk, sk=build_sk("CONTACT", contact_id))
         if contact_item and contact_item.get("phone"):
-            contact_phone_norm = _normalize_phone(contact_item.get("phone"))
+            contact_phone_norm = normalize_phone(contact_item.get("phone"))
     except DynamoDBError:
         pass
 
@@ -262,8 +242,8 @@ def list_contact_messages(tenant_id: str, contact_id: str, event: dict[str, Any]
                     out.append(Message.from_dynamo(item).to_dict())
                     continue
                 if contact_phone_norm:
-                    from_n = _normalize_phone(item.get("from_number"))
-                    to_n = _normalize_phone(item.get("to_number"))
+                    from_n = normalize_phone(item.get("from_number"))
+                    to_n = normalize_phone(item.get("to_number"))
                     if from_n == contact_phone_norm or to_n == contact_phone_norm:
                         out.append(Message.from_dynamo(item).to_dict())
                 if len(out) >= limit:
@@ -299,10 +279,16 @@ def create_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         "tenant_id": tenant_id,
         "message_id": message_id,
         "channel": body.get("channel", "whatsapp"),
-        "category": body.get("category", "active"),
+        "category": body.get("category", "activo"),
         "created_ts": created_ts,
     }
     direction = (body.get("direction") or "").strip().lower() or None
+    
+    # Populate GSI1 for fast lookup by phone
+    customer_phone = _customer_phone_for_message(direction, body.get("from_number"), body.get("to_number"))
+    if customer_phone:
+        item["gsi1pk"] = f"PHONE#{customer_phone}"
+        item["gsi1sk"] = f"MSG#{created_ts}#{message_id}"
     if direction and direction not in VALID_DIRECTIONS:
         return error(f"direction must be one of: {', '.join(sorted(VALID_DIRECTIONS))}", 400)
     if direction:
@@ -414,8 +400,11 @@ def send_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         "from_number": business_phone,
         "to_number": to_number,
         "text": text,
-        "category": "active",
+        "category": "activo",
         "created_ts": created_ts,
+        # GSI1 for fast search
+        "gsi1pk": f"PHONE#{normalize_phone(to_number)}",
+        "gsi1sk": f"MSG#{created_ts}#{message_id}"
     }
     try:
         put_item(item)
@@ -436,7 +425,7 @@ def send_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
 def _find_latest_message_for_phone(pk: str, customer_phone: str) -> dict[str, Any] | None:
     """Find the latest message in the conversation thread for this customer phone."""
-    normalized = (customer_phone or "").strip().replace(" ", "")
+    normalized = normalize_phone(customer_phone)
     if not normalized:
         return None
     latest_msg: dict[str, Any] | None = None
@@ -446,8 +435,8 @@ def _find_latest_message_for_phone(pk: str, customer_phone: str) -> dict[str, An
             pk=pk, sk_prefix=MESSAGE_SK_PREFIX, limit=LIMIT_MAX, last_key=last_key,
         )
         for item in items:
-            item_from = (item.get("from_number") or "").replace(" ", "")
-            item_to = (item.get("to_number") or "").replace(" ", "")
+            item_from = normalize_phone(item.get("from_number"))
+            item_to = normalize_phone(item.get("to_number"))
             if item_from == normalized or item_to == normalized:
                 if latest_msg is None or (item.get("created_ts") or "") > (latest_msg.get("created_ts") or ""):
                     latest_msg = item
@@ -457,23 +446,34 @@ def _find_latest_message_for_phone(pk: str, customer_phone: str) -> dict[str, An
 
 
 def mark_conversation(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
-    """POST /messages/mark-conversation — set latest message category to incomplete, abandoned, or closed."""
+    """POST /messages/mark-conversation — set latest message category to activo, inactivo, vendido, or cerrado."""
     try:
         body = parse_body(event)
     except (ValueError, json.JSONDecodeError):
         return error("Invalid JSON body", 400)
 
     from_number = (body.get("from_number") or "").strip()
-    category = (body.get("category") or "").strip().lower()
+    raw_category = (body.get("category") or "").strip().lower()
     if not from_number:
         return error("from_number is required", 400)
+
+    # Legacy mapping for n8n / existing callers
+    category_map = {
+        "active": "activo",
+        "incomplete": "inactivo",
+        "abandoned": "inactivo",
+        "ventas": "vendido",
+        "closed": "cerrado",
+    }
+    category = category_map.get(raw_category, raw_category)
+
     if category not in VALID_CATEGORIES:
         return error(f"category must be one of: {', '.join(sorted(VALID_CATEGORIES))}", 400)
 
     pk = build_pk(tenant_id)
     try:
         # Update summary first (cheap), even if messages are very large.
-        convo_sk = f"{CONVO_SK_PREFIX}{_normalize_phone(from_number)}"
+        convo_sk = f"{CONVO_SK_PREFIX}{normalize_phone(from_number)}"
         existing_convo = get_item(pk=pk, sk=convo_sk)
         if existing_convo:
             update_item(pk=pk, sk=convo_sk, updates={"category": category, "updated_at": now_iso()})
@@ -500,17 +500,17 @@ def mark_conversation_closed(tenant_id: str, event: dict[str, Any]) -> dict[str,
 
     pk = build_pk(tenant_id)
     try:
-        convo_sk = f"{CONVO_SK_PREFIX}{_normalize_phone(from_number)}"
+        convo_sk = f"{CONVO_SK_PREFIX}{normalize_phone(from_number)}"
         existing_convo = get_item(pk=pk, sk=convo_sk)
         if existing_convo:
-            update_item(pk=pk, sk=convo_sk, updates={"category": "closed", "updated_at": now_iso()})
+            update_item(pk=pk, sk=convo_sk, updates={"category": "cerrado", "updated_at": now_iso()})
 
         latest_msg = _find_latest_message_for_phone(pk, from_number)
         if not latest_msg:
             return success(body={"message": "No conversation found", "closed": False})
-        updated = update_item(pk=pk, sk=latest_msg["sk"], updates={"category": "closed"})
+        updated = update_item(pk=pk, sk=latest_msg["sk"], updates={"category": "cerrado"})
         msg = Message.from_dynamo(updated)
-        return success(body={"message_id": msg.message_id, "category": "closed", "closed": True})
+        return success(body={"message_id": msg.message_id, "category": "cerrado", "closed": True})
     except DynamoDBError as e:
         return server_error(str(e))
 
