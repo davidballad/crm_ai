@@ -110,7 +110,8 @@
       "logIn": "Iniciar sesión",
       "signUp": "Registrarse",
       "pricing": "Precios",
-      "contact": "Contacto"
+      "contact": "Contacto",
+      "realEstate": "Inmobiliaria"
     },
     "hero": {
       "badge": "Para tu negocio",
@@ -118,6 +119,12 @@
       "subtitle": "Un solo CRM: inventario, WhatsApp, contactos y ventas. Informes con IA en Pro. Todos los planes incluyen 14 días de prueba gratis—empieza en minutos.",
       "getStarted": "Comenzar",
       "logIn": "Iniciar sesión"
+    },
+    "realEstate": {
+      "title": "Clienta Inmobiliaria",
+      "subtitle": "La solución especializada para el sector inmobiliario. Gestiona propiedades, leads y visitas con la potencia de Clienta AI.",
+      "cta": "Ir a Inmobiliaria",
+      "badge": "Especializado"
     },
     "trust": {
       "title": "Tus datos están seguros",

@@ -18,6 +18,7 @@ import {
   Megaphone,
   Target,
   Zap,
+  Home,
 } from 'lucide-react';
 import { submitContact } from '../api/contact';
 import { useHeroParallax, useLandingReveal } from '../hooks/useLandingScroll';
@@ -307,6 +308,14 @@ export default function Landing() {
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
             <a
+              href="https://br.clientaai.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden text-sm font-medium text-white/90 transition-colors hover:text-white sm:inline"
+            >
+              {t('landing.nav.realEstate')}
+            </a>
+            <a
               href="#pricing"
               className="hidden text-sm font-medium text-white/90 transition-colors hover:text-white sm:inline"
             >
@@ -465,6 +474,46 @@ export default function Landing() {
                 fetchpriority="low"
               />
             </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Real Estate Referral */}
+      <section className="relative overflow-hidden bg-[#020617] py-16 md:py-24 dot-pattern">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="landing-reveal glass-card border-brand-500/30 bg-brand-500/5 p-8 md:p-12 transition-all hover:border-brand-500/50">
+            <div className="flex flex-col items-center gap-10 lg:flex-row lg:justify-between">
+              <div className="max-w-2xl text-center lg:text-left">
+                <span className="inline-block rounded-full bg-brand-500/20 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand-400 ring-1 ring-brand-500/30 mb-6">
+                  {t('landing.realEstate.badge')}
+                </span>
+                <h2 className="font-serif text-4xl font-bold tracking-tight text-white sm:text-5xl">
+                   {t('landing.realEstate.title')}
+                </h2>
+                <p className="mt-6 text-lg text-slate-300 leading-relaxed font-medium">
+                  {t('landing.realEstate.subtitle')}
+                </p>
+                <div className="mt-10">
+                  <a 
+                    href="https://br.clientaai.com" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="btn-primary inline-flex items-center gap-2 px-10 py-4 text-base font-semibold shadow-[0_0_40px_-5px_rgba(59,130,246,0.3)] transition-transform hover:scale-105 active:scale-95"
+                  >
+                    <Home className="h-5 w-5" />
+                    {t('landing.realEstate.cta')}
+                  </a>
+                </div>
+              </div>
+              <div className="relative flex justify-center lg:justify-end">
+                <div className="relative h-64 w-64 lg:h-80 lg:w-80">
+                  <div className="absolute inset-0 bg-brand-500/20 blur-[60px] animate-pulse pointer-events-none" />
+                  <div className="relative flex h-full w-full items-center justify-center rounded-3xl border border-white/10 bg-slate-900/40 backdrop-blur-3xl shadow-2xl ring-1 ring-white/10 group overflow-hidden">
+                    <Home className="h-32 w-32 text-brand-400 drop-shadow-[0_0_15px_rgba(96,165,250,0.6)] transition-all duration-500 group-hover:scale-110" strokeWidth={1} />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

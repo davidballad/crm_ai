@@ -110,7 +110,8 @@
       "logIn": "Log in",
       "signUp": "Sign up",
       "pricing": "Pricing",
-      "contact": "Contact"
+      "contact": "Contact",
+      "realEstate": "Inmobiliaria"
     },
     "hero": {
       "badge": "For your business",
@@ -118,6 +119,12 @@
       "subtitle": "One simple CRM: inventory, WhatsApp, leads, and sales. AI insights on Pro. Every plan starts with a 14-day free trial—get started in minutes.",
       "getStarted": "Get started",
       "logIn": "Log in"
+    },
+    "realEstate": {
+      "title": "Clienta Inmobiliaria",
+      "subtitle": "Specialized real estate solution. Powerful property, lead and visit management tools powered by Clienta AI.",
+      "cta": "Go to Real Estate",
+      "badge": "Specialized"
     },
     "trust": {
       "title": "Your data is secured",
