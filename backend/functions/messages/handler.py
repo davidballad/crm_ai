@@ -345,6 +345,21 @@ def create_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         if body.get(field) is not None:
             item[field] = body[field]
 
+    # Alias handling for 'text' field (support 'body' or 'message_text' from common AI/API payloads)
+    if "text" not in item:
+        # Check root body and also check inside WhatsApp-style structures if provided
+        potential_text = (
+            body.get("body")
+            or body.get("message_text")
+            or body.get("message")
+            or (body.get("text") if isinstance(body.get("text"), str) else None)
+        )
+        if potential_text:
+            item["text"] = potential_text
+        elif isinstance(body.get("text"), dict) and body["text"].get("body"):
+            # Handle WhatsApp-formatted payload: {"type": "text", "text": {"body": "..."}}
+            item["text"] = body["text"]["body"]
+
     try:
         put_item(item)
         _upsert_conversation_summary(

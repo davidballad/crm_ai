@@ -30,7 +30,9 @@ variable "cognito_callback_urls" {
     "https://clientaai.com",
     "https://clientaai.com/",
     "http://localhost:5173",
-    "http://localhost:5173/"
+    "http://localhost:5173/",
+    "https://br.clientaai.com",
+    "https://br.clientaai.com/",
   ]
 }
 
@@ -43,7 +45,9 @@ variable "cognito_logout_urls" {
     "https://clientaai.com",
     "https://clientaai.com/",
     "http://localhost:5173",
-    "http://localhost:5173/"
+    "http://localhost:5173/",
+    "https://br.clientaai.com",
+    "https://br.clientaai.com/",
   ]
 }
 

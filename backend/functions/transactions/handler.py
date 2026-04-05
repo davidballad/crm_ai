@@ -586,10 +586,65 @@ def cancel_transaction(tenant_id: str, transaction_id: str) -> dict[str, Any]:
         except Exception:
             pass
 
+    # Update daily and total stats (subtract)
+    from shared.utils import today_str
+    # Extract date from SK if possible (TXN#YYYY-MM-DD#...)
+    # created_at is in transaction.created_at
+    txn_date = transaction.created_at[:10] if transaction.created_at else today_str()
+    stats_daily_pk = pk
+    stats_daily_sk = f"STATS#DAILY#{txn_date}"
+    stats_totals_pk = pk
+    stats_totals_sk = "STATS#TOTALS"
+
+    tx_total = Decimal(str(transaction_item.get("total", "0")))
+    # Negate for subtraction
+    neg_total = -tx_total
+    total_items_sold = sum(int(_line_quantity(i)) for i in (transaction.items or []))
+    neg_items = -total_items_sold
+
+    table_name = os.environ.get("TABLE_NAME")
+    dynamodb = boto3.resource("dynamodb")
+
+    transact_items = [
+        {"Delete": {"TableName": table_name, "Key": {"pk": pk, "sk": transaction_item["sk"]}}},
+        {
+            "Update": {
+                "TableName": table_name,
+                "Key": {"pk": stats_daily_pk, "sk": stats_daily_sk},
+                "UpdateExpression": "ADD revenue :r, order_count :o, items_sold :i SET updated_at = :now",
+                "ExpressionAttributeValues": {
+                    ":r": neg_total,
+                    ":o": -1,
+                    ":i": neg_items,
+                    ":now": now_iso(),
+                },
+            }
+        },
+        {
+            "Update": {
+                "TableName": table_name,
+                "Key": {"pk": stats_totals_pk, "sk": stats_totals_sk},
+                "UpdateExpression": "ADD total_revenue :r, order_count :o SET updated_at = :now",
+                "ExpressionAttributeValues": {
+                    ":r": neg_total,
+                    ":o": -1,
+                    ":now": now_iso(),
+                },
+            }
+        },
+    ]
+
     try:
-        delete_item(pk=transaction_item["pk"], sk=transaction_item["sk"])
-    except DynamoDBError as e:
-        return server_error(f"Failed to delete transaction: {e}")
+        # We use a transaction for consistency, although it's best-effort for stats
+        dynamodb.meta.client.transact_write_items(TransactItems=transact_items)
+    except Exception as e:
+        # If transaction fails (e.g. daily item doesn't exist yet, though ADD should handle it), 
+        # fallback to basic delete
+        try:
+            delete_item(pk=transaction_item["pk"], sk=transaction_item["sk"])
+        except Exception:
+            pass
+        return server_error(f"Failed to delete transaction or update stats: {e}")
 
     _send_whatsapp_text(
         tenant_id=tenant_id,

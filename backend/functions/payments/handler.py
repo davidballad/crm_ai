@@ -444,6 +444,46 @@ def create_payment(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
+    # Update daily and total stats
+    from shared.utils import today_str
+    today = today_str()
+    stats_daily_pk = pk
+    stats_daily_sk = f"STATS#DAILY#{today}"
+    stats_totals_pk = pk
+    stats_totals_sk = "STATS#TOTALS"
+
+    total_items_sold = sum(item.quantity for item in txn_items)
+
+    transact_items.append(
+        {
+            "Update": {
+                "TableName": table_name,
+                "Key": {"pk": stats_daily_pk, "sk": stats_daily_sk},
+                "UpdateExpression": "ADD revenue :r, order_count :o, items_sold :i SET updated_at = :now",
+                "ExpressionAttributeValues": {
+                    ":r": amount,
+                    ":o": 1,
+                    ":i": total_items_sold,
+                    ":now": now,
+                },
+            }
+        }
+    )
+    transact_items.append(
+        {
+            "Update": {
+                "TableName": table_name,
+                "Key": {"pk": stats_totals_pk, "sk": stats_totals_sk},
+                "UpdateExpression": "ADD total_revenue :r, order_count :o SET updated_at = :now",
+                "ExpressionAttributeValues": {
+                    ":r": amount,
+                    ":o": 1,
+                    ":now": now,
+                },
+            }
+        }
+    )
+
     try:
         transact_write(transact_items)
     except DynamoDBError as e:

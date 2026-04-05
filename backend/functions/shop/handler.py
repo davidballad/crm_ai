@@ -711,6 +711,8 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         **txn.to_dynamo()
     }
     
+    total_items_sold = sum(int(ti.quantity) for ti in txn_items)
+
     # TransactWrite to keep stats in sync
     from shared.db import get_table
     transact_items = [
@@ -719,8 +721,8 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
             "Update": {
                 "TableName": table_name,
                 "Key": {"pk": stats_daily_pk, "sk": stats_daily_sk},
-                "UpdateExpression": "ADD revenue :r, order_count :o SET updated_at = :now",
-                "ExpressionAttributeValues": {":r": total, ":o": 1, ":now": now},
+                "UpdateExpression": "ADD revenue :r, order_count :o, items_sold :i SET updated_at = :now",
+                "ExpressionAttributeValues": {":r": total, ":o": 1, ":i": total_items_sold, ":now": now},
             }
         },
         {
