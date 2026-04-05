@@ -101,7 +101,7 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
             <ChevronRight className="h-7 w-7" strokeWidth={1.75} />
           </button>
 
-          <div className="card md:mx-14 lg:mx-20">
+          <div className="card overflow-hidden md:mx-14 lg:mx-20">
             <div
               className={`flex ${transitionClass}`}
               style={{
