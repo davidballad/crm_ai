@@ -183,6 +183,7 @@ export default function WhatsAppSetup() {
                 ig_access_token: igAccessToken.trim() || null,
               });
               setIgSuccess('Configuración de Instagram guardada.');
+              setConfig(prev => ({ ...prev, ig_business_account_id: igBusinessAccountId.trim() }));
               setIgAccessToken('');
             } catch {
               setIgError('No se pudo guardar. Intenta de nuevo.');
@@ -244,6 +245,7 @@ export default function WhatsAppSetup() {
                 datafast_api_token: datafastApiToken.trim() || null,
               });
               setDatafastSuccess('Configuración de Datafast guardada.');
+              setConfig(prev => ({ ...prev, datafast_entity_id: datafastEntityId.trim() }));
               setDatafastApiToken('');
             } catch {
               setDatafastError('No se pudo guardar. Intenta de nuevo.');
@@ -291,6 +293,7 @@ export default function WhatsAppSetup() {
             try {
               await patchTenantConfig({ support_phone: supportPhone.trim() });
               setSupportPhoneSuccess(t('whatsapp.handoffSuccess'));
+              setConfig(prev => ({ ...prev, support_phone: supportPhone.trim() }));
             } catch {
               /* ignore */
             } finally {
@@ -391,6 +394,11 @@ export default function WhatsAppSetup() {
             <p className="mt-1 text-sm text-gray-600">
               {t('whatsapp.supportPhoneDisplay')}: <code className="rounded bg-gray-100 px-1.5 py-0.5">{normalizePhoneNumber(config.phone_number || config.settings?.phone_number) || '—'}</code>
             </p>
+            {config.support_phone && (
+              <p className="mt-1 text-sm text-gray-600">
+                {t('whatsapp.handoffLabel')}: <code className="rounded bg-gray-100 px-1.5 py-0.5">{config.support_phone}</code>
+              </p>
+            )}
             {config.meta_business_account_id && (
               <p className="mt-1 text-sm text-gray-600">
                 ID de cuenta de negocio: <code className="rounded bg-gray-100 px-1.5 py-0.5">{config.meta_business_account_id}</code>

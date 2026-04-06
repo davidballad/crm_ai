@@ -139,6 +139,9 @@ class Tenant(_BaseModel):
     timezone: str | None = None
     business_hours: dict[str, Any] | None = None
     store_slug: str | None = None
+    support_phone: str | None = None
+    tax_rate: Decimal | None = None
+    follow_up_sequences: list[dict[str, Any]] | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
