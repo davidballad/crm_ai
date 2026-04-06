@@ -138,6 +138,7 @@ class Tenant(_BaseModel):
     currency: str | None = None
     timezone: str | None = None
     business_hours: dict[str, Any] | None = None
+    store_slug: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 

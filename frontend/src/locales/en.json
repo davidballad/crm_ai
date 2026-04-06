@@ -274,7 +274,7 @@
   },
   "whatsapp": {
     "title": "Connect WhatsApp",
-    "subtitle": "Link your Meta WhatsApp number to this business so the n8n workflow can route messages here.",
+    "subtitle": "Link your Meta WhatsApp number to this business so our platform can route messages here.",
     "connected": "Connected",
     "edit": "Edit",
     "phoneNumberId": "Phone number ID",
@@ -301,7 +301,7 @@
     "update": "Update",
     "linkWhatsApp": "Link WhatsApp",
     "cancel": "Cancel",
-    "successLinked": "WhatsApp is linked. n8n can now resolve your business when messages arrive.",
+    "successLinked": "WhatsApp is linked. Our virtual assistant can now resolve your business when messages arrive.",
     "setupFailed": "Setup failed",
     "supportPhoneLabel": "Human support phone (WhatsApp or phone)",
     "supportPhoneHint": "Digits only (country code + number). Shown to customers when they choose “Human agent” in chat.",
@@ -309,7 +309,7 @@
   },
   "transactions": {
     "title": "Transactions",
-    "subtitle": "Sales history (orders come from WhatsApp flow)",
+    "subtitle": "Sales history (orders come from WhatsApp)",
     "today": "Today",
     "previousDays": "Previous days",
     "startDate": "Start date",

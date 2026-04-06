@@ -1,5 +1,5 @@
 /**
- * Frontend i18n setup. Display language only — no API, backend, or n8n changes.
+ * Frontend i18n setup. Display language only — no API or backend changes.
  * API URLs, request/response bodies, and automation are unchanged.
  */
 import i18n from 'i18next';

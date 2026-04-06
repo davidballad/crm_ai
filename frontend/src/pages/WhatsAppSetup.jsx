@@ -33,6 +33,10 @@ export default function WhatsAppSetup() {
   const [supportPhone, setSupportPhone] = useState('');
   const [supportPhoneSaving, setSupportPhoneSaving] = useState(false);
   const [supportPhoneSuccess, setSupportPhoneSuccess] = useState('');
+  const [storeSlug, setStoreSlug] = useState('');
+  const [storeSlugSaving, setStoreSlugSaving] = useState(false);
+  const [storeSlugSuccess, setStoreSlugSuccess] = useState('');
+  const [storeSlugError, setStoreSlugError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -66,6 +70,7 @@ export default function WhatsAppSetup() {
       if (config.tax_rate != null) setTaxRateInput(Number(config.tax_rate));
       setIgBusinessAccountId(config.ig_business_account_id || '');
       setDatafastEntityId(config.datafast_entity_id || '');
+      setStoreSlug(config.store_slug || '');
       // Do NOT set igAccessToken, metaAccessToken, or datafastApiToken — never returned by API
     }
   }, [config]);
@@ -76,7 +81,7 @@ export default function WhatsAppSetup() {
     setSuccess('');
     const id = (metaPhoneNumberId || '').trim();
     if (!id) {
-      setError('El ID de numero de telefono de Meta es obligatorio.');
+      setError('El ID de número de teléfono de Meta es obligatorio.');
       return;
     }
     setSubmitting(true);
@@ -117,7 +122,7 @@ export default function WhatsAppSetup() {
       <div className="mb-6">
         <h1 className="text-xl font-bold text-gray-900">Conectar WhatsApp</h1>
         <p className="text-sm text-gray-500">
-          Vincula tu numero de WhatsApp de Meta a este negocio para que el flujo de n8n enrute los mensajes aqui.
+          Vincula tu número de WhatsApp de Meta a este negocio para que nuestra plataforma enrute los mensajes aquí.
         </p>
         <div className="mt-4 flex items-center gap-2">
           <img src="/whatsapp-glyph.svg" alt="" className="h-8 w-8 object-contain" width={32} height={32} loading="lazy" decoding="async" />
@@ -130,7 +135,7 @@ export default function WhatsAppSetup() {
       <div className="mt-6 card max-w-xl">
         <h2 className="mb-1 text-sm font-semibold text-gray-900">Instagram → WhatsApp</h2>
         <p className="mb-4 text-xs text-gray-500">
-          Cuando alguien comente en tus posts de Instagram, el flujo de n8n responderá automáticamente con tu enlace de WhatsApp. Obtén el ID de cuenta y el token desde Meta Business Suite.
+          Cuando alguien comente en tus posts de Instagram, nuestra plataforma responderá automáticamente con tu enlace de WhatsApp. Obtén el ID de cuenta y el token desde Meta Business Suite.
         </p>
 
         {igSuccess && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{igSuccess}</div>}
@@ -298,21 +303,63 @@ export default function WhatsAppSetup() {
         </button>
       </div>
 
-      {/* Shareable store link */}
-      {config?.tenant_id && (
+      {/* Shareable store link & URL Slug management */}
+      {config?.id && (
         <div className="mt-6 card max-w-xl">
-          <h2 className="mb-1 text-sm font-semibold text-gray-900">Link de tu tienda para redes sociales</h2>
+          <h2 className="mb-1 text-sm font-semibold text-gray-900">Enlace de tu tienda</h2>
           <p className="mb-3 text-xs text-gray-500">
-            Comparte este link en Instagram, Facebook o WhatsApp. Cuando alguien lo abra, verá tu negocio y podrá contactarte directamente.
+            Comparte este enlace en Instagram, Facebook o WhatsApp. Cuando alguien lo abra, verá tu perfil de negocio.
           </p>
+          
+          <div className="mb-4">
+            <label className="mb-1 block text-xs font-medium text-gray-600">Nombre personalizado (URL)</label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">clientaai.com/store/</span>
+                <input
+                  type="text"
+                  value={storeSlug}
+                  onChange={(e) => setStoreSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  className="input-field w-full pl-[112px] font-mono text-sm"
+                  placeholder="mi-negocio"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={storeSlugSaving || !storeSlug}
+                onClick={async () => {
+                  setStoreSlugSaving(true);
+                  setStoreSlugSuccess('');
+                  setStoreSlugError('');
+                  try {
+                    await patchTenantConfig({ store_slug: storeSlug.trim() });
+                    setStoreSlugSuccess('Enlace actualizado correctamente.');
+                    // Update the local config so the copy button below uses the new slug
+                    setConfig(prev => ({ ...prev, store_slug: storeSlug.trim() }));
+                  } catch (err) {
+                    setStoreSlugError(err.message || 'Error al actualizar el nombre.');
+                  } finally {
+                    setStoreSlugSaving(false);
+                  }
+                }}
+                className="btn-primary shrink-0 text-xs"
+              >
+                {storeSlugSaving ? '...' : 'Actualizar'}
+              </button>
+            </div>
+            {storeSlugSuccess && <p className="mt-1 text-[11px] text-green-600">✅ {storeSlugSuccess}</p>}
+            {storeSlugError && <p className="mt-1 text-[11px] text-red-600">❌ {storeSlugError}</p>}
+            <p className="mt-1 text-[11px] text-gray-400">Solo letras minúsculas, números y guiones.</p>
+          </div>
+
           <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
             <code className="flex-1 truncate text-xs text-gray-700">
-              https://www.clientaai.com/store/{config.tenant_id}
+              https://www.clientaai.com/store/{config.store_slug || config.id}
             </code>
             <button
               type="button"
               onClick={() => {
-                navigator.clipboard.writeText(`https://www.clientaai.com/store/${config.tenant_id}`);
+                navigator.clipboard.writeText(`https://www.clientaai.com/store/${config.store_slug || config.id}`);
               }}
               className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm ring-1 ring-gray-200 hover:bg-gray-100"
             >
@@ -339,7 +386,7 @@ export default function WhatsAppSetup() {
               </button>
             </div>
             <p className="text-sm text-gray-600">
-              ID del numero de telefono: <code className="rounded bg-gray-100 px-1.5 py-0.5">{config.meta_phone_number_id}</code>
+              ID del número de teléfono: <code className="rounded bg-gray-100 px-1.5 py-0.5">{config.meta_phone_number_id}</code>
             </p>
             <p className="mt-1 text-sm text-gray-600">
               {t('whatsapp.supportPhoneDisplay')}: <code className="rounded bg-gray-100 px-1.5 py-0.5">{normalizePhoneNumber(config.phone_number || config.settings?.phone_number) || '—'}</code>
@@ -362,7 +409,7 @@ export default function WhatsAppSetup() {
                 {config.person_name && <p>Nombre: {config.person_name}</p>}
                 {config.account_type && <p>Tipo de cuenta: {config.account_type}</p>}
                 {config.account_id && <p>ID de cuenta: {config.account_id}</p>}
-                {config.identification_number && <p>Identificacion: {config.identification_number}</p>}
+                {config.identification_number && <p>Identificación: {config.identification_number}</p>}
               </div>
             )}
           </>
@@ -371,12 +418,12 @@ export default function WhatsAppSetup() {
             <div className="mb-4 flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-green-600" />
               <h2 className="text-sm font-semibold text-gray-900">
-                {isConnected ? 'Actualizar configuracion' : 'Vincular numero'}
+                {isConnected ? 'Actualizar configuración' : 'Vincular número'}
               </h2>
             </div>
 
         <p className="mb-4 text-sm text-gray-600">
-          Obtiene tu <strong>ID del numero de telefono</strong> desde{' '}
+          Obtén tu <strong>ID del número de teléfono</strong> desde{' '}
           <a
             href="https://developers.facebook.com/apps"
             target="_blank"
@@ -386,7 +433,7 @@ export default function WhatsAppSetup() {
             Meta for Developers
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
-          → tu App → WhatsApp → Configuracion de API → Numeros de telefono. Copia el ID numerico (ej. 106540352242922).
+          → tu App → WhatsApp → Configuración de API → Números de teléfono. Copia el ID numérico (ej. 106540352242922).
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -399,7 +446,7 @@ export default function WhatsAppSetup() {
 
           <div>
             <label htmlFor="meta_phone_number_id" className="mb-1 block text-sm font-medium text-gray-700">
-              ID del numero de telefono de Meta <span className="text-red-500">*</span>
+              ID del número de teléfono de Meta <span className="text-red-500">*</span>
             </label>
             <input
               id="meta_phone_number_id"
@@ -462,19 +509,19 @@ export default function WhatsAppSetup() {
               className="input-field w-full"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Desde Meta Business Suite → WhatsApp Manager → Numeros de telefono (ID de cuenta).
+              Desde Meta Business Suite → WhatsApp Manager → Números de teléfono (ID de cuenta).
             </p>
           </div>
 
           <div>
             <label htmlFor="ai_system_prompt" className="mb-1 block text-sm font-medium text-gray-700">
-              Prompt de IA para "Algo mas" (opcional)
+              Prompt de IA para "Algo más" (opcional)
             </label>
             <textarea
               id="ai_system_prompt"
               value={aiSystemPrompt}
               onChange={(e) => setAiSystemPrompt(e.target.value)}
-              placeholder="Eres un asistente util para tienda..."
+              placeholder="Eres un asistente útil para tienda..."
               rows={3}
               className="input-field w-full resize-y"
             />
@@ -500,7 +547,7 @@ export default function WhatsAppSetup() {
                 <input id="account_id" type="text" value={accountId} onChange={(e) => setAccountId(e.target.value)} className="input-field w-full" />
               </div>
               <div className="sm:col-span-2">
-                <label htmlFor="identification_number" className="mb-1 block text-sm font-medium text-gray-700">Numero de identificacion</label>
+                <label htmlFor="identification_number" className="mb-1 block text-sm font-medium text-gray-700">Número de identificación</label>
                 <input id="identification_number" type="text" value={identificationNumber} onChange={(e) => setIdentificationNumber(e.target.value)} className="input-field w-full" />
               </div>
             </div>

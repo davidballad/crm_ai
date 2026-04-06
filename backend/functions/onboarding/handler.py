@@ -15,7 +15,7 @@ from botocore.exceptions import ClientError
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from shared.auth import extract_service_tenant_id, extract_tenant_id, require_auth, validate_service_key
-from shared.db import DynamoDBError, get_item, put_item, query_gsi, query_items, update_item
+from shared.db import DynamoDBError, delete_item, get_item, put_item, query_gsi, query_items, update_item
 from shared.models import Tenant
 from shared.response import created, error, server_error, success
 from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
@@ -280,6 +280,54 @@ def _validate_create_tenant_body(body: dict[str, Any]) -> tuple[str | None, str 
     return None, business_type_raw
 
 
+def _slugify(s: str) -> str:
+    """Basic slugify: lowercase, remove non-alphanumeric, replace spaces with dashes."""
+    s = s.lower().strip()
+    s = re.sub(r"[^a-z0-9\s-]", "", s)
+    s = re.sub(r"[\s-]+", "-", s)
+    return s.strip("-")
+
+
+def _is_slug_available(slug: str) -> bool:
+    """Return True if slug is not taken in the SLUG# mapping."""
+    try:
+        item = get_item(pk="SLUG", sk=slug)
+        return item is None
+    except Exception:
+        return False
+
+
+def _generate_unique_slug(business_name: str) -> str:
+    """Generate a unique slug from business name. Appends random digits if taken."""
+    base = _slugify(business_name)
+    if not base:
+        base = "store"
+    
+    if _is_slug_available(base):
+        return base
+    
+    # Try with random suffix
+    import random
+    import string
+    for _ in range(5):
+        suffix = "".join(random.choices(string.digits, k=3))
+        candidate = f"{base}-{suffix}"
+        if _is_slug_available(candidate):
+            return candidate
+    
+    # Final fallback: ULID-like
+    return f"{base}-{generate_id()[:6]}"
+
+
+def _upsert_slug_mapping(slug: str, tenant_id: str) -> None:
+    """Create or update the SLUG -> tenant_id mapping in DynamoDB."""
+    put_item({
+        "pk": "SLUG",
+        "sk": slug,
+        "tenant_id": tenant_id,
+    })
+
+
 def create_tenant(event: dict[str, Any]) -> dict[str, Any]:
     """
     Create a new tenant: Cognito user + DynamoDB tenant record.
@@ -299,6 +347,7 @@ def create_tenant(event: dict[str, Any]) -> dict[str, Any]:
     owner_password = body.get("owner_password")
 
     tenant_id = generate_id()
+    store_slug = _generate_unique_slug(business_name)
     user_pool_id = os.environ.get("COGNITO_USER_POOL_ID")
 
     if not user_pool_id:
@@ -342,6 +391,7 @@ def create_tenant(event: dict[str, Any]) -> dict[str, Any]:
             business_name=business_name,
             business_type=business_type,
             owner_email=owner_email,
+            store_slug=store_slug,
             plan="free",
             created_at=created_at,
         )
@@ -356,12 +406,14 @@ def create_tenant(event: dict[str, Any]) -> dict[str, Any]:
         "business_name": business_name,
         "business_type": business_type,
         "owner_email": owner_email,
+        "store_slug": store_slug,
         "plan": "free",
         "created_at": created_at,
     }
 
     try:
         put_item(tenant_item)
+        _upsert_slug_mapping(store_slug, tenant_id)
     except DynamoDBError:
         # Best-effort cleanup: delete the Cognito user
         try:
@@ -449,7 +501,7 @@ TENANT_CONFIG_FIELDS = (
     "follow_up_sequences", "tax_rate",
     "ig_business_account_id", "ig_access_token",
     "datafast_entity_id", "datafast_api_token",
-    "support_phone",
+    "support_phone", "store_slug",
 )
 
 
@@ -580,7 +632,48 @@ def patch_config(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         except DynamoDBError:
             pass
 
+    if updates.get("store_slug"):
+        # Check if already taken (by someone else)
+        new_slug = _slugify(updates["store_slug"])
+        if not new_slug:
+             return error("Invalid slug", 400)
+        
+        existing_mapping = get_item(pk="SLUG", sk=new_slug)
+        if existing_mapping and existing_mapping.get("tenant_id") != tenant_id:
+            return error("This store name is already taken", 409)
+        
+        # Mapping update (old one can stay or be deleted, but deleting is cleaner)
+        old_config = get_item(pk, sk)
+        old_slug = old_config.get("store_slug")
+        if old_slug and old_slug != new_slug:
+             # Best-effort delete of old mapping
+             try:
+                 delete_item(pk="SLUG", sk=old_slug)
+             except Exception:
+                 pass
+        
+        updates["store_slug"] = new_slug
+        _upsert_slug_mapping(new_slug, tenant_id)
+
     return success({"message": "Config updated"})
+
+
+def resolve_slug(event: dict[str, Any]) -> dict[str, Any]:
+    """GET /onboarding/resolve-slug — resolve store_slug to tenant_id."""
+    params = event.get("queryStringParameters") or {}
+    slug = (params.get("slug") or "").strip().lower()
+    if not slug:
+        return error("slug query parameter is required", 400)
+
+    try:
+        mapping = get_item(pk="SLUG", sk=slug)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+    if not mapping:
+        return error("No tenant found for this slug", 404)
+
+    return success(body={"tenant_id": mapping.get("tenant_id")})
 
 
 def get_tenant_config(tenant_id: str, _event: dict[str, Any]) -> dict[str, Any]:
@@ -765,5 +858,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if not tenant_id:
             return error("Unauthorized", 401)
         return patch_config(tenant_id, event)
+
+    if method == "GET" and ("/onboarding/resolve-slug" in path):
+        return resolve_slug(event)
 
     return error("Not found", 404)

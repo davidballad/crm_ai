@@ -13,7 +13,7 @@ export function fetchTransaction(id) {
   return api.get(`/transactions/${id}`);
 }
 
-/** Unused: no UI calls this (sales via WhatsApp/n8n). Use with useRecordSale() if adding a "Record sale" screen. */
+/** Unused: no UI calls this (sales via WhatsApp). Use with useRecordSale() if adding a "Record sale" screen. */
 export function recordSale(data) {
   return api.post('/transactions', data);
 }

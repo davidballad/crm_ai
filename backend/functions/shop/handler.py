@@ -883,11 +883,28 @@ def _shop_meta(tenant_id: str) -> dict[str, Any]:
     })
 
 
-def _shop_store_page(tenant_id: str) -> dict[str, Any]:
-    """GET /store/{tenant_id} — server-rendered HTML landing page with OG tags for social sharing."""
-    pk = build_pk(tenant_id)
-    tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
-    if not tenant:
+def _resolve_tenant_id(input_str: str) -> str | None:
+    """Resolve input string to a tenant ID. If input is 26 chars, assume it's already an ID.
+    Otherwise, look it up as a slug.
+    """
+    if len(input_str) == 26:
+        # Check if it exists as an ID
+        pk = build_pk(input_str)
+        if get_item(pk, build_sk("TENANT", input_str)):
+             return input_str
+    
+    # Try slug lookup
+    mapping = get_item(pk="SLUG", sk=input_str.lower())
+    if mapping:
+        return mapping.get("tenant_id")
+    
+    return None
+
+
+def _shop_store_page(input_str: str) -> dict[str, Any]:
+    """GET /store/{id_or_slug} — server-rendered HTML landing page with OG tags for social sharing."""
+    tenant_id = _resolve_tenant_id(input_str)
+    if not tenant_id:
         html = "<html><body><h1>Tienda no encontrada</h1></body></html>"
         return {
             "statusCode": 404,
@@ -895,10 +912,16 @@ def _shop_store_page(tenant_id: str) -> dict[str, Any]:
             "body": html,
         }
 
+    pk = build_pk(tenant_id)
+    tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
     business_name = tenant.get("business_name") or "Tienda"
     phone_raw = normalize_phone(tenant.get("phone_number") or "")
     wa_link = f"https://wa.me/{phone_raw}?text=Hola" if phone_raw else "#"
-    store_url = f"https://www.clientaai.com/store/{tenant_id}"
+    
+    # Use the slug in the canonical URL if available, otherwise use ID
+    display_id = tenant.get("store_slug") or tenant_id
+    store_url = f"https://www.clientaai.com/store/{display_id}"
+    
     description = f"Compra nuestros productos directamente desde WhatsApp."
 
     html = f"""<!DOCTYPE html>
@@ -973,10 +996,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         # Public store landing page — server-rendered HTML with OG tags for social sharing
         if method == "GET" and "/store/" in path:
             path_parts = path.rstrip("/").split("/")
-            tid = path_parts[-1] if path_parts else ""
-            if not tid:
-                return error("Missing tenant id", 400)
-            return _shop_store_page(tid)
+            id_or_slug = path_parts[-1] if path_parts else ""
+            if not id_or_slug:
+                return error("Missing store name or id", 400)
+            return _shop_store_page(id_or_slug)
 
         # All other routes require a valid shop token
         result = _extract_token(event)

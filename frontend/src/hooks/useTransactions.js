@@ -9,7 +9,7 @@ export function useTransactions(filters, queryOptions = {}) {
   });
 }
 
-/** Unused: no UI records sales (transactions come from WhatsApp/n8n). Available for a future "Record sale" form. */
+/** Unused: no UI records sales (transactions come from WhatsApp). Available for a future "Record sale" form. */
 export function useRecordSale() {
   const qc = useQueryClient();
   return useMutation({
