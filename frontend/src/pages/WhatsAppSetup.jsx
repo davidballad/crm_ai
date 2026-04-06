@@ -179,8 +179,8 @@ export default function WhatsAppSetup() {
             setIgError('');
             try {
               await patchTenantConfig({
-                ...(igBusinessAccountId.trim() && { ig_business_account_id: igBusinessAccountId.trim() }),
-                ...(igAccessToken.trim() && { ig_access_token: igAccessToken.trim() }),
+                ig_business_account_id: igBusinessAccountId.trim() || null,
+                ig_access_token: igAccessToken.trim() || null,
               });
               setIgSuccess('Configuración de Instagram guardada.');
               setIgAccessToken('');
@@ -240,8 +240,8 @@ export default function WhatsAppSetup() {
             setDatafastError('');
             try {
               await patchTenantConfig({
-                ...(datafastEntityId.trim() && { datafast_entity_id: datafastEntityId.trim() }),
-                ...(datafastApiToken.trim() && { datafast_api_token: datafastApiToken.trim() }),
+                datafast_entity_id: datafastEntityId.trim() || null,
+                datafast_api_token: datafastApiToken.trim() || null,
               });
               setDatafastSuccess('Configuración de Datafast guardada.');
               setDatafastApiToken('');

@@ -345,20 +345,42 @@ def create_message(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         if body.get(field) is not None:
             item[field] = body[field]
 
-    # Alias handling for 'text' field (support 'body' or 'message_text' from common AI/API payloads)
-    if "text" not in item:
-        # Check root body and also check inside WhatsApp-style structures if provided
-        potential_text = (
-            body.get("body")
-            or body.get("message_text")
-            or body.get("message")
-            or (body.get("text") if isinstance(body.get("text"), str) else None)
-        )
-        if potential_text:
-            item["text"] = potential_text
-        elif isinstance(body.get("text"), dict) and body["text"].get("body"):
-            # Handle WhatsApp-formatted payload: {"type": "text", "text": {"body": "..."}}
-            item["text"] = body["text"]["body"]
+    # Alias handling for 'text' field (support 'body', 'message_text', etc. from common AI/API payloads)
+    current_text = str(item.get("text") or "").strip()
+    if not current_text:
+        # Check root body and common nested wrappers (like 'data' or 'body')
+        look_in = [body]
+        if isinstance(body.get("data"), dict):
+            look_in.append(body["data"])
+        
+        potential = None
+        for source in look_in:
+            potential = (
+                source.get("text") or 
+                source.get("body") or 
+                source.get("message_text") or 
+                source.get("message") or 
+                source.get("output") or 
+                source.get("response") or 
+                source.get("content")
+            )
+            if potential:
+                break
+        
+        if potential:
+            if isinstance(potential, str):
+                item["text"] = potential.strip()
+            elif isinstance(potential, dict):
+                # Handle nested dicts: {"text": {"body": "..."}} or {"output": {"text": "..."}}
+                item["text"] = str(potential.get("body") or potential.get("text") or potential.get("content") or str(potential))
+            else:
+                item["text"] = str(potential)
+
+    # Final fallback: ensure item['text'] is a string even if all extraction fails
+    if item.get("text") is None:
+        item["text"] = ""
+    else:
+        item["text"] = str(item["text"])
 
     try:
         put_item(item)

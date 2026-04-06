@@ -620,40 +620,64 @@ def patch_config(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     except DynamoDBError:
         return server_error("Failed to update config")
 
-    if updates.get("meta_phone_number_id"):
-        try:
-            _upsert_phone_number_id_mapping(updates["meta_phone_number_id"], tenant_id)
-        except DynamoDBError:
-            pass
+    if "meta_phone_number_id" in updates:
+        val = updates["meta_phone_number_id"]
+        # If it was cleared, we can't easily find the OLD mapping to delete it unless we query or get old_config
+        # But we already got old_config for store_slug below! Let's move this.
+        pass
 
-    if updates.get("ig_business_account_id"):
-        try:
-            _upsert_ig_account_mapping(updates["ig_business_account_id"], tenant_id)
-        except DynamoDBError:
-            pass
+    old_config = get_item(pk, sk) or {}
 
-    if updates.get("store_slug"):
-        # Check if already taken (by someone else)
-        new_slug = _slugify(updates["store_slug"])
-        if not new_slug:
-             return error("Invalid slug", 400)
+    if "meta_phone_number_id" in updates:
+        new_val = updates["meta_phone_number_id"]
+        old_val = old_config.get("meta_phone_number_id")
+        if new_val and new_val != old_val:
+             _upsert_phone_number_id_mapping(new_val, tenant_id)
+        elif not new_val and old_val:
+            try:
+                delete_item(pk=PHONE_NUMBER_ID_PK, sk=old_val)
+            except Exception:
+                pass
+
+    if "ig_business_account_id" in updates:
+        new_val = updates["ig_business_account_id"]
+        old_val = old_config.get("ig_business_account_id")
+        if new_val and new_val != old_val:
+             _upsert_ig_account_mapping(new_val, tenant_id)
+        elif not new_val and old_val:
+            try:
+                delete_item(pk=IG_ACCOUNT_ID_PK, sk=old_val)
+            except Exception:
+                pass
+
+    if "store_slug" in updates:
+        # If null/empty, we delete the slug mapping
+        new_slug = _slugify(updates["store_slug"]) if updates["store_slug"] else None
         
-        existing_mapping = get_item(pk="SLUG", sk=new_slug)
-        if existing_mapping and existing_mapping.get("tenant_id") != tenant_id:
-            return error("This store name is already taken", 409)
-        
-        # Mapping update (old one can stay or be deleted, but deleting is cleaner)
-        old_config = get_item(pk, sk)
+        # Use already fetched old_config
         old_slug = old_config.get("store_slug")
-        if old_slug and old_slug != new_slug:
-             # Best-effort delete of old mapping
-             try:
-                 delete_item(pk="SLUG", sk=old_slug)
-             except Exception:
-                 pass
-        
-        updates["store_slug"] = new_slug
-        _upsert_slug_mapping(new_slug, tenant_id)
+
+        if not new_slug:
+            updates["store_slug"] = None
+            if old_slug:
+                try:
+                    delete_item(pk="SLUG", sk=old_slug)
+                except Exception:
+                    pass
+        else:
+            # Check if already taken (by someone else)
+            existing_mapping = get_item(pk="SLUG", sk=new_slug)
+            if existing_mapping and existing_mapping.get("tenant_id") != tenant_id:
+                return error("This store name is already taken", 409)
+            
+            if old_slug and old_slug != new_slug:
+                try:
+                    delete_item(pk="SLUG", sk=old_slug)
+                except Exception:
+                    pass
+            
+            updates["store_slug"] = new_slug
+            _upsert_slug_mapping(new_slug, tenant_id)
 
     return success({"message": "Config updated"})
 
