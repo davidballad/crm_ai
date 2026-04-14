@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { createTenant } from '../api/onboarding';
 import { useAuth } from '../context/AuthContext';
+import GoogleButton from '../components/GoogleButton';
 
 const BUSINESS_TYPE_KEYS = [
   { value: 'restaurant', labelKey: 'signup.businessTypes.restaurant' },
@@ -14,7 +15,7 @@ const BUSINESS_TYPE_KEYS = [
 export default function Signup() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const [form, setForm] = useState({
     business_name: '',
     business_type: 'restaurant',
@@ -27,11 +28,20 @@ export default function Signup() {
 
   const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
 
+  const validatePassword = (pw) => {
+    if (pw.length < 8) return t('signup.passwordMinLength');
+    if (!/[A-Z]/.test(pw)) return t('signup.passwordNeedsUppercase');
+    if (!/[a-z]/.test(pw)) return t('signup.passwordNeedsLowercase');
+    if (!/[0-9]/.test(pw)) return t('signup.passwordNeedsNumber');
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (form.owner_password.length < 8) {
-      setError(t('signup.passwordMinLength'));
+    const pwError = validatePassword(form.owner_password);
+    if (pwError) {
+      setError(pwError);
       return;
     }
     setSubmitting(true);
@@ -82,6 +92,7 @@ export default function Signup() {
           <div>
             <label htmlFor="owner_password" className="mb-1 block text-sm font-medium text-gray-700">{t('common.password')}</label>
             <input id="owner_password" type="password" required minLength={8} value={form.owner_password} onChange={update('owner_password')} className="input-field" placeholder={t('signup.placeholderPassword')} />
+            <p className="mt-1 text-xs text-gray-400">{t('signup.passwordHint')}</p>
           </div>
 
           <div>
@@ -95,6 +106,13 @@ export default function Signup() {
           <button type="submit" disabled={submitting} className="btn-primary w-full">
             {submitting ? t('common.creatingAccount') : t('common.createAccount')}
           </button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+            <div className="relative flex justify-center text-xs"><span className="bg-white px-2 text-gray-400">{t('common.orContinueWith')}</span></div>
+          </div>
+
+          <GoogleButton onClick={signInWithGoogle} label={t('common.signUpWithGoogle')} />
 
           <p className="text-center text-sm text-gray-500">
             {t('signup.alreadyHaveAccount')}{' '}

@@ -268,6 +268,12 @@ def _validate_create_tenant_body(body: dict[str, Any]) -> tuple[str | None, str 
     owner_password = body.get("owner_password") or ""
     if len(owner_password) < 8:
         return "owner_password must be at least 8 characters", None
+    if not re.search(r"[A-Z]", owner_password):
+        return "owner_password must contain at least one uppercase letter", None
+    if not re.search(r"[a-z]", owner_password):
+        return "owner_password must contain at least one lowercase letter", None
+    if not re.search(r"[0-9]", owner_password):
+        return "owner_password must contain at least one number", None
 
     business_type_raw = (body.get("business_type") or "other").strip().lower()
     if business_type_raw not in VALID_BUSINESS_TYPES:
@@ -328,6 +334,118 @@ def _upsert_slug_mapping(slug: str, tenant_id: str) -> None:
     })
 
 
+def create_google_tenant(event: dict[str, Any]) -> dict[str, Any]:
+    """
+    Create a tenant record for a user who signed up via Google (already exists in Cognito).
+    Requires JWT auth. Sets custom:tenant_id and custom:role on the Cognito user.
+    """
+    from shared.auth import extract_user_info
+    user_info = extract_user_info(event)
+    if not user_info or not user_info.get("sub"):
+        return error("Unauthorized", 401)
+
+    # Prevent creating a second tenant if one already exists
+    if user_info.get("tenant_id"):
+        return error("This account already has a tenant", 409)
+
+    try:
+        body = parse_body(event)
+    except (json.JSONDecodeError, TypeError) as e:
+        return error(f"Invalid JSON body: {e}", 400)
+
+    business_name = (body.get("business_name") or "").strip()
+    if not business_name:
+        return error("business_name is required", 400)
+
+    business_type_raw = (body.get("business_type") or "other").strip().lower()
+    if business_type_raw not in VALID_BUSINESS_TYPES:
+        return error(f"business_type must be one of: {', '.join(sorted(VALID_BUSINESS_TYPES))}", 400)
+
+    meta_phone_number_id = (body.get("meta_phone_number_id") or "").strip()
+    if not meta_phone_number_id:
+        return error("meta_phone_number_id is required", 400)
+
+    user_pool_id = os.environ.get("COGNITO_USER_POOL_ID")
+    if not user_pool_id:
+        return server_error("COGNITO_USER_POOL_ID not configured")
+
+    cognito = boto3.client("cognito-idp")
+    owner_email = user_info.get("email", "")
+    cognito_sub = user_info["sub"]
+    tenant_id = generate_id()
+    store_slug = _generate_unique_slug(business_name)
+    created_at = now_iso()
+
+    # Step 1: Set tenant_id and role on the existing Cognito user
+    try:
+        cognito.admin_update_user_attributes(
+            UserPoolId=user_pool_id,
+            Username=cognito_sub,
+            UserAttributes=[
+                {"Name": "custom:tenant_id", "Value": tenant_id},
+                {"Name": "custom:role", "Value": "owner"},
+            ],
+        )
+    except ClientError as e:
+        return error(f"Failed to update user attributes: {e.response.get('Error', {}).get('Message', str(e))}", 400)
+
+    # Step 2: Create DynamoDB tenant record
+    pk = build_pk(tenant_id)
+    sk = build_sk("TENANT", tenant_id)
+
+    tenant_item: dict[str, Any] = {
+        "pk": pk,
+        "sk": sk,
+        "entity_type": "TENANT",
+        "id": tenant_id,
+        "business_name": business_name,
+        "business_type": business_type_raw,
+        "owner_email": owner_email,
+        "store_slug": store_slug,
+        "plan": "free",
+        "created_at": created_at,
+    }
+
+    try:
+        put_item(tenant_item)
+        _upsert_slug_mapping(store_slug, tenant_id)
+    except DynamoDBError:
+        # Best-effort rollback: clear the Cognito attributes
+        try:
+            cognito.admin_update_user_attributes(
+                UserPoolId=user_pool_id,
+                Username=cognito_sub,
+                UserAttributes=[
+                    {"Name": "custom:tenant_id", "Value": ""},
+                    {"Name": "custom:role", "Value": ""},
+                ],
+            )
+        except ClientError:
+            pass
+        return server_error("Failed to create tenant record")
+
+    _append_tenant_id_to_s3(tenant_id)
+
+    try:
+        _upsert_phone_number_id_mapping(meta_phone_number_id, tenant_id)
+        update_item(build_pk(tenant_id), build_sk("TENANT", tenant_id), {
+            "meta_phone_number_id": meta_phone_number_id,
+            "updated_at": now_iso(),
+        })
+    except DynamoDBError:
+        pass
+
+    try:
+        _seed_products(tenant_id, business_type_raw)
+    except (DynamoDBError, ClientError):
+        pass
+
+    return created({
+        "tenant_id": tenant_id,
+        "message": "Tenant created successfully.",
+    })
+
+
 def create_tenant(event: dict[str, Any]) -> dict[str, Any]:
     """
     Create a new tenant: Cognito user + DynamoDB tenant record.
@@ -368,6 +486,13 @@ def create_tenant(event: dict[str, Any]) -> dict[str, Any]:
             ],
             MessageAction="SUPPRESS",
         )
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        if error_code == "UsernameExistsException":
+            return error("A user with this email already exists", 409)
+        return error(f"Failed to create user: {e.response.get('Error', {}).get('Message', str(e))}", 400)
+
+    try:
         cognito.admin_set_user_password(
             UserPoolId=user_pool_id,
             Username=owner_email,
@@ -375,10 +500,12 @@ def create_tenant(event: dict[str, Any]) -> dict[str, Any]:
             Permanent=True,
         )
     except ClientError as e:
-        error_code = e.response.get("Error", {}).get("Code", "")
-        if error_code == "UsernameExistsException":
-            return error("A user with this email already exists", 409)
-        return error(f"Failed to create user: {e.response.get('Error', {}).get('Message', str(e))}", 400)
+        # Roll back the Cognito user so the email is not left orphaned
+        try:
+            cognito.admin_delete_user(UserPoolId=user_pool_id, Username=owner_email)
+        except ClientError:
+            pass
+        return error(f"Password does not meet requirements: {e.response.get('Error', {}).get('Message', str(e))}", 400)
 
     # Step 2: Create tenant record in DynamoDB
     pk = build_pk(tenant_id)
@@ -839,6 +966,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # No auth: tenant creation
     if method == "POST" and ("/onboarding/tenant" in path):
         return create_tenant(event)
+
+    # JWT auth: tenant creation for Google OAuth users (Cognito user already exists)
+    if method == "POST" and ("/onboarding/google-tenant" in path):
+        return create_google_tenant(event)
 
     # No JWT auth: phone resolution (service key checked inside handler)
     if method == "GET" and ("/onboarding/resolve-phone" in path):

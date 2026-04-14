@@ -552,6 +552,14 @@ resource "aws_apigatewayv2_route" "onboarding_tenant" {
   target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
 }
 
+resource "aws_apigatewayv2_route" "onboarding_google_tenant" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /onboarding/google-tenant"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
+}
+
 resource "aws_apigatewayv2_route" "onboarding_setup" {
   api_id             = aws_apigatewayv2_api.main.id
   route_key          = "POST /onboarding/setup"

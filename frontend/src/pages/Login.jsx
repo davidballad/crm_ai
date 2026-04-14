@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import GoogleButton from '../components/GoogleButton';
 
 export default function Login() {
   const { t } = useTranslation();
-  const { signIn, isAuthenticated, isDemoMode } = useAuth();
+  const { signIn, signInWithGoogle, isAuthenticated, isDemoMode } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/';
@@ -64,7 +65,10 @@ export default function Login() {
           </div>
 
           <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">{t('common.password')}</label>
+            <div className="mb-1 flex items-center justify-between">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">{t('common.password')}</label>
+              <Link to="/forgot-password" className="text-xs font-medium text-brand-600 hover:text-brand-500">{t('login.forgotPassword')}</Link>
+            </div>
             <input
               id="password"
               type="password"
@@ -79,6 +83,13 @@ export default function Login() {
           <button type="submit" disabled={submitting} className="btn-primary w-full">
             {submitting ? t('common.signingIn') : t('common.signIn')}
           </button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+            <div className="relative flex justify-center text-xs"><span className="bg-white px-2 text-gray-400">{t('common.orContinueWith')}</span></div>
+          </div>
+
+          <GoogleButton onClick={signInWithGoogle} label={t('common.signInWithGoogle')} />
 
           <p className="text-center text-sm text-gray-500">
             {t('login.noAccount')}{' '}

@@ -58,6 +58,7 @@ export default function Shop() {
   const [orderNotes, setOrderNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('transfer'); // 'transfer' | 'card' | 'cash'
   const [datafastEnabled, setDatafastEnabled] = useState(false);
+  const [deliveryEnabled, setDeliveryEnabled] = useState(true);
   const [deliveryMethod, setDeliveryMethod] = useState('delivery'); // 'delivery' | 'pickup'
   const [deliveryLocation, setDeliveryLocation] = useState('');
   const [locationLoading, setLocationLoading] = useState(false);
@@ -90,6 +91,9 @@ export default function Shop() {
     ]).then(([p, c]) => {
       setProducts(p.products || []);
       setDatafastEnabled(p.datafast_enabled === true);
+      const canDeliver = p.delivery_enabled !== false;
+      setDeliveryEnabled(canDeliver);
+      if (!canDeliver) setDeliveryMethod('pickup');
       if (p.bank_info) setBankInfo(p.bank_info);
       setCart(c.items || []);
     }).catch(e => setErr(e.message)).finally(() => setLoading(false));
@@ -451,7 +455,8 @@ export default function Shop() {
                     {orderNotes.length}/{ORDER_NOTES_MAX_LEN}
                   </p>
 
-                  {/* Delivery method toggle */}
+                  {/* Delivery method toggle — only shown when tenant offers delivery */}
+                  {deliveryEnabled && (
                   <div className="mb-3">
                     <p className="mb-1.5 text-xs font-medium text-gray-700">¿Cómo recibir tu pedido?</p>
                     <div className="grid grid-cols-2 gap-2">
@@ -471,9 +476,10 @@ export default function Shop() {
                       </button>
                     </div>
                   </div>
+                  )}
 
                   {/* Location sharing (delivery only) */}
-                  {deliveryMethod === 'delivery' && (
+                  {deliveryEnabled && deliveryMethod === 'delivery' && (
                     <div className="mb-3">
                       {deliveryLocation ? (
                         <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-3 py-2">

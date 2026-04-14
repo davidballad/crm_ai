@@ -46,3 +46,13 @@ output "dynamodb_table_name" {
   description = "DynamoDB table name"
   value       = aws_dynamodb_table.main.name
 }
+
+output "cognito_hosted_ui_domain" {
+  description = "Cognito hosted UI base URL"
+  value       = "https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com"
+}
+
+output "google_oauth_redirect_uri" {
+  description = "Redirect URI to paste into Google Cloud Console OAuth credentials"
+  value       = "https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.aws_region}.amazoncognito.com/oauth2/idpresponse"
+}

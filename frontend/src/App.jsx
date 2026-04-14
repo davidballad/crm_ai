@@ -8,6 +8,10 @@ import Layout from './components/Layout';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import AuthCallback from './pages/AuthCallback';
+import GoogleOnboarding from './pages/GoogleOnboarding';
 import Dashboard from './pages/Dashboard';
 import InventoryList from './pages/InventoryList';
 import InventoryForm from './pages/InventoryForm';
@@ -43,6 +47,10 @@ export default function App() {
       <Route path="/shop" element={<Shop />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/google-onboarding" element={<GoogleOnboarding />} />
       <Route
         path="/app"
         element={

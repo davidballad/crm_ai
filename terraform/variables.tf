@@ -27,12 +27,16 @@ variable "cognito_callback_urls" {
   default = [
     "https://www.clientaai.com",
     "https://www.clientaai.com/",
+    "https://www.clientaai.com/auth/callback",
     "https://clientaai.com",
     "https://clientaai.com/",
+    "https://clientaai.com/auth/callback",
     "http://localhost:5173",
     "http://localhost:5173/",
+    "http://localhost:5173/auth/callback",
     "https://br.clientaai.com",
     "https://br.clientaai.com/",
+    "https://br.clientaai.com/auth/callback",
   ]
 }
 
@@ -97,6 +101,24 @@ variable "square_environment" {
 
 variable "service_api_key" {
   description = "Shared secret for n8n service-to-service auth (X-Service-Key header)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# -----------------------------------------------------------------------------
+# Google OAuth (for Cognito federated sign-in)
+# -----------------------------------------------------------------------------
+
+variable "google_client_id" {
+  description = "Google OAuth 2.0 Client ID (from Google Cloud Console). Pass via secrets.tfvars."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "google_client_secret" {
+  description = "Google OAuth 2.0 Client Secret (from Google Cloud Console). Pass via secrets.tfvars."
   type        = string
   default     = ""
   sensitive   = true

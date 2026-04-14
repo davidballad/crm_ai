@@ -15,14 +15,18 @@
     "password": "Password",
     "placeholderEmail": "you@business.com",
     "placeholderPassword": "Enter your password",
-    "language": "Language"
+    "language": "Language",
+    "orContinueWith": "or continue with",
+    "signInWithGoogle": "Sign in with Google",
+    "signUpWithGoogle": "Sign up with Google"
   },
   "login": {
     "title": "Sign in",
     "tagline": "AI-powered business insights for your business",
     "signInFailed": "Sign in failed",
     "noAccount": "Don't have an account?",
-    "createOne": "Create one"
+    "createOne": "Create one",
+    "forgotPassword": "Forgot your password?"
   },
   "signup": {
     "title": "Create your account",
@@ -35,6 +39,10 @@
     "placeholderPassword": "Min. 8 characters",
     "placeholderPhoneId": "e.g. 106540352242922",
     "passwordMinLength": "Password must be at least 8 characters",
+    "passwordNeedsUppercase": "Password must contain at least one uppercase letter",
+    "passwordNeedsLowercase": "Password must contain at least one lowercase letter",
+    "passwordNeedsNumber": "Password must contain at least one number",
+    "passwordHint": "Min. 8 characters with uppercase, lowercase, and a number",
     "signupFailed": "Signup failed",
     "alreadyHaveAccount": "Already have an account?",
     "businessTypes": {
@@ -43,6 +51,34 @@
       "bar": "Bar",
       "other": "Other"
     }
+  },
+  "forgotPassword": {
+    "title": "Reset your password",
+    "tagline": "Enter your email and we'll send you a reset code",
+    "sendCode": "Send reset code",
+    "sending": "Sending...",
+    "checkEmail": "We sent a reset code to {{email}}. Check your inbox (and spam folder).",
+    "enterCode": "I have a code — reset my password",
+    "backToLogin": "Back to sign in",
+    "failed": "Failed to send reset code"
+  },
+  "googleOnboarding": {
+    "title": "Almost there!",
+    "tagline": "Tell us about your business to finish setting up your account ({{email}})",
+    "finish": "Finish setup"
+  },
+  "resetPassword": {
+    "title": "Set new password",
+    "tagline": "Enter the code from your email and choose a new password",
+    "code": "Reset code",
+    "codePlaceholder": "6-digit code from email",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm password",
+    "confirmPlaceholder": "Re-enter new password",
+    "resetButton": "Reset password",
+    "resetting": "Resetting...",
+    "passwordMismatch": "Passwords do not match",
+    "failed": "Failed to reset password"
   },
   "layout": {
     "dashboard": "Dashboard",

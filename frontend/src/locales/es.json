@@ -15,14 +15,18 @@
     "password": "Contraseña",
     "placeholderEmail": "tu@negocio.com",
     "placeholderPassword": "Ingresa tu contraseña",
-    "language": "Idioma"
+    "language": "Idioma",
+    "orContinueWith": "o continúa con",
+    "signInWithGoogle": "Iniciar sesión con Google",
+    "signUpWithGoogle": "Registrarse con Google"
   },
   "login": {
     "title": "Iniciar sesión",
     "tagline": "Información de negocio con IA para tu empresa",
     "signInFailed": "Error al iniciar sesión",
     "noAccount": "¿No tienes cuenta?",
-    "createOne": "Crear una"
+    "createOne": "Crear una",
+    "forgotPassword": "¿Olvidaste tu contraseña?"
   },
   "signup": {
     "title": "Crea tu cuenta",
@@ -35,6 +39,10 @@
     "placeholderPassword": "Mín. 8 caracteres",
     "placeholderPhoneId": "ej. 106540352242922",
     "passwordMinLength": "La contraseña debe tener al menos 8 caracteres",
+    "passwordNeedsUppercase": "La contraseña debe tener al menos una letra mayúscula",
+    "passwordNeedsLowercase": "La contraseña debe tener al menos una letra minúscula",
+    "passwordNeedsNumber": "La contraseña debe tener al menos un número",
+    "passwordHint": "Mín. 8 caracteres con mayúscula, minúscula y un número",
     "signupFailed": "Error al crear la cuenta",
     "alreadyHaveAccount": "¿Ya tienes cuenta?",
     "businessTypes": {
@@ -43,6 +51,34 @@
       "bar": "Bar",
       "other": "Otro"
     }
+  },
+  "forgotPassword": {
+    "title": "Restablecer contraseña",
+    "tagline": "Ingresa tu correo y te enviaremos un código",
+    "sendCode": "Enviar código",
+    "sending": "Enviando...",
+    "checkEmail": "Enviamos un código a {{email}}. Revisa tu bandeja de entrada (y spam).",
+    "enterCode": "Tengo el código — restablecer contraseña",
+    "backToLogin": "Volver a iniciar sesión",
+    "failed": "Error al enviar el código"
+  },
+  "googleOnboarding": {
+    "title": "¡Ya casi!",
+    "tagline": "Cuéntanos sobre tu negocio para terminar de configurar tu cuenta ({{email}})",
+    "finish": "Finalizar configuración"
+  },
+  "resetPassword": {
+    "title": "Nueva contraseña",
+    "tagline": "Ingresa el código de tu correo y elige una nueva contraseña",
+    "code": "Código de restablecimiento",
+    "codePlaceholder": "Código de 6 dígitos del correo",
+    "newPassword": "Nueva contraseña",
+    "confirmPassword": "Confirmar contraseña",
+    "confirmPlaceholder": "Repite la nueva contraseña",
+    "resetButton": "Restablecer contraseña",
+    "resetting": "Restableciendo...",
+    "passwordMismatch": "Las contraseñas no coinciden",
+    "failed": "Error al restablecer la contraseña"
   },
   "layout": {
     "dashboard": "Panel",

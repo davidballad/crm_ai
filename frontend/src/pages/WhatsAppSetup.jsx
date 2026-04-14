@@ -30,6 +30,9 @@ export default function WhatsAppSetup() {
   const [datafastSaving, setDatafastSaving] = useState(false);
   const [datafastSuccess, setDatafastSuccess] = useState('');
   const [datafastError, setDatafastError] = useState('');
+  const [deliveryEnabled, setDeliveryEnabled] = useState(true);
+  const [deliverySaving, setDeliverySaving] = useState(false);
+  const [deliverySuccess, setDeliverySuccess] = useState('');
   const [supportPhone, setSupportPhone] = useState('');
   const [supportPhoneSaving, setSupportPhoneSaving] = useState(false);
   const [supportPhoneSuccess, setSupportPhoneSuccess] = useState('');
@@ -71,6 +74,7 @@ export default function WhatsAppSetup() {
       setIgBusinessAccountId(config.ig_business_account_id || '');
       setDatafastEntityId(config.datafast_entity_id || '');
       setStoreSlug(config.store_slug || '');
+      setDeliveryEnabled(config.delivery_enabled !== false);
       // Do NOT set igAccessToken, metaAccessToken, or datafastApiToken — never returned by API
     }
   }, [config]);
@@ -256,6 +260,51 @@ export default function WhatsAppSetup() {
           className="mt-3 btn-primary text-sm"
         >
           {datafastSaving ? 'Guardando...' : 'Guardar Datafast'}
+        </button>
+      </div>
+
+      {/* Delivery option */}
+      <div className="mt-6 card max-w-xl">
+        <h2 className="mb-1 text-sm font-semibold text-gray-900">Envío a domicilio</h2>
+        <p className="mb-4 text-xs text-gray-500">
+          Activa o desactiva la opción de entrega a domicilio en tu tienda online. Si está desactivada, los clientes solo podrán elegir retiro en tienda.
+        </p>
+
+        {deliverySuccess && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{deliverySuccess}</div>}
+
+        <label className="flex cursor-pointer items-center gap-3">
+          <div className="relative">
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={deliveryEnabled}
+              onChange={(e) => setDeliveryEnabled(e.target.checked)}
+            />
+            <div className={`h-6 w-11 rounded-full transition-colors ${deliveryEnabled ? 'bg-brand-600' : 'bg-gray-300'}`} />
+            <div className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${deliveryEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+          </div>
+          <span className="text-sm text-gray-700">{deliveryEnabled ? 'Envío habilitado' : 'Solo retiro en tienda'}</span>
+        </label>
+
+        <button
+          type="button"
+          disabled={deliverySaving}
+          onClick={async () => {
+            setDeliverySaving(true);
+            setDeliverySuccess('');
+            try {
+              await patchTenantConfig({ delivery_enabled: deliveryEnabled });
+              setDeliverySuccess('Configuración de envío guardada.');
+              setConfig(prev => ({ ...prev, delivery_enabled: deliveryEnabled }));
+            } catch {
+              /* ignore */
+            } finally {
+              setDeliverySaving(false);
+            }
+          }}
+          className="mt-3 btn-primary text-sm"
+        >
+          {deliverySaving ? 'Guardando...' : 'Guardar'}
         </button>
       </div>
 

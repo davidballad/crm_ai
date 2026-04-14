@@ -33,11 +33,13 @@ fi
 API_URL="${VITE_API_URL:-$(cd "$INFRA_DIR" && terraform output -raw api_endpoint 2>/dev/null || echo "")}"
 COGNITO_POOL_ID="${VITE_COGNITO_USER_POOL_ID:-$(cd "$INFRA_DIR" && terraform output -raw cognito_user_pool_id 2>/dev/null || echo "")}"
 COGNITO_CLIENT_ID="${VITE_COGNITO_CLIENT_ID:-$(cd "$INFRA_DIR" && terraform output -raw cognito_client_id 2>/dev/null || echo "")}"
+COGNITO_DOMAIN="${VITE_COGNITO_DOMAIN:-$(cd "$INFRA_DIR" && terraform output -raw cognito_hosted_ui_domain 2>/dev/null | sed 's|https://||' || echo "")}"
 
 echo "Building frontend..."
 echo "  API URL:        $API_URL"
 echo "  Cognito Pool:   $COGNITO_POOL_ID"
 echo "  Cognito Client: $COGNITO_CLIENT_ID"
+echo "  Cognito Domain: $COGNITO_DOMAIN"
 echo "  S3 Bucket:      $FRONTEND_BUCKET"
 echo ""
 
@@ -46,6 +48,7 @@ cat > "$FRONTEND_DIR/.env" <<EOF
 VITE_API_URL=$API_URL
 VITE_COGNITO_USER_POOL_ID=$COGNITO_POOL_ID
 VITE_COGNITO_CLIENT_ID=$COGNITO_CLIENT_ID
+VITE_COGNITO_DOMAIN=$COGNITO_DOMAIN
 EOF
 
 # Build
