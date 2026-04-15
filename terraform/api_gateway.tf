@@ -610,6 +610,12 @@ resource "aws_apigatewayv2_route" "onboarding_service_tenant" {
   target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
 }
 
+resource "aws_apigatewayv2_route" "onboarding_upload_logo_url" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /onboarding/upload-logo-url"
+  target    = "integrations/${aws_apigatewayv2_integration.onboarding.id}"
+}
+
 # Campaigns routes
 resource "aws_apigatewayv2_route" "campaigns_list" {
   api_id    = aws_apigatewayv2_api.main.id

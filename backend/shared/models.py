@@ -140,6 +140,7 @@ class Tenant(_BaseModel):
     business_hours: dict[str, Any] | None = None
     store_slug: str | None = None
     support_phone: str | None = None
+    logo_url: str | None = None
     tax_rate: Decimal | None = None
     follow_up_sequences: list[dict[str, Any]] | None = None
     created_at: str | None = None
