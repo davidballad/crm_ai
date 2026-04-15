@@ -15,7 +15,7 @@ export default function LowStockBadge({ quantity, threshold }) {
       }`}
     >
       <AlertTriangle className="h-3 w-3" />
-      {critical ? 'Out of stock' : 'Low stock'}
+      {critical ? 'Sin stock' : 'Stock bajo'}
     </span>
   );
 }
