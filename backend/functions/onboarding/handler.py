@@ -628,7 +628,7 @@ TENANT_CONFIG_FIELDS = (
     "follow_up_sequences", "tax_rate",
     "ig_business_account_id", "ig_access_token",
     "datafast_entity_id", "datafast_api_token",
-    "support_phone", "store_slug",
+    "support_phone", "store_slug", "logo_url",
 )
 
 
@@ -954,6 +954,36 @@ def get_service_tenant_context(event: dict[str, Any]) -> dict[str, Any]:
     return success(body=config)
 
 
+def upload_logo_url(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
+    """POST /onboarding/upload-logo-url — presigned PUT URL for tenant logo image."""
+    import boto3 as _boto3
+    bucket = os.environ.get("DATA_BUCKET")
+    region = os.environ.get("AWS_REGION", "us-east-1")
+    if not bucket:
+        return server_error("DATA_BUCKET not configured")
+    try:
+        body = parse_body(event)
+    except (TypeError, ValueError):
+        body = {}
+    filename = (body.get("filename") or "logo.jpg").strip()
+    content_type = (body.get("content_type") or "image/jpeg").strip()
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
+    if ext not in ("jpg", "jpeg", "png", "webp"):
+        ext = "jpg"
+    key = f"tenant-logos/{tenant_id}/logo.{ext}"
+    try:
+        s3 = _boto3.client("s3", region_name=region)
+        upload_url = s3.generate_presigned_url(
+            "put_object",
+            Params={"Bucket": bucket, "Key": key, "ContentType": content_type},
+            ExpiresIn=300,
+        )
+    except Exception as e:
+        return server_error(f"Failed to generate upload URL: {e}")
+    logo_url = f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
+    return success(body={"upload_url": upload_url, "logo_url": logo_url})
+
+
 # ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
@@ -1013,6 +1043,12 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if not tenant_id:
             return error("Unauthorized", 401)
         return patch_config(tenant_id, event)
+
+    if method == "POST" and ("/onboarding/upload-logo-url" in path):
+        tenant_id = extract_tenant_id(event)
+        if not tenant_id:
+            return error("Unauthorized", 401)
+        return upload_logo_url(tenant_id, event)
 
     if method == "GET" and ("/onboarding/resolve-slug" in path):
         return resolve_slug(event)

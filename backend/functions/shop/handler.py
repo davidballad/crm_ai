@@ -202,7 +202,14 @@ def _list_products(tenant_id: str) -> dict[str, Any]:
     delivery_enabled = tenant.get("delivery_enabled", True)
     if delivery_enabled is None:
         delivery_enabled = True
-    return success(body={"products": all_products, "datafast_enabled": datafast_enabled, "bank_info": bank_info, "delivery_enabled": bool(delivery_enabled)})
+    return success(body={
+        "products": all_products,
+        "datafast_enabled": datafast_enabled,
+        "bank_info": bank_info,
+        "delivery_enabled": bool(delivery_enabled),
+        "business_name": tenant.get("business_name") or "",
+        "logo_url": tenant.get("logo_url") or "",
+    })
 
 
 def _get_cart(tenant_id: str, customer_phone: str) -> dict[str, Any]:
