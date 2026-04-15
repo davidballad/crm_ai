@@ -17,3 +17,11 @@ export function getTenantConfig() {
 export function patchTenantConfig(data) {
   return api.patch('/onboarding/config', data);
 }
+
+/** POST /onboarding/upload-logo-url — presigned PUT URL for tenant logo. */
+export function getLogoUploadUrl({ filename, contentType }) {
+  return api.post('/onboarding/upload-logo-url', {
+    filename: filename || 'logo.jpg',
+    content_type: contentType || 'image/jpeg',
+  });
+}

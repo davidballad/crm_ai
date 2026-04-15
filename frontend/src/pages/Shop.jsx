@@ -61,10 +61,13 @@ export default function Shop() {
   const [deliveryEnabled, setDeliveryEnabled] = useState(true);
   const [deliveryMethod, setDeliveryMethod] = useState('delivery'); // 'delivery' | 'pickup'
   const [deliveryLocation, setDeliveryLocation] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [locationLoading, setLocationLoading] = useState(false);
   const [datafastCheckout, setDatafastCheckout] = useState(null); // { checkoutId, entityId, transactionId }
   const [bankInfo, setBankInfo] = useState(null);
   const [receiptFile, setReceiptFile] = useState(null);
+  const [businessName, setBusinessName] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
 
   useEffect(() => {
     if (!token) { setErr(t('shop.missingToken')); setLoading(false); return; }
@@ -95,6 +98,8 @@ export default function Shop() {
       setDeliveryEnabled(canDeliver);
       if (!canDeliver) setDeliveryMethod('pickup');
       if (p.bank_info) setBankInfo(p.bank_info);
+      if (p.business_name) setBusinessName(p.business_name);
+      if (p.logo_url) setLogoUrl(p.logo_url);
       setCart(c.items || []);
     }).catch(e => setErr(e.message)).finally(() => setLoading(false));
   }, [token]);
@@ -181,6 +186,7 @@ export default function Shop() {
           payment_method: paymentMethod,
           delivery_method: deliveryMethod,
           ...(deliveryMethod === 'delivery' && deliveryLocation && { delivery_location: deliveryLocation }),
+          ...(deliveryMethod === 'delivery' && deliveryAddress.trim() && { delivery_address: deliveryAddress.trim() }),
           ...(s3Key && { payment_proof_s3_key: s3Key })
         }),
       });
@@ -286,7 +292,12 @@ export default function Shop() {
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between gap-3 px-4">
-          <h1 className="truncate text-base font-semibold text-gray-900">{t('shop.pageTitle')}</h1>
+          <div className="flex items-center gap-2.5 min-w-0">
+            {logoUrl && (
+              <img src={logoUrl} alt={businessName || 'Logo'} className="h-8 w-8 rounded-full object-cover shrink-0 border border-gray-100" />
+            )}
+            <h1 className="truncate text-base font-semibold text-gray-900">{businessName || t('shop.pageTitle')}</h1>
+          </div>
           <button
             type="button"
             onClick={() => setCartOpen(!cartOpen)}
@@ -407,8 +418,15 @@ export default function Shop() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setCartOpen(false)} />
           <div className="relative z-50 max-h-[75vh] overflow-y-auto rounded-t-2xl border-t border-gray-200 bg-white shadow-xl">
             <div className="sticky top-0 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
-              <h2 className="text-base font-semibold text-gray-900">{t('shop.cart')} ({cartCount})</h2>
-              <button type="button" onClick={() => setCartOpen(false)} className="rounded p-1 text-gray-500 hover:bg-gray-100">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {logoUrl && (
+                  <img src={logoUrl} alt={businessName || 'Logo'} className="h-8 w-8 rounded-full object-cover shrink-0 border border-gray-100" />
+                )}
+                <h2 className="text-base font-semibold text-gray-900 truncate">
+                  {businessName || t('shop.cart')} <span className="font-normal text-gray-400">({cartCount})</span>
+                </h2>
+              </div>
+              <button type="button" onClick={() => setCartOpen(false)} className="rounded p-1 text-gray-500 hover:bg-gray-100 shrink-0">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -446,8 +464,8 @@ export default function Shop() {
                   <textarea
                     value={orderNotes}
                     onChange={e => setOrderNotes(e.target.value.slice(0, ORDER_NOTES_MAX_LEN))}
-                    placeholder={t('shop.orderNotesPlaceholder')}
-                    rows={2}
+                    placeholder="Notas del pedido: fecha y hora de entrega deseada, instrucciones especiales, mensajes personalizados..."
+                    rows={3}
                     maxLength={ORDER_NOTES_MAX_LEN}
                     className="mb-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                   />
@@ -478,12 +496,22 @@ export default function Shop() {
                   </div>
                   )}
 
-                  {/* Location sharing (delivery only) */}
+                  {/* Delivery address (delivery only) */}
                   {deliveryEnabled && deliveryMethod === 'delivery' && (
-                    <div className="mb-3">
+                    <div className="mb-3 space-y-2">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-700">📍 Dirección de entrega</label>
+                        <input
+                          type="text"
+                          value={deliveryAddress}
+                          onChange={e => setDeliveryAddress(e.target.value)}
+                          placeholder="Calle, número, sector, referencias..."
+                          className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                        />
+                      </div>
                       {deliveryLocation ? (
                         <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-3 py-2">
-                          <span className="text-xs text-green-700">📍 Ubicación capturada</span>
+                          <span className="text-xs text-green-700">📡 Ubicación GPS capturada</span>
                           <button type="button" onClick={() => setDeliveryLocation('')} className="text-xs text-gray-400 hover:text-red-500">Quitar</button>
                         </div>
                       ) : (
@@ -491,9 +519,9 @@ export default function Shop() {
                           type="button"
                           onClick={handleGetLocation}
                           disabled={locationLoading}
-                          className="w-full rounded-lg border border-gray-300 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                          className="w-full rounded-lg border border-gray-200 py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors"
                         >
-                          {locationLoading ? 'Obteniendo ubicación...' : '📍 Compartir mi ubicación (opcional)'}
+                          {locationLoading ? 'Obteniendo ubicación...' : '📡 Compartir ubicación GPS (opcional)'}
                         </button>
                       )}
                     </div>

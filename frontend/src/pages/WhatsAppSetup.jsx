@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { completeSetup, getTenantConfig, patchTenantConfig } from '../api/onboarding';
+import { completeSetup, getTenantConfig, patchTenantConfig, getLogoUploadUrl } from '../api/onboarding';
 import { MessageCircle, ExternalLink, Pencil, CheckCircle, Plus, Trash2 } from 'lucide-react';
 
 const normalizePhoneNumber = (value) => String(value || '').replace(/\D/g, '');
@@ -33,6 +33,10 @@ export default function WhatsAppSetup() {
   const [deliveryEnabled, setDeliveryEnabled] = useState(true);
   const [deliverySaving, setDeliverySaving] = useState(false);
   const [deliverySuccess, setDeliverySuccess] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoSuccess, setLogoSuccess] = useState('');
+  const [logoError, setLogoError] = useState('');
   const [supportPhone, setSupportPhone] = useState('');
   const [supportPhoneSaving, setSupportPhoneSaving] = useState(false);
   const [supportPhoneSuccess, setSupportPhoneSuccess] = useState('');
@@ -75,6 +79,7 @@ export default function WhatsAppSetup() {
       setDatafastEntityId(config.datafast_entity_id || '');
       setStoreSlug(config.store_slug || '');
       setDeliveryEnabled(config.delivery_enabled !== false);
+      setLogoUrl(config.logo_url || '');
       // Do NOT set igAccessToken, metaAccessToken, or datafastApiToken — never returned by API
     }
   }, [config]);
@@ -199,6 +204,78 @@ export default function WhatsAppSetup() {
         >
           {igSaving ? 'Guardando...' : 'Guardar Instagram'}
         </button>
+      </div>
+
+      {/* Logo de la tienda */}
+      <div className="mt-6 card max-w-xl">
+        <h2 className="mb-1 text-sm font-semibold text-gray-900">Logo de tu tienda</h2>
+        <p className="mb-4 text-xs text-gray-500">
+          Se mostrará en la cabecera del carrito cuando tus clientes hagan pedidos.
+        </p>
+
+        {logoSuccess && <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{logoSuccess}</div>}
+        {logoError && <div className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-600">{logoError}</div>}
+
+        <div className="flex items-center gap-4">
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo actual" className="h-16 w-16 rounded-xl object-cover border border-gray-200 shrink-0" />
+          ) : (
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 text-2xl">
+              🏪
+            </div>
+          )}
+          <label className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm font-medium text-gray-600 transition-colors hover:border-brand-400 hover:text-brand-600 ${logoUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+            {logoUploading ? 'Subiendo...' : logoUrl ? '🔄 Cambiar logo' : '📷 Subir logo'}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              disabled={logoUploading}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setLogoUploading(true);
+                setLogoSuccess('');
+                setLogoError('');
+                try {
+                  const { upload_url, logo_url } = await getLogoUploadUrl({
+                    filename: file.name,
+                    contentType: file.type || 'image/jpeg',
+                  });
+                  const putRes = await fetch(upload_url, {
+                    method: 'PUT',
+                    body: file,
+                    headers: { 'Content-Type': file.type || 'image/jpeg' },
+                  });
+                  if (!putRes.ok) throw new Error('Error al subir la imagen.');
+                  await patchTenantConfig({ logo_url });
+                  setLogoUrl(logo_url);
+                  setConfig(prev => ({ ...prev, logo_url }));
+                  setLogoSuccess('Logo guardado correctamente.');
+                } catch {
+                  setLogoError('No se pudo subir el logo. Intenta de nuevo.');
+                } finally {
+                  setLogoUploading(false);
+                  e.target.value = '';
+                }
+              }}
+            />
+          </label>
+        </div>
+        {logoUrl && (
+          <button
+            type="button"
+            className="mt-3 text-xs text-gray-400 hover:text-red-500"
+            onClick={async () => {
+              await patchTenantConfig({ logo_url: null });
+              setLogoUrl('');
+              setConfig(prev => ({ ...prev, logo_url: '' }));
+              setLogoSuccess('Logo eliminado.');
+            }}
+          >
+            Eliminar logo
+          </button>
+        )}
       </div>
 
       {/* Datafast card payment integration */}
