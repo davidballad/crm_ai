@@ -150,9 +150,9 @@
       "realEstate": "Inmobiliaria"
     },
     "hero": {
-      "badge": "For your business",
-      "title": "You don't need more customers — you need to answer faster",
-      "subtitle": "One simple CRM: inventory, WhatsApp, leads, and sales. AI insights on Pro. Every plan starts with a 14-day free trial—get started in minutes.",
+      "badge": "More than a CRM",
+      "title": "Your store, your catalog, your payments — all on WhatsApp",
+      "subtitle": "Clienta AI is your ecommerce engine on WhatsApp. Manage your inventory, share your catalog, and collect payments — without ever leaving the chat. Every plan starts with a 14-day free trial.",
       "getStarted": "Get started",
       "logIn": "Log in"
     },
@@ -169,8 +169,8 @@
     },
     "phoneMock": {
       "header": "WhatsApp Business",
-      "msgIn": "Hi — do you have the blue shirts in stock?",
-      "msgOut": "Yes, 12 left. Want me to reserve two for you?"
+      "msgIn": "I want the blue shirt (size M). How do I pay?",
+      "msgOut": "Here's your order summary and payment link. Done in seconds!"
     },
     "carousel": {
       "prev": "Previous slide",
@@ -180,17 +180,17 @@
     },
     "offers": {
       "title": "Everything you need in one place",
-      "subtitle": "Stop juggling spreadsheets and apps. Clienta AI keeps inventory, customers, and insights in sync.",
+      "subtitle": "Your full ecommerce operation in one place — inventory, customers, and payments synced automatically.",
       "feature0Title": "Inventory & products",
       "feature0Desc": "One catalog for all your stock. Set reorder points, import via CSV, and get low-stock alerts so you never run out.",
-      "feature1Title": "WhatsApp messaging",
-      "feature1Desc": "Reply to customers where they already are. Full conversation history and AI-assisted responses linked to contacts.",
+      "feature1Title": "WhatsApp sales & payments",
+      "feature1Desc": "Sell directly in chat. Share your catalog, take orders, and collect payments — all inside WhatsApp. Full conversation history linked to every contact.",
       "feature2Title": "AI insights",
       "feature2Desc": "Daily summaries you’ll actually use: demand forecasts, reorder suggestions, revenue trends, and spending insights.",
       "feature3Title": "Leads & contacts",
       "feature3Desc": "One place for every customer. Lead status, tier, and spend history so you know who matters most.",
       "feature4Title": "Transactions & sales",
-      "feature4Desc": "Sales and daily summaries in one view. From WhatsApp cart to checkout — no re-typing or spreadsheets."
+      "feature4Desc": "From WhatsApp chat to paid order in one flow. Every sale recorded automatically — no re-typing, no spreadsheets."
     },
     "collaborate": {
       "title": "Collaborate with us",
@@ -247,12 +247,12 @@
     },
     "pricing": {
       "title": "Simple pricing",
-      "subtitle": "We don't offer a forever-free tier—every plan includes a 14-day free trial. Basic covers core CRM; Pro adds AI. Pay monthly or annually (more savings). Contact us for a quote.",
+      "subtitle": "We don't offer a forever-free tier — every plan includes a 14-day free trial. Basic covers your full ecommerce stack on WhatsApp; Pro adds AI insights. Pay monthly or annually. Contact us for a quote.",
       "contactForPricing": "Contact for pricing",
       "contactInitialSetup": "Contact us for initial setup",
       "starterName": "Basic",
       "starterPrice": "14-day free trial",
-      "starterDesc": "Try the full core CRM—inventory, WhatsApp, leads, and reporting—then continue on Basic as a paid plan.",
+      "starterDesc": "Try the full ecommerce stack — inventory, WhatsApp catalog, payments, leads, and reporting — then continue on Basic as a paid plan.",
       "growthName": "Pro",
       "growthPrice": "Paid",
       "growthDesc": "Monthly or annual billing — choose annual for the best savings.",

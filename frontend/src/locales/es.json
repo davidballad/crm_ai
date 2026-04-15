@@ -150,9 +150,9 @@
       "realEstate": "Inmobiliaria"
     },
     "hero": {
-      "badge": "Para tu negocio",
-      "title": "No necesitas más clientes — necesitas responder más rápido",
-      "subtitle": "Un solo CRM: inventario, WhatsApp, contactos y ventas. Informes con IA en Pro. Todos los planes incluyen 14 días de prueba gratis—empieza en minutos.",
+      "badge": "Más que un CRM",
+      "title": "Tu tienda, tu catálogo, tus pagos — todo en WhatsApp",
+      "subtitle": "Clienta AI es tu motor de ecommerce en WhatsApp. Gestiona tu inventario, comparte tu catálogo y cobra los pagos — sin salir del chat. Todos los planes incluyen 14 días de prueba gratis.",
       "getStarted": "Comenzar",
       "logIn": "Iniciar sesión"
     },
@@ -169,8 +169,8 @@
     },
     "phoneMock": {
       "header": "WhatsApp Business",
-      "msgIn": "Hola — ¿tienen la camiseta azul en stock?",
-      "msgOut": "Sí, quedan 12. ¿Quieres que te reserve dos?"
+      "msgIn": "Quiero la camiseta azul (talla M). ¿Cómo pago?",
+      "msgOut": "Aquí está tu resumen de pedido y el enlace de pago. ¡Listo en segundos!"
     },
     "carousel": {
       "prev": "Diapositiva anterior",
@@ -180,17 +180,17 @@
     },
     "offers": {
       "title": "Todo lo que necesitas en un solo lugar",
-      "subtitle": "Deja de usar hojas de cálculo y varias apps. Clienta AI mantiene inventario, clientes e informes sincronizados.",
+      "subtitle": "Tu operación de ecommerce completa en un lugar — inventario, clientes y pagos sincronizados automáticamente.",
       "feature0Title": "Inventario y productos",
       "feature0Desc": "Un solo catálogo para todo tu stock. Umbrales de pedido, importación CSV y alertas para no quedarte sin producto.",
-      "feature1Title": "Mensajería WhatsApp",
-      "feature1Desc": "Responde donde ya están tus clientes. Historial de conversaciones y respuestas con IA vinculadas a cada contacto.",
+      "feature1Title": "Ventas y pagos por WhatsApp",
+      "feature1Desc": "Vende directamente en el chat. Comparte tu catálogo, toma pedidos y cobra — todo dentro de WhatsApp. Historial de conversaciones vinculado a cada contacto.",
       "feature2Title": "Informes IA",
       "feature2Desc": "Resúmenes diarios útiles: previsiones de demanda, sugerencias de pedido, tendencias de ingresos y gastos.",
       "feature3Title": "Contactos y leads",
       "feature3Desc": "Un lugar para cada cliente. Estado del lead, nivel y historial de compra para saber quién importa más.",
       "feature4Title": "Transacciones y ventas",
-      "feature4Desc": "Ventas y resúmenes diarios en una vista. Del carrito de WhatsApp al pago — sin reescribir ni hojas de cálculo."
+      "feature4Desc": "Del chat de WhatsApp al pedido pagado en un solo flujo. Cada venta registrada automáticamente — sin reescribir, sin hojas de cálculo."
     },
     "campaigns": {
       "eyebrow": "Llega a todos",
@@ -247,12 +247,12 @@
     },
     "pricing": {
       "title": "Precios simples",
-      "subtitle": "No ofrecemos un plan gratuito permanente: todos los planes incluyen 14 días de prueba gratis. Básico cubre el CRM esencial; Pro añade IA. Pago mensual o anual (más ahorro). Contáctanos para una cotización.",
+      "subtitle": "No ofrecemos un plan gratuito permanente — todos los planes incluyen 14 días de prueba gratis. Básico cubre tu stack de ecommerce completo en WhatsApp; Pro añade informes con IA. Pago mensual o anual. Contáctanos para una cotización.",
       "contactForPricing": "Solicitar precios",
       "contactInitialSetup": "Contáctanos para la configuración inicial",
       "starterName": "Básico",
       "starterPrice": "14 días de prueba gratis",
-      "starterDesc": "Prueba el CRM completo—inventario, WhatsApp, contactos e informes—y luego continúa en Básico con un plan de pago.",
+      "starterDesc": "Prueba el stack de ecommerce completo — inventario, catálogo WhatsApp, pagos, contactos e informes — y luego continúa en Básico con un plan de pago.",
       "growthName": "Pro",
       "growthPrice": "De pago",
       "growthDesc": "Facturación mensual o anual — elige anual para mayor ahorro.",
