@@ -55,29 +55,29 @@ function NetworkBackground() {
       <div className="absolute top-[15%] left-[10%] h-64 w-64 rounded-full bg-brand-500/10 blur-[80px] landing-orb-float opacity-30" />
       <div className="absolute top-[60%] right-[15%] h-80 w-80 rounded-full bg-brand-600/10 blur-[100px] landing-orb-float-slow opacity-20" />
       <div className="absolute bottom-[10%] left-[20%] h-48 w-48 rounded-full bg-brand-400/10 blur-[60px] landing-orb-float opacity-20" />
-      
+
       <svg className="h-full w-full opacity-[0.15]" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <filter id="glow-heavy">
-            <feGaussianBlur stdDeviation="4.5" result="coloredBlur"/>
+            <feGaussianBlur stdDeviation="4.5" result="coloredBlur" />
             <feMerge>
-              <feMergeNode in="coloredBlur"/>
-              <feMergeNode in="SourceGraphic"/>
+              <feMergeNode in="coloredBlur" />
+              <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
-        
+
         {/* Intricate connection lines */}
         <g stroke="rgba(59, 130, 246, 0.4)" strokeWidth="0.5" fill="none">
           <path d="M50 150 Q200 100 350 200 T650 150" className="animate-pulse" />
           <path d="M100 450 Q300 400 450 500 T750 450" className="animate-pulse" style={{ animationDelay: '1.5s' }} />
           <path d="M150 650 Q400 600 550 700 T850 650" className="animate-pulse" style={{ animationDelay: '3s' }} />
-          
+
           <path d="M150 100 L100 450 L150 650" opacity="0.3" />
           <path d="M350 200 L450 500 L400 600" opacity="0.3" />
           <path d="M650 150 L750 450 L850 650" opacity="0.3" />
         </g>
-        
+
         {/* Persistent glowing nodes */}
         {[
           { cx: 50, cy: 150 }, { cx: 350, cy: 200 }, { cx: 650, cy: 150 },
@@ -156,11 +156,10 @@ function LandingCampaigns({ t }) {
               <button
                 key={i}
                 onClick={() => setActiveTab(i)}
-                className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-all duration-300 ${
-                  activeTab === i 
-                    ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' 
-                    : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                }`}
+                className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-all duration-300 ${activeTab === i
+                  ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20'
+                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                  }`}
               >
                 <tab.icon className={`h-4 w-4 ${activeTab === i ? 'text-white' : 'text-brand-400'}`} />
                 {tab.title}
@@ -175,9 +174,6 @@ function LandingCampaigns({ t }) {
                 <div>
                   <h3 className="font-serif text-3xl font-bold text-white">{tabs[activeTab].fullTitle}</h3>
                   <p className="mt-4 text-lg leading-relaxed text-slate-300">{tabs[activeTab].desc}</p>
-                  <div className="mt-8">
-                    <button className="btn-primary px-8 py-3 text-sm">{t('landing.campaigns.cta')}</button>
-                  </div>
                 </div>
                 <div className="relative">
                   <div className="w-full rounded-2xl border border-white/10 bg-slate-900/60 p-5 ring-1 ring-white/5">
@@ -331,22 +327,20 @@ export default function Landing() {
               <button
                 type="button"
                 onClick={() => i18n.changeLanguage('en')}
-                className={`rounded px-2 py-0.5 transition-colors ${
-                  i18n.language === 'en'
-                    ? 'bg-white/20 font-medium text-white'
-                    : 'hover:bg-white/10'
-                }`}
+                className={`rounded px-2 py-0.5 transition-colors ${i18n.language === 'en'
+                  ? 'bg-white/20 font-medium text-white'
+                  : 'hover:bg-white/10'
+                  }`}
               >
                 EN
               </button>
               <button
                 type="button"
                 onClick={() => i18n.changeLanguage('es')}
-                className={`rounded px-2 py-0.5 transition-colors ${
-                  i18n.language === 'es'
-                    ? 'bg-white/20 font-medium text-white'
-                    : 'hover:bg-white/10'
-                }`}
+                className={`rounded px-2 py-0.5 transition-colors ${i18n.language === 'es'
+                  ? 'bg-white/20 font-medium text-white'
+                  : 'hover:bg-white/10'
+                  }`}
               >
                 ES
               </button>
@@ -418,6 +412,15 @@ export default function Landing() {
               >
                 {t('landing.hero.logIn')}
               </Link>
+              <a
+                href={BUSINESS_WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mb-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1fa851]"
+              >
+                <WhatsAppGlyph className="h-5 w-5" />
+                Contactar por WhatsApp
+              </a>
             </div>
           </div>
 
@@ -439,82 +442,6 @@ export default function Landing() {
             <span className="hidden sm:inline">Scroll</span>
             <ChevronDown className="h-6 w-6 animate-bounce" strokeWidth={1.5} />
           </button>
-        </div>
-      </section>
-
-      {/* Trust */}
-      <section
-        id="trust"
-        className="relative border-t border-gray-100 bg-white py-12 md:py-16 dot-pattern-dark"
-      >
-        <div className="landing-reveal mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center gap-6 sm:gap-8">
-            <div className="flex max-w-xl flex-col items-center gap-3 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100/90 text-emerald-700 ring-1 ring-emerald-200/60">
-                <ShieldCheck className="h-6 w-6" />
-              </div>
-              <h2 className="text-xl font-semibold text-gray-900">{t('landing.trust.title')}</h2>
-              <p className="text-sm text-gray-600">{t('landing.trust.subtitle')}</p>
-            </div>
-            <a
-              href="https://aws.amazon.com/what-is-cloud-computing"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="opacity-90 transition-opacity hover:opacity-100"
-              title="Powered by Amazon Web Services"
-            >
-              <img
-                src="https://d0.awsstatic.com/logos/powered-by-aws.png"
-                alt="Powered by AWS"
-                width={96}
-                height={24}
-                className="h-7 w-auto"
-                loading="lazy"
-                decoding="async"
-                fetchpriority="low"
-              />
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Real Estate Referral */}
-      <section className="relative overflow-hidden bg-[#020617] py-16 md:py-24 dot-pattern">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="landing-reveal glass-card border-brand-500/30 bg-brand-500/5 p-8 md:p-12 transition-all hover:border-brand-500/50">
-            <div className="flex flex-col items-center gap-10 lg:flex-row lg:justify-between">
-              <div className="max-w-2xl text-center lg:text-left">
-                <span className="inline-block rounded-full bg-brand-500/20 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand-400 ring-1 ring-brand-500/30 mb-6">
-                  {t('landing.realEstate.badge')}
-                </span>
-                <h2 className="font-serif text-4xl font-bold tracking-tight text-white sm:text-5xl">
-                   {t('landing.realEstate.title')}
-                </h2>
-                <p className="mt-6 text-lg text-slate-300 leading-relaxed font-medium">
-                  {t('landing.realEstate.subtitle')}
-                </p>
-                <div className="mt-10">
-                  <a 
-                    href="https://br.clientaai.com" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="btn-primary inline-flex items-center gap-2 px-10 py-4 text-base font-semibold shadow-[0_0_40px_-5px_rgba(59,130,246,0.3)] transition-transform hover:scale-105 active:scale-95"
-                  >
-                    <Home className="h-5 w-5" />
-                    {t('landing.realEstate.cta')}
-                  </a>
-                </div>
-              </div>
-              <div className="relative flex justify-center lg:justify-end">
-                <div className="relative h-64 w-64 lg:h-80 lg:w-80">
-                  <div className="absolute inset-0 bg-brand-500/20 blur-[60px] animate-pulse pointer-events-none" />
-                  <div className="relative flex h-full w-full items-center justify-center rounded-3xl border border-white/10 bg-slate-900/40 backdrop-blur-3xl shadow-2xl ring-1 ring-white/10 group overflow-hidden">
-                    <Home className="h-32 w-32 text-brand-400 drop-shadow-[0_0_15px_rgba(96,165,250,0.6)] transition-all duration-500 group-hover:scale-110" strokeWidth={1} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -669,6 +596,82 @@ export default function Landing() {
             >
               {t('landing.services.cta')}
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Real Estate Referral */}
+      <section className="relative overflow-hidden bg-[#020617] py-16 md:py-24 dot-pattern">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="landing-reveal glass-card border-brand-500/30 bg-brand-500/5 p-8 md:p-12 transition-all hover:border-brand-500/50">
+            <div className="flex flex-col items-center gap-10 lg:flex-row lg:justify-between">
+              <div className="max-w-2xl text-center lg:text-left">
+                <span className="inline-block rounded-full bg-brand-500/20 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand-400 ring-1 ring-brand-500/30 mb-6">
+                  {t('landing.realEstate.badge')}
+                </span>
+                <h2 className="font-serif text-4xl font-bold tracking-tight text-white sm:text-5xl">
+                  {t('landing.realEstate.title')}
+                </h2>
+                <p className="mt-6 text-lg text-slate-300 leading-relaxed font-medium">
+                  {t('landing.realEstate.subtitle')}
+                </p>
+                <div className="mt-10">
+                  <a
+                    href="https://br.clientaai.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary inline-flex items-center gap-2 px-10 py-4 text-base font-semibold shadow-[0_0_40px_-5px_rgba(59,130,246,0.3)] transition-transform hover:scale-105 active:scale-95"
+                  >
+                    <Home className="h-5 w-5" />
+                    {t('landing.realEstate.cta')}
+                  </a>
+                </div>
+              </div>
+              <div className="relative flex justify-center lg:justify-end">
+                <div className="relative h-64 w-64 lg:h-80 lg:w-80">
+                  <div className="absolute inset-0 bg-brand-500/20 blur-[60px] animate-pulse pointer-events-none" />
+                  <div className="relative flex h-full w-full items-center justify-center rounded-3xl border border-white/10 bg-slate-900/40 backdrop-blur-3xl shadow-2xl ring-1 ring-white/10 group overflow-hidden">
+                    <Home className="h-32 w-32 text-brand-400 drop-shadow-[0_0_15px_rgba(96,165,250,0.6)] transition-all duration-500 group-hover:scale-110" strokeWidth={1} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust */}
+      <section
+        id="trust"
+        className="relative border-t border-gray-100 bg-white py-12 md:py-16 dot-pattern-dark"
+      >
+        <div className="landing-reveal mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center gap-6 sm:gap-8">
+            <div className="flex max-w-xl flex-col items-center gap-3 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100/90 text-emerald-700 ring-1 ring-emerald-200/60">
+                <ShieldCheck className="h-6 w-6" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900">{t('landing.trust.title')}</h2>
+              <p className="text-sm text-gray-600">{t('landing.trust.subtitle')}</p>
+            </div>
+            <a
+              href="https://aws.amazon.com/what-is-cloud-computing"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="opacity-90 transition-opacity hover:opacity-100"
+              title="Powered by Amazon Web Services"
+            >
+              <img
+                src="https://d0.awsstatic.com/logos/powered-by-aws.png"
+                alt="Powered by AWS"
+                width={96}
+                height={24}
+                className="h-7 w-auto"
+                loading="lazy"
+                decoding="async"
+                fetchpriority="low"
+              />
+            </a>
           </div>
         </div>
       </section>
