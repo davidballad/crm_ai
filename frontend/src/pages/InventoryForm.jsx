@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useProduct, useCreateProduct, useUpdateProduct } from '../hooks/useProducts';
 import { getUploadImageUrl } from '../api/inventory';
-import { ArrowLeft, Upload, Tag } from 'lucide-react';
+import { ArrowLeft, Upload, Tag, X, Plus, ImageIcon } from 'lucide-react';
+
+const MAX_IMAGES = 5;
 
 const EMPTY = {
   name: '',
@@ -14,6 +16,7 @@ const EMPTY = {
   sku: '',
   unit: 'each',
   image_url: '',
+  image_urls: [],
   notes: '',
   tags: '',
   promo_price: '',
@@ -31,9 +34,9 @@ export default function InventoryForm() {
 
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [uploadingIndex, setUploadingIndex] = useState(null);
   const fileInputRef = useRef(null);
+  const uploadingSlotRef = useRef(null);
 
   useEffect(() => {
     if (existing) {
@@ -47,6 +50,7 @@ export default function InventoryForm() {
         sku: product.sku || '',
         unit: product.unit || 'each',
         image_url: product.image_url || '',
+        image_urls: Array.isArray(product.image_urls) ? product.image_urls : [],
         notes: product.notes || '',
         tags: Array.isArray(product.tags) ? product.tags.join(', ') : (product.tags || ''),
         promo_price: product.promo_price != null ? String(product.promo_price) : '',
@@ -59,14 +63,16 @@ export default function InventoryForm() {
 
   const handleUploadImage = async (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    const slotIndex = uploadingSlotRef.current;
+    if (!file || slotIndex == null) return;
     setError('');
-    setUploading(true);
+    setUploadingIndex(slotIndex);
     try {
       const { upload_url, image_url } = await getUploadImageUrl({
         productId: isEdit ? id : null,
         filename: file.name,
         contentType: file.type || 'image/jpeg',
+        imageIndex: slotIndex,
       });
       await fetch(upload_url, {
         method: 'PUT',
@@ -74,13 +80,39 @@ export default function InventoryForm() {
         headers: { 'Content-Type': file.type || 'image/jpeg' },
       });
       if (!image_url) throw new Error('No se recibio image_url');
-      setForm((prev) => ({ ...prev, image_url }));
+      setForm((prev) => {
+        const urls = [...(prev.image_urls || [])];
+        urls[slotIndex] = image_url;
+        return {
+          ...prev,
+          image_urls: urls,
+          image_url: slotIndex === 0 ? image_url : prev.image_url,
+        };
+      });
     } catch (err) {
       setError(err.message || t('inventoryForm.imageUploadFailed'));
     } finally {
-      setUploading(false);
+      setUploadingIndex(null);
+      uploadingSlotRef.current = null;
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const triggerUpload = (index) => {
+    uploadingSlotRef.current = index;
+    fileInputRef.current?.click();
+  };
+
+  const removeImage = (index) => {
+    setForm((prev) => {
+      const urls = [...(prev.image_urls || [])];
+      urls.splice(index, 1);
+      return {
+        ...prev,
+        image_urls: urls,
+        image_url: index === 0 ? (urls[0] || '') : prev.image_url,
+      };
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -92,7 +124,8 @@ export default function InventoryForm() {
       quantity: Number(form.quantity),
       unit_cost: form.unit_cost ? Number(form.unit_cost) : undefined,
       reorder_threshold: Number(form.reorder_threshold),
-      image_url: form.image_url?.trim() || undefined,
+      image_url: form.image_urls?.[0]?.trim() || form.image_url?.trim() || undefined,
+      image_urls: form.image_urls?.filter(Boolean).length > 0 ? form.image_urls.filter(Boolean) : undefined,
       tags: rawTags.length > 0 ? rawTags : undefined,
       promo_price: form.promo_price ? Number(form.promo_price) : null,
       promo_end_at: form.promo_end_at || null,
@@ -177,58 +210,63 @@ export default function InventoryForm() {
           </div>
 
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.productImage')}</label>
-            <div className="flex flex-wrap items-start gap-3">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="btn-secondary inline-flex items-center gap-2"
-              >
-                {uploading ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
-                ) : (
-                  <Upload className="h-4 w-4" />
-                )}
-                {uploading ? t('inventoryForm.uploading') : t('inventoryForm.uploadImage')}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleUploadImage}
-              />
-              <button
-                type="button"
-                onClick={() => setShowUrlInput((v) => !v)}
-                className="text-sm text-gray-500 hover:text-gray-700"
-              >
-                {showUrlInput ? t('inventoryForm.hideUrl') : t('inventoryForm.orPasteImageUrl')}
-              </button>
+            <label className="mb-2 block text-sm font-medium text-gray-700">
+              Fotos del producto <span className="text-xs font-normal text-gray-400">({(form.image_urls || []).filter(Boolean).length}/{MAX_IMAGES})</span>
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleUploadImage}
+            />
+            <div className="grid grid-cols-5 gap-2">
+              {Array.from({ length: MAX_IMAGES }).map((_, i) => {
+                const url = form.image_urls?.[i];
+                const isUploading = uploadingIndex === i;
+                return (
+                  <div key={i} className="relative aspect-square">
+                    {url ? (
+                      <>
+                        <img
+                          src={url}
+                          alt={`Foto ${i + 1}`}
+                          className="h-full w-full rounded-lg border border-gray-200 object-cover"
+                          onError={(e) => { e.target.src = '/placeholder-product.png'; }}
+                        />
+                        {i === 0 && (
+                          <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1 text-[10px] font-medium text-white">Principal</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeImage(i)}
+                          className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow hover:bg-red-600"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => triggerUpload(i)}
+                        disabled={isUploading}
+                        className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 transition-colors hover:border-brand-400 hover:bg-brand-50 hover:text-brand-500 disabled:cursor-wait"
+                      >
+                        {isUploading ? (
+                          <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                        ) : (
+                          <>
+                            {i === 0 ? <Upload className="h-5 w-5" /> : <Plus className="h-4 w-4" />}
+                            <span className="text-[10px] leading-none">{i === 0 ? 'Principal' : `Foto ${i + 1}`}</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            {showUrlInput && (
-              <input
-                type="url"
-                value={form.image_url}
-                onChange={update('image_url')}
-                className="input-field mt-2"
-                placeholder={t('inventoryForm.placeholderImageUrl')}
-              />
-            )}
-            <div className="mt-2 flex items-center gap-2">
-              <img
-                src={form.image_url || '/placeholder-product.png'}
-                alt=""
-                className="h-20 w-20 rounded border border-gray-200 object-cover"
-                onError={(e) => {
-                  e.target.src = '/placeholder-product.png';
-                }}
-              />
-              <span className="text-xs text-gray-500">
-                {form.image_url ? t('inventoryForm.imageStoredHint') : 'Previsualización (se usará el icono por defecto)'}
-              </span>
-            </div>
+            <p className="mt-1.5 text-xs text-gray-400">Puedes subir hasta 5 fotos. La primera es la foto principal del producto.</p>
           </div>
 
           <div className="sm:col-span-2">

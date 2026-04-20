@@ -31,12 +31,13 @@ export function importFromCsv(csvText) {
   return api.postRaw('/inventory/import', csvText, 'text/csv');
 }
 
-/** Get presigned upload URL and final image_url. productId optional (for create use null). */
-export function getUploadImageUrl({ productId, filename, contentType }) {
+/** Get presigned upload URL and final image_url. productId optional (for create use null). imageIndex 0-4 for multi-image support. */
+export function getUploadImageUrl({ productId, filename, contentType, imageIndex = 0 }) {
   return api.post('/inventory/upload-image-url', {
     product_id: productId || undefined,
     filename: filename || 'image.jpg',
     content_type: contentType || 'image/jpeg',
+    image_index: imageIndex,
   });
 }
 

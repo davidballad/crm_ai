@@ -231,14 +231,17 @@ def _safe_extension(filename: str) -> str:
     return ext
 
 
+MAX_PRODUCT_IMAGES = 5
+
+
 def get_upload_image_url(
     tenant_id: str,
     event: dict[str, Any],
 ) -> dict[str, Any]:
     """
     Return a presigned PUT URL and the final public image_url.
-    Body: { "product_id": optional, "filename": str, "content_type": optional }.
-    If product_id is omitted (e.g. before product exists), uses a temp key.
+    Body: { "product_id": optional, "filename": str, "content_type": optional, "image_index": 0-4 }.
+    image_index distinguishes multiple images per product (0 = primary/legacy image_url).
     """
     bucket = os.environ.get("DATA_BUCKET")
     region = os.environ.get("AWS_REGION", "us-east-1")
@@ -255,10 +258,13 @@ def get_upload_image_url(
     filename = (body.get("filename") or "").strip()
     content_type = (body.get("content_type") or "").strip() or "image/jpeg"
     product_id = body.get("product_id")
+    image_index = int(body.get("image_index") or 0)
+    if not (0 <= image_index < MAX_PRODUCT_IMAGES):
+        return error(f"image_index must be 0-{MAX_PRODUCT_IMAGES - 1}", 400)
     ext = _safe_extension(filename)
 
     if product_id:
-        key = f"{INVENTORY_IMAGES_PREFIX}/{tenant_id}/{product_id}.{ext}"
+        key = f"{INVENTORY_IMAGES_PREFIX}/{tenant_id}/{product_id}_{image_index}.{ext}"
     else:
         key = f"{INVENTORY_IMAGES_PREFIX}/{tenant_id}/temp/{generate_id()}.{ext}"
 

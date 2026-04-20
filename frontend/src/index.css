@@ -73,13 +73,13 @@
 .landing-orb-float-slow  { animation: landing-float-slow 18s ease-in-out infinite; }
 .landing-glow-pulse      { animation: glow-pulse         8s ease-in-out infinite; }
 
-/* Scroll-reveal */
+/* Scroll-reveal — smooth fade-up animation */
 .landing-reveal {
   opacity: 0;
-  transform: translateY(1.1rem);
+  transform: translateY(1.2rem);
   transition:
-    opacity   0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.72s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity   0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .landing-reveal.is-visible {
   opacity: 1;
@@ -99,12 +99,43 @@
 .landing-reveal-stagger.is-visible > *:nth-child(3) { opacity:1; transform:none; transition-delay: 160ms; }
 .landing-reveal-stagger.is-visible > *:nth-child(4) { opacity:1; transform:none; transition-delay: 240ms; }
 
+/* Smooth text shadow animation */
+@keyframes text-glow-pulse {
+  0%, 100% {
+    text-shadow: 0 0 20px rgba(96, 165, 250, 0.4);
+    filter: drop-shadow(0 0 15px rgba(96, 165, 250, 0.3));
+  }
+  50% {
+    text-shadow: 0 0 30px rgba(96, 165, 250, 0.6);
+    filter: drop-shadow(0 0 25px rgba(96, 165, 250, 0.5));
+  }
+}
+
+/* Enhanced button interactions */
+@keyframes button-hover-glow {
+  0% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(59, 130, 246, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+}
+
+.text-glow { animation: text-glow-pulse 4s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   .landing-reveal,
   .landing-reveal-stagger > * {
     opacity: 1;
     transform: none;
+    animation: none;
     transition: none;
+  }
+  .text-glow {
+    animation: none;
   }
 }
 
@@ -119,7 +150,7 @@
     @apply block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-full bg-brand-600 px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-brand-600/20 hover:bg-brand-500 hover:shadow-brand-500/30 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center rounded-full bg-brand-600 px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-brand-600/25 hover:bg-brand-500 hover:shadow-brand-500/40 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-all duration-300 ease-out disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-secondary {
     @apply inline-flex items-center justify-center rounded-full border border-gray-200 bg-white/5 backdrop-blur-md px-6 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-white/10 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-all;
@@ -128,10 +159,10 @@
     @apply inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors;
   }
   .nav-solid {
-    @apply bg-[#050c18]/95 backdrop-blur-md border-b border-white/5 shadow-2xl;
+    @apply bg-[#050c18]/95 backdrop-blur-xl border-b border-white/5 shadow-2xl transition-all duration-300;
   }
   .glass-card {
-    @apply rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl shadow-2xl transition-all duration-500 hover:border-brand-500/30 hover:bg-white/[0.06];
+    @apply rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-3xl shadow-2xl transition-all duration-500 hover:border-brand-500/40 hover:bg-white/[0.08];
   }
   .vignette-glow {
     background: radial-gradient(circle at center, transparent 30%, rgba(0, 0, 0, 0.3) 100%);

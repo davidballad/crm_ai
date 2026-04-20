@@ -137,43 +137,43 @@ function LandingCampaigns({ t }) {
   ];
 
   return (
-    <section className="relative overflow-hidden bg-[#020617] py-12 md:py-20 dot-pattern vignette-glow">
+    <section className="relative overflow-hidden bg-[#020617] py-24 md:py-32 lg:py-40 dot-pattern vignette-glow">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="landing-reveal text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-brand-400 sm:text-sm">{t('landing.campaigns.eyebrow')}</p>
-          <h2 className="mt-4 font-serif text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-brand-400/90 sm:text-sm">{t('landing.campaigns.eyebrow')}</p>
+          <h2 className="landing-reveal mt-4 sm:mt-6 font-serif text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.1]">
             {t('landing.campaigns.title')}
           </h2>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-300 sm:text-xl">
+          <p className="landing-reveal mx-auto mt-6 sm:mt-8 max-w-2xl text-base sm:text-lg lg:text-xl text-slate-300 leading-relaxed">
             {t('landing.campaigns.subtitle')}
           </p>
         </div>
 
-        <div className="mt-10 flex flex-col items-center">
+        <div className="landing-reveal mt-12 sm:mt-16 flex flex-col items-center">
           {/* Pill Tabs */}
-          <div className="flex flex-wrap justify-center gap-2 rounded-full border border-white/5 bg-white/5 p-1.5 backdrop-blur-md sm:gap-4">
+          <div className="flex flex-wrap justify-center gap-2 rounded-full border border-white/5 bg-white/[0.03] p-1.5 backdrop-blur-xl sm:gap-3 md:gap-4">
             {tabs.map((tab, i) => (
               <button
                 key={i}
                 onClick={() => setActiveTab(i)}
-                className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-all duration-300 ${activeTab === i
-                  ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20'
-                  : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                className={`flex items-center gap-2 rounded-full px-4 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-medium transition-all duration-300 ${activeTab === i
+                  ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/25 scale-100'
+                  : 'text-slate-400 hover:bg-white/5 hover:text-white hover:scale-105'
                   }`}
               >
-                <tab.icon className={`h-4 w-4 ${activeTab === i ? 'text-white' : 'text-brand-400'}`} />
+                <tab.icon className={`h-4 w-4 transition-colors duration-300 ${activeTab === i ? 'text-white' : 'text-brand-400'}`} />
                 {tab.title}
               </button>
             ))}
           </div>
 
           {/* Tab Content */}
-          <div className="mt-8 w-full max-w-4xl">
-            <div className="glass-card overflow-hidden p-8 md:p-12">
-              <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-                <div>
-                  <h3 className="font-serif text-3xl font-bold text-white">{tabs[activeTab].fullTitle}</h3>
-                  <p className="mt-4 text-lg leading-relaxed text-slate-300">{tabs[activeTab].desc}</p>
+          <div className="mt-10 sm:mt-14 w-full max-w-4xl">
+            <div className="glass-card overflow-hidden p-6 sm:p-8 md:p-12 transition-all duration-500">
+              <div className="grid gap-8 sm:gap-12 lg:grid-cols-2 lg:items-center">
+                <div className="space-y-4 sm:space-y-6">
+                  <h3 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-[1.1]">{tabs[activeTab].fullTitle}</h3>
+                  <p className="text-base sm:text-lg leading-relaxed text-slate-300">{tabs[activeTab].desc}</p>
                 </div>
                 <div className="relative">
                   <div className="w-full rounded-2xl border border-white/10 bg-slate-900/60 p-5 ring-1 ring-white/5">
@@ -286,7 +286,7 @@ export default function Landing() {
   if (isAuthenticated) return <Navigate to="/app" replace />;
 
   return (
-    <div className="landing-page min-h-screen bg-slate-50 overflow-x-hidden">
+    <div className="landing-page min-h-screen bg-white overflow-x-hidden">
       <nav className="fixed top-0 left-0 right-0 z-50 nav-solid transition-all duration-300">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-2">
@@ -386,40 +386,44 @@ export default function Landing() {
 
         <div className="relative z-10 mx-auto grid min-h-[calc(95vh-4rem)] max-w-6xl grid-cols-1 items-center gap-8 px-4 pb-12 pt-20 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8">
           <div className="text-center lg:text-left">
-            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-300 drop-shadow-md sm:text-sm">
+            <p className="landing-reveal text-xs font-semibold uppercase tracking-[0.4em] text-brand-300/80 drop-shadow-md sm:text-sm">
               {t('landing.hero.badge')}
             </p>
-            <h1 className="mt-8 font-serif text-[2.5rem] font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
+            <h1 className="landing-reveal mt-6 sm:mt-8 font-serif text-3xl sm:text-6xl lg:text-7xl font-bold leading-[1.08] tracking-tight text-white">
               {t('landing.hero.title').split(' ').map((word, i) => (
-                <span key={i} className={i === 1 ? 'text-brand-400 drop-shadow-[0_0_25px_rgba(96,165,250,0.4)]' : ''}>
-                  {word}{' '}
+                <span key={i} className={`inline-block transition-all duration-700 ${i === 1 ? 'text-brand-400 drop-shadow-[0_0_30px_rgba(96,165,250,0.5)]' : ''}`}>
+                  {word}{i < t('landing.hero.title').split(' ').length - 1 ? '\u00A0' : ''}
                 </span>
               ))}
             </h1>
-            <p className="mx-auto mt-10 max-w-2xl text-lg leading-relaxed text-slate-300 sm:text-xl lg:mx-0">
+            <p className="landing-reveal mx-auto mt-8 sm:mt-10 max-w-2xl text-base sm:text-lg leading-relaxed text-slate-300 lg:mx-0">
               {t('landing.hero.subtitle')}
             </p>
-            <div className="mt-14 flex flex-wrap items-center justify-center gap-5 lg:justify-start">
-              <Link
-                to="/signup"
-                className="btn-primary px-10 py-4 text-base font-semibold"
-              >
-                {t('landing.hero.getStarted')}
-              </Link>
-              <Link
-                to="/login"
-                className="btn-secondary px-10 py-4 text-base font-semibold text-white border-white/20 hover:bg-white/10"
-              >
-                {t('landing.hero.logIn')}
-              </Link>
+            <div className="landing-reveal mt-12 sm:mt-14 flex flex-col items-center gap-4 lg:items-start">
+              {/* Primary CTAs */}
+              <div className="flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+                <Link
+                  to="/signup"
+                  className="btn-primary px-8 sm:px-12 py-4 sm:py-5 text-base sm:text-lg font-bold transition-transform duration-300 hover:scale-110 active:scale-95"
+                >
+                  {t('landing.hero.getStarted')}
+                </Link>
+                <Link
+                  to="/login"
+                  className="btn-secondary px-8 sm:px-10 py-3 sm:py-4 text-sm sm:text-base font-semibold text-white border-white/20 hover:bg-white/10 transition-all duration-300"
+                >
+                  {t('landing.hero.logIn')}
+                </Link>
+              </div>
+              {/* Secondary WhatsApp link */}
               <a
                 href={BUSINESS_WHATSAPP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mb-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1fa851]"
+                className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-white/50 transition-all duration-300 hover:text-white hover:gap-3"
               >
-                <WhatsAppGlyph className="h-5 w-5" />
-                Contactar por WhatsApp
+                <WhatsAppGlyph className="h-4 w-4 opacity-80" />
+                Chatea con nosotros por WhatsApp
               </a>
             </div>
           </div>
@@ -449,16 +453,18 @@ export default function Landing() {
         <LandingFeatureShowcase t={t} featureIcons={FEATURE_ICONS} />
       </div>
 
-      <LandingCampaigns t={t} />
+      <div id="features">
+        <LandingCampaigns t={t} />
+      </div>
 
       {/* Contact */}
-      <section id="contact" className="relative scroll-mt-24 border-t border-gray-100 bg-white py-12 md:py-16 dot-pattern-dark">
+      <section id="contact" className="relative scroll-mt-24 border-t border-gray-100 bg-white py-16 md:py-24 dot-pattern-dark">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="landing-reveal text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">{t('landing.collaborate.title')}</h2>
-            <p className="mx-auto mt-4 max-w-2xl text-gray-600">{t('landing.collaborate.subtitle')}</p>
+          <div className="landing-reveal text-center space-y-4">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-gray-900 leading-[1.1]">{t('landing.collaborate.title')}</h2>
+            <p className="mx-auto mt-4 sm:mt-6 max-w-2xl text-base sm:text-lg text-gray-600 leading-relaxed">{t('landing.collaborate.subtitle')}</p>
           </div>
-          <div className="landing-reveal mx-auto mt-10 max-w-lg">
+          <div className="landing-reveal mx-auto mt-12 sm:mt-16 max-w-lg">
             <a
               href={BUSINESS_WHATSAPP_URL}
               target="_blank"
@@ -466,7 +472,7 @@ export default function Landing() {
               className="mb-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#1fa851]"
             >
               <WhatsAppGlyph className="h-5 w-5" />
-              Contactar por WhatsApp
+              {t('landing.collaborate.whatsappCta')}
             </a>
             {sent ? (
               <p className="text-center font-medium text-green-700">{t('landing.collaborate.formSuccess')}</p>
@@ -535,15 +541,15 @@ export default function Landing() {
       {/* Custom development services */}
       <section
         id="services"
-        className="relative scroll-mt-24 border-t border-gray-100 bg-slate-50 py-12 md:py-16 dot-pattern-dark"
+        className="relative scroll-mt-24 border-t border-gray-100 bg-slate-50 py-16 md:py-24 lg:py-28 dot-pattern-dark"
       >
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="landing-reveal text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600/90 sm:text-sm">{t('landing.services.eyebrow')}</p>
-            <h2 className="mt-4 font-serif text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+          <div className="landing-reveal text-center space-y-4 sm:space-y-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-brand-600/80 sm:text-sm">{t('landing.services.eyebrow')}</p>
+            <h2 className="font-serif text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 leading-[1.1]">
               {t('landing.services.title')}
             </h2>
-            <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-gray-600 sm:text-xl font-medium">{t('landing.services.subtitle')}</p>
+            <p className="mx-auto mt-6 sm:mt-8 max-w-3xl text-base sm:text-lg lg:text-xl leading-relaxed text-gray-600 font-medium">{t('landing.services.subtitle')}</p>
           </div>
 
           <div className="landing-reveal mt-10 grid gap-6 lg:grid-cols-2 lg:gap-8">
@@ -677,21 +683,26 @@ export default function Landing() {
       </section>
 
       {/* Pricing */}
-      <section className="relative border-t border-gray-100 bg-white py-12 md:py-16 dot-pattern-dark" id="pricing">
+      <section className="relative border-t border-gray-100 bg-white py-16 md:py-24 lg:py-28 dot-pattern-dark" id="pricing">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="landing-reveal text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">{t('landing.pricing.title')}</h2>
-            <p className="mx-auto mt-4 max-w-2xl text-gray-600">{t('landing.pricing.subtitle')}</p>
+          <div className="landing-reveal text-center space-y-4">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-gray-900 leading-[1.1]">{t('landing.pricing.title')}</h2>
+            <p className="mx-auto mt-4 sm:mt-6 max-w-2xl text-base sm:text-lg text-gray-600 leading-relaxed">{t('landing.pricing.subtitle')}</p>
           </div>
-          <div className="mt-10 mx-auto grid max-w-3xl gap-6 sm:grid-cols-2">
-            <div className="landing-reveal rounded-2xl border border-gray-200 bg-gradient-to-b from-white to-gray-50/50 p-8 shadow-sm ring-1 ring-gray-100">
-              <h3 className="text-xl font-semibold text-gray-900">{t('landing.pricing.starterName')}</h3>
-              <p className="mt-1 text-2xl font-bold text-brand-600">{t('landing.pricing.starterPrice')}</p>
-              <p className="mt-2 text-sm text-gray-600">{t('landing.pricing.starterDesc')}</p>
-              <ul className="mt-6 space-y-3">
-                {['featureInv', 'featureWhatsApp', 'featureReporting'].map((k) => (
-                  <li key={k} className="flex items-center gap-2 text-sm text-gray-700">
-                    <Check className="h-4 w-4 shrink-0 text-green-600" />
+          <div className="mt-12 sm:mt-16 mx-auto grid max-w-4xl gap-6 sm:grid-cols-2">
+
+            {/* Basic plan */}
+            <div className="landing-reveal flex flex-col rounded-2xl border border-gray-200 bg-gradient-to-b from-white via-gray-50/50 to-gray-50 p-8 shadow-sm transition-all duration-300 hover:shadow-md hover:border-gray-300 ring-1 ring-gray-100">
+              <div>
+                <span className="inline-block rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-gray-500">{t('landing.pricing.starterBadge')}</span>
+                <h3 className="mt-4 text-2xl font-bold text-gray-900">{t('landing.pricing.starterName')}</h3>
+                <p className="mt-1 text-sm font-medium text-brand-600">{t('landing.pricing.starterPrice')}</p>
+                <p className="mt-3 text-sm leading-relaxed text-gray-600">{t('landing.pricing.starterDesc')}</p>
+              </div>
+              <ul className="mt-6 flex-1 space-y-3">
+                {['featureShopLink', 'featureInv', 'featureReporting', 'featureWhatsApp'].map((k) => (
+                  <li key={k} className="flex items-start gap-2 text-sm text-gray-700">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
                     {t(`landing.pricing.${k}`)}
                   </li>
                 ))}
@@ -699,19 +710,28 @@ export default function Landing() {
               <button
                 type="button"
                 onClick={openPricingForm}
-                className="mt-6 block w-full btn-secondary py-2.5 text-center text-sm font-medium text-brand-600 transition-colors border-brand-200 hover:bg-brand-50"
+                className="mt-8 block w-full btn-secondary py-2.5 text-center text-sm font-medium text-brand-600 transition-colors border-brand-200 hover:bg-brand-50"
               >
                 {t('landing.pricing.contactInitialSetup')}
               </button>
             </div>
-            <div className="landing-reveal rounded-2xl border-2 border-brand-200 bg-gradient-to-b from-brand-50/40 to-white p-8 shadow-md ring-1 ring-brand-100">
-              <h3 className="text-xl font-semibold text-gray-900">{t('landing.pricing.growthName')}</h3>
-              <p className="mt-1 text-2xl font-bold text-brand-600">{t('landing.pricing.growthPrice')}</p>
-              <p className="mt-2 text-sm text-gray-600">{t('landing.pricing.growthDesc')}</p>
-              <ul className="mt-6 space-y-3">
-                {['featureEverythingInBasic', 'featureLeads', 'featureAI', 'featureMonthlyOrAnnual', 'featureSupport'].map((k) => (
-                  <li key={k} className="flex items-center gap-2 text-sm text-gray-700">
-                    <Check className="h-4 w-4 shrink-0 text-green-600" />
+
+            {/* Pro plan */}
+            <div className="landing-reveal relative flex flex-col rounded-2xl border-2 border-brand-400 bg-gradient-to-b from-brand-50/80 via-white to-white p-8 shadow-xl transition-all duration-300 hover:shadow-2xl hover:border-brand-500 ring-1 ring-brand-200 hover:ring-brand-300">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                <span className="rounded-full bg-brand-600 px-4 py-1 text-xs font-bold uppercase tracking-widest text-white shadow-lg shadow-brand-600/30">
+                  {t('landing.pricing.proBadge')}
+                </span>
+              </div>
+              <div>
+                <h3 className="mt-4 text-2xl font-bold text-gray-900">{t('landing.pricing.growthName')}</h3>
+                <p className="mt-1 text-sm font-medium text-brand-600">{t('landing.pricing.growthPrice')}</p>
+                <p className="mt-3 text-sm leading-relaxed text-gray-600">{t('landing.pricing.growthDesc')}</p>
+              </div>
+              <ul className="mt-6 flex-1 space-y-3">
+                {['featureEverythingInBasic', 'featureChatbot', 'featureLeads', 'featureAI', 'featureMessaging', 'featureMonthlyOrAnnual', 'featureSupport'].map((k) => (
+                  <li key={k} className="flex items-start gap-2 text-sm text-gray-700">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
                     {t(`landing.pricing.${k}`)}
                   </li>
                 ))}
@@ -719,11 +739,12 @@ export default function Landing() {
               <button
                 type="button"
                 onClick={openPricingForm}
-                className="mt-6 block w-full btn-primary py-2.5 text-center text-sm font-medium"
+                className="mt-8 block w-full btn-primary py-2.5 text-center text-sm font-medium"
               >
                 {t('landing.pricing.contactForPricing')}
               </button>
             </div>
+
           </div>
         </div>
       </section>

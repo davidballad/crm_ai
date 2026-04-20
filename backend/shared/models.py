@@ -55,6 +55,7 @@ class Product(_BaseModel):
     sku: str | None = None
     unit: str = "each"
     image_url: str | None = None
+    image_urls: list[str] | None = None
     notes: str | None = None
     promo_price: Decimal | None = None
     promo_end_at: str | None = None

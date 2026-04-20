@@ -1,7 +1,53 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ShoppingCart, Plus, Minus, Trash2, X, ChevronUp } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, X, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
+
+function ProductImageCarousel({ images, alt }) {
+  const [idx, setIdx] = useState(0);
+  const validImages = images?.filter(Boolean) || [];
+  const src = validImages[idx] || '/placeholder-product.png';
+  const hasMultiple = validImages.length > 1;
+
+  return (
+    <div className="relative h-32 w-full overflow-hidden bg-gray-100">
+      <img
+        src={src}
+        alt={alt}
+        className="h-full w-full object-cover transition-opacity duration-200"
+        onError={(e) => { e.target.src = '/placeholder-product.png'; }}
+      />
+      {hasMultiple && (
+        <>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setIdx((i) => (i - 1 + validImages.length) % validImages.length); }}
+            className="absolute left-1 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-0.5 text-white hover:bg-black/60"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setIdx((i) => (i + 1) % validImages.length); }}
+            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-0.5 text-white hover:bg-black/60"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+          <div className="absolute bottom-1 left-1/2 flex -translate-x-1/2 gap-1">
+            {validImages.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setIdx(i); }}
+                className={`h-1.5 w-1.5 rounded-full transition-colors ${i === idx ? 'bg-white' : 'bg-white/50'}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 const ORDER_NOTES_MAX_LEN = 300;
@@ -353,11 +399,9 @@ export default function Shop() {
                 className={`flex flex-col rounded-xl border bg-white overflow-hidden shadow-sm ${unavailable ? 'opacity-90' : ''} ${p.promo_active ? 'border-orange-300' : 'border-gray-200'}`}
               >
                 <div className="relative">
-                  <img 
-                    src={p.image_url || '/placeholder-product.png'} 
-                    alt={p.name} 
-                    className="h-32 w-full object-cover" 
-                    onError={(e) => { e.target.src = '/placeholder-product.png'; }}
+                  <ProductImageCarousel
+                    images={p.image_urls?.length > 0 ? p.image_urls : [p.image_url]}
+                    alt={p.name}
                   />
                   {p.promo_active && (
                     <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">PROMO</span>
