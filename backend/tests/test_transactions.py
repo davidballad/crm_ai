@@ -397,6 +397,7 @@ class TestDeliveryFeeInTransaction:
             "headers": {},
         }
         resp = lambda_handler(event, {})
+        assert resp["statusCode"] == 200
         body = json.loads(resp["body"])
         assert body["delivery_zones"] == [
             {"name": "Centro", "price": "2.50"},
@@ -427,5 +428,6 @@ class TestDeliveryFeeInTransaction:
             "headers": {},
         }
         resp = lambda_handler(event, {})
+        assert resp["statusCode"] == 200
         body = json.loads(resp["body"])
         assert body["delivery_zones"] == []
