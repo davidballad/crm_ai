@@ -87,6 +87,8 @@ class Transaction(_BaseModel):
     subtotal: Decimal | None = None
     tax_rate: Decimal | None = None
     tax_amount: Decimal | None = None
+    delivery_zone: str | None = None
+    delivery_fee: Decimal | None = None
     status: str = "pending"
     idempotency_key: str | None = None
     square_payment_id: str | None = None
@@ -143,6 +145,7 @@ class Tenant(_BaseModel):
     support_phone: str | None = None
     logo_url: str | None = None
     tax_rate: Decimal | None = None
+    delivery_zones: list[dict[str, Any]] | None = None
     follow_up_sequences: list[dict[str, Any]] | None = None
     created_at: str | None = None
     updated_at: str | None = None

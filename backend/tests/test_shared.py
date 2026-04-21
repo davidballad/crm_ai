@@ -229,3 +229,42 @@ class TestDB:
         put_item({"pk": "TENANT#t1", "sk": "PRODUCT#p1", "name": "Gone"})
         delete_item("TENANT#t1", "PRODUCT#p1")
         assert get_item("TENANT#t1", "PRODUCT#p1") is None
+
+
+class TestDeliveryZonesModel:
+    def test_tenant_has_delivery_zones_field(self):
+        from shared.models import Tenant
+        t = Tenant(business_name="Test", business_type="retail", owner_email="a@b.com")
+        assert t.delivery_zones is None
+
+    def test_tenant_delivery_zones_serializes_to_dynamo(self):
+        from shared.models import Tenant
+        t = Tenant(
+            business_name="Test",
+            business_type="retail",
+            owner_email="a@b.com",
+            delivery_zones=[{"name": "Centro", "price": 2.5}],
+        )
+        d = t.to_dynamo()
+        assert d["delivery_zones"] == [{"name": "Centro", "price": 2.5}]
+
+    def test_transaction_has_delivery_fields(self):
+        from shared.models import Transaction
+        from decimal import Decimal
+        tx = Transaction(items=[], total=Decimal("10"), payment_method="cash")
+        assert tx.delivery_zone is None
+        assert tx.delivery_fee is None
+
+    def test_transaction_delivery_fields_serialize(self):
+        from shared.models import Transaction
+        from decimal import Decimal
+        tx = Transaction(
+            items=[],
+            total=Decimal("12.5"),
+            payment_method="cash",
+            delivery_zone="Centro",
+            delivery_fee=Decimal("2.5"),
+        )
+        d = tx.to_dynamo()
+        assert d["delivery_zone"] == "Centro"
+        assert d["delivery_fee"] == Decimal("2.5")
