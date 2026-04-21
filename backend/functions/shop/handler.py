@@ -682,6 +682,20 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         except DynamoDBError as e:
             return server_error(str(e))
 
+    # Fetch tenant record early (needed for delivery fee and later for WhatsApp)
+    tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
+
+    # Resolve delivery fee
+    delivery_fee = None
+    delivery_zone_name = body.get("delivery_zone") if isinstance(body, dict) else None
+    if delivery_zone_name and tenant.get("delivery_enabled"):
+        from shared.delivery import get_delivery_fee
+        zones = tenant.get("delivery_zones") or []
+        delivery_fee = get_delivery_fee(zones, delivery_zone_name)
+        if delivery_fee is None:
+            return error("Zona de entrega no encontrada", 400)
+        total = total + delivery_fee
+
     pay_status = PAYMENT_STATUS_PENDING_CARD if payment_method == "card" else PAYMENT_STATUS_AWAITING
     txn = Transaction(
         items=txn_items,
@@ -691,6 +705,8 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         delivery_method=delivery_method,
         delivery_status="pending",
         delivery_location=delivery_location or None,
+        delivery_zone=delivery_zone_name or None,
+        delivery_fee=delivery_fee or None,
         customer_phone=customer_phone,
         order_notes=order_notes or None,
         payment_verification_status=pay_status,
@@ -767,7 +783,7 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         except DynamoDBError:
             pass
 
-    tenant = get_item(pk, build_sk("TENANT", tenant_id)) or {}
+    # tenant was already fetched above for delivery fee resolution
     business_phone = tenant.get("phone_number") or ""
     wa_link = ""
     if business_phone:
@@ -807,7 +823,7 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
         checkout_id = (df_result or {}).get("id")
         if not checkout_id:
             return error("No se pudo conectar con el procesador de pagos. Intenta con transferencia.", 502)
-        return created({
+        card_response = {
             "transaction_id": txn.id,
             "total": str(total),
             "items_count": len(txn_items),
@@ -815,17 +831,23 @@ def _checkout(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dic
             "payment_method": "card",
             "datafast_checkout_id": checkout_id,
             "datafast_entity_id": df_entity_id,
-        })
+        }
+        if delivery_fee is not None:
+            card_response["delivery_fee"] = str(delivery_fee)
+        return created(card_response)
 
     # Transfer / cash: send order confirmation via WhatsApp
     _send_whatsapp_message(tenant, customer_phone, confirmation_msg)
-    return created({
+    response_body = {
         "transaction_id": txn.id,
         "total": str(total),
         "items_count": len(txn_items),
         "wa_link": wa_link,
         "payment_method": payment_method,
-    })
+    }
+    if delivery_fee is not None:
+        response_body["delivery_fee"] = str(delivery_fee)
+    return created(response_body)
 
 
 def _datafast_result(tenant_id: str, customer_phone: str, event: dict[str, Any]) -> dict[str, Any]:

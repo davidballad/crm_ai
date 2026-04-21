@@ -220,3 +220,151 @@ class TestTransactionHandler:
             Key={"pk": f"TENANT#{TENANT_ID}", "sk": f"CONVO#{customer_phone_digits}"}
         )["Item"]
         assert updated_convo["category"] == "ventas"
+
+
+class TestDeliveryFeeInTransaction:
+    CUSTOMER_PHONE = "+1234567890"
+    CUSTOMER_PHONE_DIGITS = "1234567890"
+    SERVICE_KEY = "test-service-secret"
+
+    def _make_shop_event(self, dynamodb_table, body: dict, monkeypatch=None) -> dict:
+        """Build a shop event with a valid token and a pre-seeded cart."""
+        import os, json
+        os.environ["SERVICE_API_KEY"] = self.SERVICE_KEY
+        from functions.shop.handler import generate_shop_token
+        token = generate_shop_token(TENANT_ID, self.CUSTOMER_PHONE)
+        # Seed the cart
+        from decimal import Decimal as D
+        items = body.pop("items", [])
+        cart_items = [
+            {
+                "product_id": it["product_id"],
+                "product_name": it.get("product_name", ""),
+                "quantity": it["quantity"],
+                "unit_price": D(str(it["unit_price"])),
+            }
+            for it in items
+        ]
+        dynamodb_table.put_item(Item={
+            "pk": f"TENANT#{TENANT_ID}",
+            "sk": f"CART#{self.CUSTOMER_PHONE_DIGITS}",
+            "items": cart_items,
+        })
+        event = {
+            "requestContext": {"http": {"method": "POST", "path": "/shop/checkout"}},
+            "rawPath": "/shop/checkout",
+            "pathParameters": {},
+            "queryStringParameters": {"token": token},
+            "body": json.dumps(body),
+            "isBase64Encoded": False,
+        }
+        return event
+
+    @mock_aws
+    def test_delivery_fee_added_when_zone_provided(self, dynamodb_table):
+        import os
+        os.environ["SERVICE_API_KEY"] = self.SERVICE_KEY
+        from functions.shop.handler import lambda_handler
+
+        dynamodb_table.put_item(Item={
+            "pk": f"TENANT#{TENANT_ID}",
+            "sk": f"TENANT#{TENANT_ID}",
+            "business_name": "Test Biz",
+            "business_type": "retail",
+            "owner_email": "owner@test.com",
+            "delivery_enabled": True,
+            "delivery_zones": [{"name": "Centro", "price": "2.50"}],
+        })
+
+        from decimal import Decimal
+        dynamodb_table.put_item(Item={
+            "pk": f"TENANT#{TENANT_ID}",
+            "sk": "PRODUCT#prod-001",
+            "gsi1pk": f"TENANT#{TENANT_ID}#PRODUCT",
+            "gsi1sk": "Widget",
+            "id": "prod-001",
+            "name": "Widget",
+            "unit_cost": Decimal("10.00"),
+            "quantity": 5,
+        })
+
+        event = self._make_shop_event(dynamodb_table, {
+            "customer_phone": self.CUSTOMER_PHONE,
+            "items": [{"product_id": "prod-001", "product_name": "Widget", "quantity": 1, "unit_price": 10.0}],
+            "payment_method": "cash",
+            "delivery_method": "delivery",
+            "delivery_zone": "Centro",
+        })
+        result = lambda_handler(event, None)
+        assert result["statusCode"] == 201
+        import json
+        body = json.loads(result["body"])
+        assert float(body.get("delivery_fee", 0)) == 2.50
+        assert float(body.get("total", 0)) == 12.50
+
+    @mock_aws
+    def test_unknown_delivery_zone_returns_400(self, dynamodb_table):
+        import os
+        os.environ["SERVICE_API_KEY"] = self.SERVICE_KEY
+        from functions.shop.handler import lambda_handler
+
+        dynamodb_table.put_item(Item={
+            "pk": f"TENANT#{TENANT_ID}",
+            "sk": f"TENANT#{TENANT_ID}",
+            "business_name": "Test Biz",
+            "business_type": "retail",
+            "owner_email": "owner@test.com",
+            "delivery_enabled": True,
+            "delivery_zones": [{"name": "Centro", "price": "2.50"}],
+        })
+
+        event = self._make_shop_event(dynamodb_table, {
+            "customer_phone": self.CUSTOMER_PHONE,
+            "items": [{"product_id": "prod-001", "product_name": "Widget", "quantity": 1, "unit_price": 10.0}],
+            "payment_method": "cash",
+            "delivery_method": "delivery",
+            "delivery_zone": "Zona Inexistente",
+        })
+        result = lambda_handler(event, None)
+        assert result["statusCode"] == 400
+
+    @mock_aws
+    def test_no_delivery_fee_when_delivery_disabled(self, dynamodb_table):
+        import os
+        os.environ["SERVICE_API_KEY"] = self.SERVICE_KEY
+        from functions.shop.handler import lambda_handler
+
+        dynamodb_table.put_item(Item={
+            "pk": f"TENANT#{TENANT_ID}",
+            "sk": f"TENANT#{TENANT_ID}",
+            "business_name": "Test Biz",
+            "business_type": "retail",
+            "owner_email": "owner@test.com",
+            "delivery_enabled": False,
+            "delivery_zones": [{"name": "Centro", "price": "2.50"}],
+        })
+
+        from decimal import Decimal
+        dynamodb_table.put_item(Item={
+            "pk": f"TENANT#{TENANT_ID}",
+            "sk": "PRODUCT#prod-001",
+            "gsi1pk": f"TENANT#{TENANT_ID}#PRODUCT",
+            "gsi1sk": "Widget",
+            "id": "prod-001",
+            "name": "Widget",
+            "unit_cost": Decimal("10.00"),
+            "quantity": 5,
+        })
+
+        event = self._make_shop_event(dynamodb_table, {
+            "customer_phone": self.CUSTOMER_PHONE,
+            "items": [{"product_id": "prod-001", "product_name": "Widget", "quantity": 1, "unit_price": 10.0}],
+            "payment_method": "cash",
+            "delivery_method": "delivery",
+            "delivery_zone": "Centro",
+        })
+        result = lambda_handler(event, None)
+        import json
+        if result["statusCode"] == 201:
+            body = json.loads(result["body"])
+            assert body.get("delivery_fee") in (None, "0", 0, "0.00")
