@@ -29,6 +29,12 @@ class TestGetDeliveryFee:
         fee = get_delivery_fee(zones, "Centro")
         assert isinstance(fee, Decimal)
 
+    def test_fee_works_with_string_price(self):
+        zones = [{"name": "Centro", "price": "2.50"}]
+        fee = get_delivery_fee(zones, "Centro")
+        assert fee == Decimal("2.50")
+        assert isinstance(fee, Decimal)
+
 
 class TestValidateDeliveryZones:
     def test_valid_zones(self):
@@ -39,29 +45,34 @@ class TestValidateDeliveryZones:
     def test_empty_name_is_invalid(self):
         zones = [{"name": "", "price": 2.5}]
         error = validate_delivery_zones(zones)
-        assert error is not None
+        assert isinstance(error, str)
 
     def test_missing_name_is_invalid(self):
         zones = [{"price": 2.5}]
         error = validate_delivery_zones(zones)
-        assert error is not None
+        assert isinstance(error, str)
 
     def test_negative_price_is_invalid(self):
         zones = [{"name": "Centro", "price": -1}]
         error = validate_delivery_zones(zones)
-        assert error is not None
+        assert isinstance(error, str)
 
     def test_missing_price_is_invalid(self):
         zones = [{"name": "Centro"}]
         error = validate_delivery_zones(zones)
-        assert error is not None
+        assert isinstance(error, str)
 
     def test_duplicate_names_are_invalid(self):
         zones = [{"name": "Centro", "price": 2.5}, {"name": "Centro", "price": 3.0}]
         error = validate_delivery_zones(zones)
-        assert error is not None
+        assert isinstance(error, str)
 
     def test_zero_price_is_valid(self):
         zones = [{"name": "Centro", "price": 0}]
+        error = validate_delivery_zones(zones)
+        assert error is None
+
+    def test_string_price_is_valid(self):
+        zones = [{"name": "Centro", "price": "2.50"}]
         error = validate_delivery_zones(zones)
         assert error is None

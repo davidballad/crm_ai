@@ -6,7 +6,10 @@ def get_delivery_fee(zones: list | None, zone_name: str) -> Decimal | None:
         return None
     for zone in zones:
         if zone.get("name") == zone_name:
-            return Decimal(str(zone["price"]))
+            try:
+                return Decimal(str(zone["price"]))
+            except Exception:
+                return None
     return None
 
 
@@ -24,7 +27,7 @@ def validate_delivery_zones(zones: list) -> str | None:
         if price is None:
             return f"La zona '{name}' no tiene precio"
         try:
-            if float(price) < 0:
+            if Decimal(str(price)) < 0:
                 return f"El precio de la zona '{name}' no puede ser negativo"
         except (TypeError, ValueError):
             return f"El precio de la zona '{name}' no es un número válido"
