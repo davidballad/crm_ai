@@ -94,7 +94,7 @@ resource "aws_s3_bucket_public_access_block" "data" {
   restrict_public_buckets  = false
 }
 
-# Public read only for product images (WhatsApp, UI). Rest of bucket stays private.
+# Public read for product images and tenant logos. Rest of bucket stays private.
 resource "aws_s3_bucket_policy" "data" {
   bucket = aws_s3_bucket.data.id
 
@@ -107,6 +107,13 @@ resource "aws_s3_bucket_policy" "data" {
         Principal = "*"
         Action    = "s3:GetObject"
         Resource  = "${aws_s3_bucket.data.arn}/inventory-images/*"
+      },
+      {
+        Sid       = "PublicReadTenantLogos"
+        Effect    = "Allow"
+        Principal = "*"
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.data.arn}/tenant-logos/*"
       }
     ]
   })
