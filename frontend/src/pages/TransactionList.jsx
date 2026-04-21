@@ -53,6 +53,7 @@ export default function TransactionList() {
   const [orderNotes, setOrderNotes] = useState('');
   const [saleItems, setSaleItems] = useState([{ productId: '', quantity: 1 }]);
   const [taxRate, setTaxRate] = useState(15);
+  const [deliveryZone, setDeliveryZone] = useState('');
 
   const [soundEnabled, setSoundEnabled] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -97,7 +98,12 @@ export default function TransactionList() {
     .filter(Boolean);
   const saleSubtotal = salePreviewRows.reduce((sum, line) => sum + Number(line.line_total || 0), 0);
   const saleTaxAmount = Math.round(saleSubtotal * (Number(taxRate) || 0) / 100 * 100) / 100;
-  const saleTotal = saleSubtotal + saleTaxAmount;
+  const deliveryFeeAmount = (() => {
+    if (!deliveryZone || !tenantConfig?.delivery_zones) return 0;
+    const zone = tenantConfig.delivery_zones.find(z => z.name === deliveryZone);
+    return zone ? Number(zone.price) : 0;
+  })();
+  const saleTotal = saleSubtotal + saleTaxAmount + deliveryFeeAmount;
 
   const playAlertTone = () => {
     if (!soundEnabled || typeof window === 'undefined') return;
@@ -289,6 +295,7 @@ export default function TransactionList() {
     setOrderNotes('');
     setSaleItems([{ productId: '', quantity: 1 }]);
     setTaxRate(tenantConfig?.tax_rate != null ? Number(tenantConfig.tax_rate) : 15);
+    setDeliveryZone('');
     setCreateError('');
   };
 
@@ -321,6 +328,7 @@ export default function TransactionList() {
         total: saleTotal,
         payment_method: paymentMethod,
         order_notes: orderNotes || undefined,
+        delivery_zone: deliveryZone || undefined,
       });
       setShowCreate(false);
       resetCreateForm();
@@ -518,10 +526,31 @@ export default function TransactionList() {
                   <span>Impuesto ({taxRate}%)</span>
                   <span>${saleTaxAmount.toFixed(2)}</span>
                 </div>
+                {deliveryFeeAmount > 0 && (
+                  <div className="flex justify-between text-gray-600">
+                    <span>Entrega ({deliveryZone})</span>
+                    <span>${deliveryFeeAmount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-semibold text-gray-900 border-t border-gray-200 pt-1">
                   <span>Total</span>
                   <span>${saleTotal.toFixed(2)}</span>
                 </div>
+              </div>
+            )}
+            {tenantConfig?.delivery_enabled && (tenantConfig?.delivery_zones || []).length > 0 && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">Zona de entrega</label>
+                <select
+                  value={deliveryZone}
+                  onChange={e => setDeliveryZone(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Sin entrega</option>
+                  {(tenantConfig.delivery_zones || []).map(z => (
+                    <option key={z.name} value={z.name}>{z.name} — ${Number(z.price).toFixed(2)}</option>
+                  ))}
+                </select>
               </div>
             )}
             <div>
@@ -710,6 +739,11 @@ export default function TransactionList() {
                   </td>
                   <td className="px-4 py-3 text-right font-medium tabular-nums">
                     ${Number(tx.total || 0).toFixed(2)}
+                    {tx.delivery_zone && (
+                      <span className="ml-1 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
+                        {tx.delivery_zone} +${Number(tx.delivery_fee || 0).toFixed(2)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium capitalize text-gray-700">
