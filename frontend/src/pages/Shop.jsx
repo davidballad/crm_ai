@@ -600,26 +600,19 @@ export default function Shop() {
                   {/* Delivery zone selector */}
                   {deliveryEnabled && deliveryMethod === 'delivery' && deliveryZones.length > 0 && (
                     <div className="mb-3">
-                      <p className="mb-1.5 text-xs font-medium text-gray-700">Zona de entrega</p>
-                      <div className="flex flex-col gap-1.5">
+                      <label className="mb-1.5 block text-xs font-medium text-gray-700">Zona de entrega</label>
+                      <select
+                        value={selectedZone?.name || ''}
+                        onChange={e => setSelectedZone(deliveryZones.find(z => z.name === e.target.value) || null)}
+                        className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                      >
+                        <option value="">Selecciona una zona...</option>
                         {deliveryZones.map(zone => (
-                          <button
-                            key={zone.name}
-                            type="button"
-                            onClick={() => setSelectedZone(zone)}
-                            className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-xs font-medium transition-colors ${
-                              selectedZone?.name === zone.name
-                                ? 'border-brand-600 bg-brand-50 text-brand-700'
-                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                            }`}
-                          >
-                            <span>{zone.name}</span>
-                            <span className="font-semibold">
-                              {Number(zone.price) === 0 ? 'Gratis' : `+$${Number(zone.price).toFixed(2)}`}
-                            </span>
-                          </button>
+                          <option key={zone.name} value={zone.name}>
+                            {zone.name} — {Number(zone.price) === 0 ? 'Gratis' : `+$${Number(zone.price).toFixed(2)}`}
+                          </option>
                         ))}
-                      </div>
+                      </select>
                     </div>
                   )}
 
