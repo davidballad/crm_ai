@@ -625,7 +625,7 @@ TENANT_CONFIG_FIELDS = (
     "phone_number", "meta_phone_number_id", "meta_business_account_id", "meta_access_token",
     "ai_system_prompt", "capabilities", "delivery_enabled", "payment_methods",
     "bank_name", "person_name", "account_type", "account_id", "identification_number",
-    "follow_up_sequences", "tax_rate",
+    "follow_up_sequences", "tax_rate", "delivery_zones",
     "ig_business_account_id", "ig_access_token",
     "datafast_entity_id", "datafast_api_token",
     "support_phone", "store_slug", "logo_url",
@@ -674,6 +674,12 @@ def complete_setup(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             if isinstance(value, str):
                 value = value.strip()
             updates[field] = value
+
+    if "delivery_zones" in updates:
+        from shared.delivery import validate_delivery_zones
+        err = validate_delivery_zones(updates["delivery_zones"])
+        if err:
+            return error(err, 400)
 
     if updates:
         updates["updated_at"] = now_iso()
@@ -737,6 +743,17 @@ def patch_config(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             if isinstance(value, str):
                 value = value.strip()
             updates[field] = value
+
+    if "delivery_zones" in updates:
+        from shared.delivery import validate_delivery_zones
+        from decimal import Decimal
+        err = validate_delivery_zones(updates["delivery_zones"])
+        if err:
+            return error(err, 400)
+        # Convert float prices to Decimal for DynamoDB compatibility
+        for zone in updates["delivery_zones"]:
+            if "price" in zone and isinstance(zone["price"], float):
+                zone["price"] = Decimal(str(zone["price"]))
 
     if not updates:
         return error("No valid fields provided", 400)
@@ -970,7 +987,9 @@ def upload_logo_url(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
     if ext not in ("jpg", "jpeg", "png", "webp"):
         ext = "jpg"
-    key = f"tenant-logos/{tenant_id}/logo.{ext}"
+    import time
+    ts = int(time.time())
+    key = f"tenant-logos/{tenant_id}/logo_{ts}.{ext}"
     try:
         s3 = _boto3.client("s3", region_name=region)
         upload_url = s3.generate_presigned_url(

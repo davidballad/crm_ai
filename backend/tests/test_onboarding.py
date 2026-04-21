@@ -132,3 +132,73 @@ class TestOnboardingHandler:
         event = make_api_event(method="POST", path="/onboarding/setup", body={})
         result = complete_setup("nonexistent-tenant", event)
         assert result["statusCode"] == 404
+
+
+class TestDeliveryZonesConfig:
+    @mock_aws
+    def test_patch_valid_delivery_zones(self, dynamodb_table):
+        from functions.onboarding.handler import lambda_handler
+
+        # Seed tenant
+        dynamodb_table.put_item(Item={
+            "pk": f"TENANT#{TENANT_ID}",
+            "sk": f"TENANT#{TENANT_ID}",
+            "business_name": "Test Biz",
+            "business_type": "retail",
+            "owner_email": "owner@test.com",
+            "delivery_enabled": True,
+        })
+
+        event = make_api_event(
+            method="PATCH",
+            path="/onboarding/config",
+            body={"delivery_zones": [{"name": "Centro", "price": 2.5}, {"name": "Norte", "price": 5.0}]},
+        )
+        result = lambda_handler(event, None)
+        assert result["statusCode"] == 200
+
+        item = dynamodb_table.get_item(
+            Key={"pk": f"TENANT#{TENANT_ID}", "sk": f"TENANT#{TENANT_ID}"}
+        )["Item"]
+        assert len(item["delivery_zones"]) == 2
+        assert item["delivery_zones"][0]["name"] == "Centro"
+
+    @mock_aws
+    def test_patch_delivery_zones_duplicate_names_rejected(self, dynamodb_table):
+        from functions.onboarding.handler import lambda_handler
+
+        dynamodb_table.put_item(Item={
+            "pk": f"TENANT#{TENANT_ID}",
+            "sk": f"TENANT#{TENANT_ID}",
+            "business_name": "Test Biz",
+            "business_type": "retail",
+            "owner_email": "owner@test.com",
+        })
+
+        event = make_api_event(
+            method="PATCH",
+            path="/onboarding/config",
+            body={"delivery_zones": [{"name": "Centro", "price": 2.5}, {"name": "Centro", "price": 3.0}]},
+        )
+        result = lambda_handler(event, None)
+        assert result["statusCode"] == 400
+
+    @mock_aws
+    def test_patch_delivery_zones_negative_price_rejected(self, dynamodb_table):
+        from functions.onboarding.handler import lambda_handler
+
+        dynamodb_table.put_item(Item={
+            "pk": f"TENANT#{TENANT_ID}",
+            "sk": f"TENANT#{TENANT_ID}",
+            "business_name": "Test Biz",
+            "business_type": "retail",
+            "owner_email": "owner@test.com",
+        })
+
+        event = make_api_event(
+            method="PATCH",
+            path="/onboarding/config",
+            body={"delivery_zones": [{"name": "Centro", "price": -1}]},
+        )
+        result = lambda_handler(event, None)
+        assert result["statusCode"] == 400
