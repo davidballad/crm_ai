@@ -211,6 +211,11 @@ export default function Shop() {
   }, []);
 
   const handleCheckout = useCallback(async () => {
+    if (deliveryMethod === 'delivery' && deliveryZones.length > 0 && !selectedZone) {
+      setErr('Por favor selecciona una zona de entrega.');
+      return;
+    }
+
     if (paymentMethod === 'transfer' && !receiptFile) {
         setErr('Por favor sube el comprobante de tu transferencia para poder procesar la orden.');
         return;
