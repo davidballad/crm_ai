@@ -1,9 +1,12 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useProducts, useDeleteProduct, useImportProducts, useUpdateProduct } from '../hooks/useProducts';
 import { downloadImportTemplate, downloadInventoryExport, getUploadImageUrls, updateProduct } from '../api/inventory';
 import LowStockBadge from '../components/LowStockBadge';
-import { Plus, Search, Pencil, Trash2, Package, Upload, Download, ImagePlus, Tag, X, Clock } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Package, Upload, Download, ImagePlus, Tag, X, Clock, Truck, PlusCircle, Check } from 'lucide-react';
+import { useTenantConfig } from '../hooks/useTenantConfig';
+import { patchTenantConfig } from '../api/onboarding';
+import { useQueryClient } from '@tanstack/react-query';
 
 function isPromoActive(p) {
   const end = p.promo_end_at;
@@ -79,6 +82,111 @@ function PromoModal({ product, onClose }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function DeliveryZonesManager() {
+  const { data: tenantConfig } = useTenantConfig();
+  const queryClient = useQueryClient();
+  const [zones, setZones] = useState([]);
+  const [newName, setNewName] = useState('');
+  const [newPrice, setNewPrice] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [zoneError, setZoneError] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (tenantConfig?.delivery_zones) setZones(tenantConfig.delivery_zones);
+  }, [tenantConfig?.delivery_zones]);
+
+  if (!tenantConfig?.delivery_enabled) return null;
+
+  const addZone = () => {
+    setZoneError('');
+    const name = newName.trim();
+    const price = parseFloat(newPrice);
+    if (!name) return setZoneError('El nombre de la zona no puede estar vacío');
+    if (isNaN(price) || price < 0) return setZoneError('El precio debe ser un número positivo');
+    if (zones.some(z => z.name === name)) return setZoneError('Ya existe una zona con ese nombre');
+    setZones(prev => [...prev, { name, price }]);
+    setNewName('');
+    setNewPrice('');
+  };
+
+  const removeZone = (name) => setZones(prev => prev.filter(z => z.name !== name));
+
+  const saveZones = async () => {
+    setSaving(true);
+    setZoneError('');
+    setSaved(false);
+    try {
+      await patchTenantConfig({ delivery_zones: zones });
+      await queryClient.invalidateQueries({ queryKey: ['tenantConfig'] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setZoneError(e.message || 'Error al guardar zonas');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <Truck className="h-4 w-4 text-gray-500" />
+        <h2 className="text-sm font-semibold text-gray-900">Zonas de Entrega</h2>
+      </div>
+
+      {zones.length > 0 && (
+        <ul className="mb-4 space-y-1">
+          {zones.map(z => (
+            <li key={z.name} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm">
+              <span className="font-medium text-gray-800">{z.name}</span>
+              <div className="flex items-center gap-3">
+                <span className="tabular-nums text-gray-600">${Number(z.price).toFixed(2)}</span>
+                <button onClick={() => removeZone(z.name)} className="text-gray-400 hover:text-red-500">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex gap-2 mb-3">
+        <input
+          type="text"
+          placeholder="Nombre (ej. Centro)"
+          value={newName}
+          onChange={e => setNewName(e.target.value)}
+          className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+        />
+        <input
+          type="number"
+          placeholder="Precio"
+          min="0"
+          step="0.01"
+          value={newPrice}
+          onChange={e => setNewPrice(e.target.value)}
+          className="w-24 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+        />
+        <button onClick={addZone} className="flex items-center gap-1 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200">
+          <PlusCircle className="h-3.5 w-3.5" />
+          Agregar
+        </button>
+      </div>
+
+      {zoneError && <p className="mb-2 text-xs text-red-600">{zoneError}</p>}
+
+      <button
+        onClick={saveZones}
+        disabled={saving}
+        className="flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+      >
+        {saved ? <><Check className="h-3.5 w-3.5" /> Guardado</> : saving ? 'Guardando...' : 'Guardar zonas'}
+      </button>
     </div>
   );
 }
@@ -412,6 +520,8 @@ export default function InventoryList() {
           </table>
         </div>
       )}
+
+      <DeliveryZonesManager />
 
       {promoProduct && <PromoModal product={promoProduct} onClose={() => setPromoProduct(null)} />}
     </div>
