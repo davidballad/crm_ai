@@ -108,6 +108,8 @@ export default function Shop() {
   const [deliveryMethod, setDeliveryMethod] = useState('delivery'); // 'delivery' | 'pickup'
   const [deliveryLocation, setDeliveryLocation] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryZones, setDeliveryZones] = useState([]); // [{name, price}]
+  const [selectedZone, setSelectedZone] = useState(null);  // zone object or null
   const [locationLoading, setLocationLoading] = useState(false);
   const [datafastCheckout, setDatafastCheckout] = useState(null); // { checkoutId, entityId, transactionId }
   const [bankInfo, setBankInfo] = useState(null);
@@ -146,6 +148,9 @@ export default function Shop() {
       if (p.bank_info) setBankInfo(p.bank_info);
       if (p.business_name) setBusinessName(p.business_name);
       if (p.logo_url) setLogoUrl(p.logo_url);
+      if (Array.isArray(p.delivery_zones) && p.delivery_zones.length > 0) {
+        setDeliveryZones(p.delivery_zones);
+      }
       setCart(c.items || []);
     }).catch(e => setErr(e.message)).finally(() => setLoading(false));
   }, [token]);
@@ -163,6 +168,13 @@ export default function Shop() {
   const cartCount = useMemo(() =>
     cart.reduce((s, i) => s + i.quantity, 0),
   [cart]);
+
+  const deliveryFee = useMemo(() => {
+    if (deliveryMethod !== 'delivery' || !selectedZone) return 0;
+    return Number(selectedZone.price) || 0;
+  }, [deliveryMethod, selectedZone]);
+
+  const grandTotal = useMemo(() => cartTotal + deliveryFee, [cartTotal, deliveryFee]);
 
   const categories = useMemo(() => {
     const s = new Set(products.map(p => p.category).filter(Boolean));
@@ -233,7 +245,8 @@ export default function Shop() {
           delivery_method: deliveryMethod,
           ...(deliveryMethod === 'delivery' && deliveryLocation && { delivery_location: deliveryLocation }),
           ...(deliveryMethod === 'delivery' && deliveryAddress.trim() && { delivery_address: deliveryAddress.trim() }),
-          ...(s3Key && { payment_proof_s3_key: s3Key })
+          ...(deliveryMethod === 'delivery' && selectedZone && { delivery_zone: selectedZone.name }),
+          ...(s3Key && { payment_proof_s3_key: s3Key }),
         }),
       });
 
@@ -255,7 +268,7 @@ export default function Shop() {
     } finally {
       setCheckingOut(false);
     }
-  }, [token, orderNotes, paymentMethod, deliveryLocation, receiptFile]);
+  }, [token, orderNotes, paymentMethod, deliveryMethod, deliveryLocation, deliveryAddress, selectedZone, receiptFile]);
 
   if (loading) {
     return (
@@ -501,9 +514,21 @@ export default function Shop() {
                   ))}
                 </ul>
                 <div className="border-t border-gray-100 px-4 py-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium text-gray-700">{t('shop.total')}</span>
-                    <span className="text-lg font-bold text-gray-900">${cartTotal.toFixed(2)}</span>
+                  <div className="mb-4 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Subtotal</span>
+                      <span className="text-sm text-gray-700">${cartTotal.toFixed(2)}</span>
+                    </div>
+                    {deliveryFee > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Envío ({selectedZone?.name})</span>
+                        <span className="text-sm text-gray-700">+${deliveryFee.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-1.5">
+                      <span className="text-sm font-medium text-gray-700">{t('shop.total')}</span>
+                      <span className="text-lg font-bold text-gray-900">${grandTotal.toFixed(2)}</span>
+                    </div>
                   </div>
                   <textarea
                     value={orderNotes}
@@ -531,7 +556,7 @@ export default function Shop() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setDeliveryMethod('pickup'); setDeliveryLocation(''); }}
+                        onClick={() => { setDeliveryMethod('pickup'); setDeliveryLocation(''); setSelectedZone(null); }}
                         className={`rounded-lg border py-2.5 text-xs font-medium transition-colors ${deliveryMethod === 'pickup' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                       >
                         🏪 Retiro en tienda
@@ -568,6 +593,32 @@ export default function Shop() {
                           {locationLoading ? 'Obteniendo ubicación...' : '📡 Compartir ubicación GPS (opcional)'}
                         </button>
                       )}
+                    </div>
+                  )}
+
+                  {/* Delivery zone selector */}
+                  {deliveryEnabled && deliveryMethod === 'delivery' && deliveryZones.length > 0 && (
+                    <div className="mb-3">
+                      <p className="mb-1.5 text-xs font-medium text-gray-700">Zona de entrega</p>
+                      <div className="flex flex-col gap-1.5">
+                        {deliveryZones.map(zone => (
+                          <button
+                            key={zone.name}
+                            type="button"
+                            onClick={() => setSelectedZone(zone)}
+                            className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-xs font-medium transition-colors ${
+                              selectedZone?.name === zone.name
+                                ? 'border-brand-600 bg-brand-50 text-brand-700'
+                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span>{zone.name}</span>
+                            <span className="font-semibold">
+                              {Number(zone.price) === 0 ? 'Gratis' : `+$${Number(zone.price).toFixed(2)}`}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
 
