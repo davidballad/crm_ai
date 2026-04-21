@@ -66,25 +66,19 @@ async function shopFetch(path, token, options = {}) {
   return res.json();
 }
 
-function PoweredByClienta({ liftForCartBar = false }) {
-  const { t } = useTranslation();
+function PoweredByClienta() {
   return (
-    <footer
-      className={`pointer-events-none fixed right-3 z-20 max-w-[calc(100vw-1.5rem)] sm:right-4 ${liftForCartBar ? 'bottom-20' : 'bottom-4'}`}
-      aria-label={t('shop.poweredByAria')}
-    >
-      <div className="flex justify-end">
-        <a
-          href="https://www.clientaai.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="pointer-events-auto inline-flex max-w-full items-center gap-2 rounded-lg border border-gray-200/90 bg-white/95 px-2.5 py-1.5 text-[11px] text-gray-500 shadow-md backdrop-blur-sm transition-colors hover:border-gray-300 hover:text-gray-800"
-        >
-          <span className="whitespace-nowrap tracking-tight">{t('shop.poweredBy')}</span>
-          <img src="/mainLogo.png" alt="Clienta AI" className="h-5 w-auto shrink-0" />
-        </a>
-      </div>
-    </footer>
+    <div className="mt-8 pb-6 text-center">
+      <a
+        href="https://www.clientaai.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
+      >
+        <span className="tracking-tight">Powered by</span>
+        <img src="/mainLogo.png" alt="Clienta AI" className="h-3.5 w-auto" />
+      </a>
+    </div>
   );
 }
 
@@ -309,7 +303,6 @@ export default function Shop() {
             <script src={widgetSrc} />
           </div>
         </div>
-        <PoweredByClienta liftForCartBar={false} />
       </div>
     );
   }
@@ -344,9 +337,11 @@ export default function Shop() {
                 {t('shop.openWhatsapp')}
               </a>
             )}
+            <div className="mt-6 pt-4 border-t border-gray-100">
+              <PoweredByClienta />
+            </div>
           </div>
         </div>
-        <PoweredByClienta liftForCartBar={false} />
       </div>
     );
   }
@@ -473,6 +468,7 @@ export default function Shop() {
           <p className="mt-12 text-center text-sm text-gray-500">{t('shop.noProducts')}</p>
         )}
       </main>
+      <PoweredByClienta />
 
       {/* Cart panel (slides up) */}
       {cartOpen && (
@@ -727,7 +723,6 @@ export default function Shop() {
         </div>
       )}
 
-      <PoweredByClienta liftForCartBar={cartCount > 0 && !cartOpen} />
     </div>
   );
 }
