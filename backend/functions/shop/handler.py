@@ -202,11 +202,17 @@ def _list_products(tenant_id: str) -> dict[str, Any]:
     delivery_enabled = tenant.get("delivery_enabled", True)
     if delivery_enabled is None:
         delivery_enabled = True
+    delivery_zones = tenant.get("delivery_zones") or []
     return success(body={
         "products": all_products,
         "datafast_enabled": datafast_enabled,
         "bank_info": bank_info,
         "delivery_enabled": bool(delivery_enabled),
+        "delivery_zones": [
+            {"name": z.get("name", ""), "price": str(z.get("price", "0"))}
+            for z in delivery_zones
+            if z.get("name")
+        ],
         "business_name": tenant.get("business_name") or "",
         "logo_url": tenant.get("logo_url") or "",
     })

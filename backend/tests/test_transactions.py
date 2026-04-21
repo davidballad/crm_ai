@@ -368,3 +368,64 @@ class TestDeliveryFeeInTransaction:
         if result["statusCode"] == 201:
             body = json.loads(result["body"])
             assert body.get("delivery_fee") in (None, "0", 0, "0.00")
+
+    @mock_aws
+    def test_products_returns_delivery_zones(self, dynamodb_table):
+        """delivery_zones from tenant config should be exposed in /shop/products."""
+        import os
+        os.environ["SERVICE_API_KEY"] = self.SERVICE_KEY
+        from functions.shop.handler import lambda_handler, generate_shop_token
+
+        phone = self.CUSTOMER_PHONE
+        token = generate_shop_token(TENANT_ID, phone)
+        pk = f"TENANT#{TENANT_ID}"
+        dynamodb_table.put_item(Item={
+            "pk": pk,
+            "sk": f"TENANT#{TENANT_ID}",
+            "delivery_enabled": True,
+            "delivery_zones": [
+                {"name": "Centro", "price": "2.50"},
+                {"name": "Norte", "price": "4.00"},
+            ],
+        })
+        event = {
+            "requestContext": {"http": {"method": "GET", "path": "/shop/products"}},
+            "rawPath": "/shop/products",
+            "path": "/shop/products",
+            "queryStringParameters": {"token": token},
+            "body": None,
+            "headers": {},
+        }
+        resp = lambda_handler(event, {})
+        body = json.loads(resp["body"])
+        assert body["delivery_zones"] == [
+            {"name": "Centro", "price": "2.50"},
+            {"name": "Norte", "price": "4.00"},
+        ]
+
+    @mock_aws
+    def test_products_returns_empty_delivery_zones_when_none(self, dynamodb_table):
+        """When tenant has no delivery_zones, response should contain empty list."""
+        import os
+        os.environ["SERVICE_API_KEY"] = self.SERVICE_KEY
+        from functions.shop.handler import lambda_handler, generate_shop_token
+
+        phone = self.CUSTOMER_PHONE
+        token = generate_shop_token(TENANT_ID, phone)
+        pk = f"TENANT#{TENANT_ID}"
+        dynamodb_table.put_item(Item={
+            "pk": pk,
+            "sk": f"TENANT#{TENANT_ID}",
+            "delivery_enabled": True,
+        })
+        event = {
+            "requestContext": {"http": {"method": "GET", "path": "/shop/products"}},
+            "rawPath": "/shop/products",
+            "path": "/shop/products",
+            "queryStringParameters": {"token": token},
+            "body": None,
+            "headers": {},
+        }
+        resp = lambda_handler(event, {})
+        body = json.loads(resp["body"])
+        assert body["delivery_zones"] == []
