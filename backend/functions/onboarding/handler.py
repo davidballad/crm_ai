@@ -18,10 +18,11 @@ from shared.auth import extract_service_tenant_id, extract_tenant_id, require_au
 from shared.db import DynamoDBError, delete_item, get_item, put_item, query_gsi, query_items, update_item
 from shared.models import Tenant
 from shared.response import created, error, server_error, success
-from shared.utils import build_pk, build_sk, generate_id, now_iso, parse_body
+from shared.utils import build_pk, build_sk, generate_id, normalize_phone, now_iso, parse_body
 
 PHONE_NUMBER_ID_PK = "PHONE_NUMBER_ID"
 IG_ACCOUNT_ID_PK = "IG_ACCOUNT_ID"
+PHONE_PK = "PHONE_NUMBER"
 S3_TENANT_IDS_KEY = "tenant-registry/tenant-ids.json"
 
 _ses_client = None
@@ -376,11 +377,27 @@ def create_google_tenant(event: dict[str, Any]) -> dict[str, Any]:
     store_slug = _generate_unique_slug(business_name)
     created_at = now_iso()
 
+    # Resolve the Cognito Username for this user. For federated (Google) users the
+    # Username has an IdP prefix (e.g. "google_123..."), so `sub` isn't a valid Username.
+    # Look up by the `sub` attribute to get the real Username in the pool.
+    try:
+        lookup = cognito.list_users(
+            UserPoolId=user_pool_id,
+            Filter=f'sub = "{cognito_sub}"',
+            Limit=1,
+        )
+        users = lookup.get("Users") or []
+        if not users:
+            return error("User does not exist in Cognito user pool", 400)
+        cognito_username = users[0]["Username"]
+    except ClientError as e:
+        return error(f"Failed to look up user: {e.response.get('Error', {}).get('Message', str(e))}", 400)
+
     # Step 1: Set tenant_id and role on the existing Cognito user
     try:
         cognito.admin_update_user_attributes(
             UserPoolId=user_pool_id,
-            Username=cognito_sub,
+            Username=cognito_username,
             UserAttributes=[
                 {"Name": "custom:tenant_id", "Value": tenant_id},
                 {"Name": "custom:role", "Value": "owner"},
@@ -414,7 +431,7 @@ def create_google_tenant(event: dict[str, Any]) -> dict[str, Any]:
         try:
             cognito.admin_update_user_attributes(
                 UserPoolId=user_pool_id,
-                Username=cognito_sub,
+                Username=cognito_username,
                 UserAttributes=[
                     {"Name": "custom:tenant_id", "Value": ""},
                     {"Name": "custom:role", "Value": ""},
@@ -641,6 +658,15 @@ def _upsert_phone_number_id_mapping(meta_phone_number_id: str, tenant_id: str) -
     })
 
 
+def _upsert_phone_number_mapping(phone_number: str, tenant_id: str) -> None:
+    """Create or update the PHONE_NUMBER -> tenant_id mapping (business phone, digits only)."""
+    put_item({
+        "pk": PHONE_PK,
+        "sk": phone_number,
+        "tenant_id": tenant_id,
+    })
+
+
 def _upsert_ig_account_mapping(ig_business_account_id: str, tenant_id: str) -> None:
     """Create or update the IG_ACCOUNT_ID -> tenant_id mapping in DynamoDB."""
     put_item({
@@ -687,6 +713,14 @@ def complete_setup(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
             update_item(pk, sk, updates)
         except DynamoDBError:
             return server_error("Failed to update tenant settings")
+
+    if updates.get("phone_number"):
+        try:
+            normalized = normalize_phone(updates["phone_number"])
+            if normalized:
+                _upsert_phone_number_mapping(normalized, tenant_id)
+        except DynamoDBError:
+            pass
 
     if updates.get("meta_phone_number_id"):
         try:
@@ -758,19 +792,35 @@ def patch_config(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
     if not updates:
         return error("No valid fields provided", 400)
 
+    # Fetch old config BEFORE updating so mapping diffs (slug/phone/etc.) compare against the real previous values.
+    old_config = get_item(pk, sk) or {}
+
+    if "phone_number" in updates:
+        new_phone = normalize_phone(updates["phone_number"])
+        if new_phone:
+            existing = get_item(pk=PHONE_PK, sk=new_phone)
+            if existing and existing.get("tenant_id") != tenant_id:
+                return error("This phone number is already registered to another tenant", 409)
+
     updates["updated_at"] = now_iso()
     try:
         update_item(pk, sk, updates)
     except DynamoDBError:
         return server_error("Failed to update config")
 
-    if "meta_phone_number_id" in updates:
-        val = updates["meta_phone_number_id"]
-        # If it was cleared, we can't easily find the OLD mapping to delete it unless we query or get old_config
-        # But we already got old_config for store_slug below! Let's move this.
-        pass
-
-    old_config = get_item(pk, sk) or {}
+    if "phone_number" in updates:
+        new_phone = normalize_phone(updates["phone_number"])
+        old_phone = normalize_phone(old_config.get("phone_number") or "")
+        if old_phone and old_phone != new_phone:
+            try:
+                delete_item(pk=PHONE_PK, sk=old_phone)
+            except Exception:
+                pass
+        if new_phone and new_phone != old_phone:
+            try:
+                _upsert_phone_number_mapping(new_phone, tenant_id)
+            except DynamoDBError:
+                pass
 
     if "meta_phone_number_id" in updates:
         new_val = updates["meta_phone_number_id"]

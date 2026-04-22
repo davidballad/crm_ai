@@ -1,16 +1,32 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ShoppingCart, Plus, Minus, Trash2, X, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 
-function ProductImageCarousel({ images, alt }) {
+function ProductImageCarousel({ images, alt, heightClass = 'h-32', dotSize = 'h-1.5 w-1.5', arrowSize = 'h-3.5 w-3.5', enableSwipe = false }) {
   const [idx, setIdx] = useState(0);
+  const touchStartX = useRef(null);
   const validImages = images?.filter(Boolean) || [];
   const src = validImages[idx] || '/placeholder-product.png';
   const hasMultiple = validImages.length > 1;
 
+  const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const onTouchEnd = (e) => {
+    if (touchStartX.current == null || !hasMultiple) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(dx) > 40) {
+      if (dx < 0) setIdx((i) => (i + 1) % validImages.length);
+      else setIdx((i) => (i - 1 + validImages.length) % validImages.length);
+    }
+    touchStartX.current = null;
+  };
+
   return (
-    <div className="relative h-32 w-full overflow-hidden bg-gray-100">
+    <div
+      className={`relative ${heightClass} w-full overflow-hidden bg-gray-100`}
+      onTouchStart={enableSwipe ? onTouchStart : undefined}
+      onTouchEnd={enableSwipe ? onTouchEnd : undefined}
+    >
       <img
         src={src}
         alt={alt}
@@ -22,16 +38,16 @@ function ProductImageCarousel({ images, alt }) {
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setIdx((i) => (i - 1 + validImages.length) % validImages.length); }}
-            className="absolute left-1 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-0.5 text-white hover:bg-black/60"
+            className="absolute left-1 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white hover:bg-black/60"
           >
-            <ChevronLeft className="h-3.5 w-3.5" />
+            <ChevronLeft className={arrowSize} />
           </button>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setIdx((i) => (i + 1) % validImages.length); }}
-            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-0.5 text-white hover:bg-black/60"
+            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white hover:bg-black/60"
           >
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className={arrowSize} />
           </button>
           <div className="absolute bottom-1 left-1/2 flex -translate-x-1/2 gap-1">
             {validImages.map((_, i) => (
@@ -39,12 +55,132 @@ function ProductImageCarousel({ images, alt }) {
                 key={i}
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setIdx(i); }}
-                className={`h-1.5 w-1.5 rounded-full transition-colors ${i === idx ? 'bg-white' : 'bg-white/50'}`}
+                className={`${dotSize} rounded-full transition-colors ${i === idx ? 'bg-white' : 'bg-white/50'}`}
               />
             ))}
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function ProductDetailModal({ product, qty, onClose, onAdd, onSet, t }) {
+  const stock = product.quantity != null ? Number(product.quantity) : 0;
+  const unavailable = stock <= 0;
+  const displayPrice = product.promo_active ? Number(product.promo_price) : Number(product.unit_cost);
+  const images = product.image_urls?.length > 0 ? product.image_urls : [product.image_url];
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl rounded-t-2xl">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-gray-700 shadow-md hover:bg-white"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="relative">
+          <ProductImageCarousel
+            images={images}
+            alt={product.name}
+            heightClass="h-80 sm:h-96"
+            dotSize="h-2 w-2"
+            arrowSize="h-5 w-5"
+            enableSwipe
+          />
+          {product.promo_active && (
+            <span className="absolute left-3 top-3 rounded-full bg-orange-500 px-2.5 py-1 text-xs font-bold text-white shadow">PROMO</span>
+          )}
+        </div>
+
+        <div className="flex flex-1 flex-col overflow-y-auto px-5 py-4">
+          {product.category && (
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">{product.category}</p>
+          )}
+          <h2 className="mt-1 text-xl font-bold text-gray-900 leading-tight">{product.name}</h2>
+
+          <div className="mt-2 flex items-baseline gap-2">
+            {product.promo_active ? (
+              <>
+                <span className="text-2xl font-bold text-orange-600">${displayPrice.toFixed(2)}</span>
+                <span className="text-base text-gray-400 line-through">${Number(product.unit_cost).toFixed(2)}</span>
+              </>
+            ) : (
+              <span className="text-2xl font-bold text-brand-600">${displayPrice.toFixed(2)}</span>
+            )}
+          </div>
+
+          {stock > 0 && stock <= 5 && (
+            <p className="mt-1 text-xs font-medium text-orange-600">¡Solo quedan {stock}!</p>
+          )}
+
+          {product.description ? (
+            <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-gray-700">{product.description}</p>
+          ) : (
+            <p className="mt-4 text-sm italic text-gray-400">Sin descripción disponible.</p>
+          )}
+        </div>
+
+        <div className="border-t border-gray-100 bg-white p-4">
+          {unavailable ? (
+            <button
+              type="button"
+              disabled
+              className="w-full cursor-not-allowed rounded-xl border border-gray-200 bg-gray-100 py-3.5 text-sm font-semibold text-gray-500"
+            >
+              {t('shop.notAvailable')}
+            </button>
+          ) : qty === 0 ? (
+            <button
+              type="button"
+              onClick={() => onAdd(product.id)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 py-3.5 text-sm font-semibold text-white hover:bg-brand-700 transition-colors"
+            >
+              <Plus className="h-4 w-4" /> {t('shop.add')} — ${displayPrice.toFixed(2)}
+            </button>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-1 items-center justify-between rounded-xl border border-gray-200 bg-gray-50">
+                <button
+                  type="button"
+                  onClick={() => onSet(product.id, qty - 1)}
+                  className="px-4 py-3 text-gray-600 hover:text-red-600"
+                >
+                  {qty === 1 ? <Trash2 className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
+                </button>
+                <span className="text-base font-bold text-gray-900">{qty}</span>
+                <button
+                  type="button"
+                  onClick={() => onAdd(product.id)}
+                  disabled={qty >= stock}
+                  className="px-4 py-3 text-gray-600 hover:text-brand-600 disabled:opacity-40"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] text-gray-500">Subtotal</p>
+                <p className="text-sm font-bold text-gray-900">${(displayPrice * qty).toFixed(2)}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -110,6 +246,7 @@ export default function Shop() {
   const [receiptFile, setReceiptFile] = useState(null);
   const [businessName, setBusinessName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [detailProductId, setDetailProductId] = useState(null);
 
   useEffect(() => {
     if (!token) { setErr(t('shop.missingToken')); setLoading(false); return; }
@@ -409,7 +546,10 @@ export default function Shop() {
             return (
               <div
                 key={p.id}
-                className={`flex flex-col rounded-xl border bg-white overflow-hidden shadow-sm ${unavailable ? 'opacity-90' : ''} ${p.promo_active ? 'border-orange-300' : 'border-gray-200'}`}
+                className={`flex flex-col rounded-xl border bg-white overflow-hidden shadow-sm transition-shadow hover:shadow-md ${unavailable ? 'opacity-90' : 'cursor-pointer'} ${p.promo_active ? 'border-orange-300' : 'border-gray-200'}`}
+                onClick={() => setDetailProductId(p.id)}
+                role="button"
+                tabIndex={0}
               >
                 <div className="relative">
                   <ProductImageCarousel
@@ -420,7 +560,7 @@ export default function Shop() {
                     <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">PROMO</span>
                   )}
                 </div>
-                <div className="flex flex-1 flex-col p-3">
+                <div className="flex flex-1 flex-col p-3" onClick={(e) => e.stopPropagation()}>
                   <h3 className="text-sm font-medium text-gray-900 leading-tight">{p.name}</h3>
                   {p.promo_active ? (
                     <div className="mt-1 flex items-baseline gap-1.5">
@@ -695,6 +835,22 @@ export default function Shop() {
           </div>
         </div>
       )}
+
+      {/* Product detail modal */}
+      {detailProductId && (() => {
+        const p = products.find(x => x.id === detailProductId);
+        if (!p) return null;
+        return (
+          <ProductDetailModal
+            product={p}
+            qty={cartQtyMap[p.id] || 0}
+            onClose={() => setDetailProductId(null)}
+            onAdd={(id) => updateCart(id, 'add')}
+            onSet={(id, q) => updateCart(id, 'set', q)}
+            t={t}
+          />
+        );
+      })()}
 
       {/* Floating cart bar (when cart has items and panel is closed) */}
       {cartCount > 0 && !cartOpen && (

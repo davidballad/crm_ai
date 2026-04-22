@@ -56,6 +56,7 @@ class Product(_BaseModel):
     unit: str = "each"
     image_url: str | None = None
     image_urls: list[str] | None = None
+    description: str | None = None
     notes: str | None = None
     promo_price: Decimal | None = None
     promo_end_at: str | None = None

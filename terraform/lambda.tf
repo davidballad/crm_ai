@@ -95,7 +95,9 @@ data "aws_iam_policy_document" "lambda_cognito" {
       "cognito-idp:AdminCreateUser",
       "cognito-idp:AdminSetUserPassword",
       "cognito-idp:AdminGetUser",
-      "cognito-idp:AdminUpdateUserAttributes"
+      "cognito-idp:AdminUpdateUserAttributes",
+      "cognito-idp:AdminDeleteUser",
+      "cognito-idp:ListUsers"
     ]
     resources = [aws_cognito_user_pool.main.arn]
   }

@@ -483,12 +483,13 @@ export default function WhatsAppSetup() {
 
           <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
             <code className="flex-1 truncate text-xs text-gray-700">
-              https://www.clientaai.com/store/{config.store_slug || config.id}
+              https://www.clientaai.com/store/{config.store_slug || (config.phone_number || '').replace(/\D/g, '') || config.id}
             </code>
             <button
               type="button"
               onClick={() => {
-                navigator.clipboard.writeText(`https://www.clientaai.com/store/${config.store_slug || config.id}`);
+                const storeId = config.store_slug || (config.phone_number || '').replace(/\D/g, '') || config.id;
+                navigator.clipboard.writeText(`https://www.clientaai.com/store/${storeId}`);
               }}
               className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm ring-1 ring-gray-200 hover:bg-gray-100"
             >

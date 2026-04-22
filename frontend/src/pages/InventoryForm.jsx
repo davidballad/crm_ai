@@ -17,6 +17,7 @@ const EMPTY = {
   unit: 'each',
   image_url: '',
   image_urls: [],
+  description: '',
   notes: '',
   tags: '',
   promo_price: '',
@@ -51,6 +52,7 @@ export default function InventoryForm() {
         unit: product.unit || 'each',
         image_url: product.image_url || '',
         image_urls: Array.isArray(product.image_urls) ? product.image_urls : [],
+        description: product.description || '',
         notes: product.notes || '',
         tags: Array.isArray(product.tags) ? product.tags.join(', ') : (product.tags || ''),
         promo_price: product.promo_price != null ? String(product.promo_price) : '',
@@ -267,6 +269,21 @@ export default function InventoryForm() {
               })}
             </div>
             <p className="mt-1.5 text-xs text-gray-400">Puedes subir hasta 5 fotos. La primera es la foto principal del producto.</p>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Descripción <span className="text-xs font-normal text-gray-400">(se muestra en la tienda)</span>
+            </label>
+            <textarea
+              rows={3}
+              value={form.description}
+              onChange={update('description')}
+              className="input-field"
+              placeholder="Describe tu producto: ingredientes, tamaño, características destacadas..."
+              maxLength={500}
+            />
+            <p className="mt-1 text-right text-xs text-gray-400">{form.description.length}/500</p>
           </div>
 
           <div className="sm:col-span-2">

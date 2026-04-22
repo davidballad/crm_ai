@@ -176,12 +176,19 @@ def _list_products(tenant_id: str) -> dict[str, Any]:
         items, last_key = query_items(pk=pk, sk_prefix="PRODUCT#", limit=100, last_key=last_key)
         for item in items:
             promo_active = _is_promo_active(item)
+            raw_image_urls = item.get("image_urls")
+            if isinstance(raw_image_urls, list):
+                image_urls = [str(u) for u in raw_image_urls if u]
+            else:
+                image_urls = []
             entry: dict[str, Any] = {
                 "id": item.get("sk", "").split("#")[-1] if "#" in item.get("sk", "") else item.get("id"),
                 "name": item.get("name") or item.get("product_name") or "Item",
                 "category": item.get("category") or "",
                 "unit_cost": str(item.get("unit_cost") or "0"),
                 "image_url": item.get("image_url") or "",
+                "image_urls": image_urls,
+                "description": item.get("description") or "",
                 "unit": item.get("unit") or "each",
                 "quantity": _product_stock_qty(item),
                 "promo_active": promo_active,
@@ -922,20 +929,22 @@ def _shop_meta(tenant_id: str) -> dict[str, Any]:
 
 
 def _resolve_tenant_id(input_str: str) -> str | None:
-    """Resolve input string to a tenant ID. If input is 26 chars, assume it's already an ID.
-    Otherwise, look it up as a slug.
-    """
+    """Resolve input string to a tenant ID. Order: tenant ID (26 chars) → slug → business phone number."""
     if len(input_str) == 26:
-        # Check if it exists as an ID
         pk = build_pk(input_str)
         if get_item(pk, build_sk("TENANT", input_str)):
-             return input_str
-    
-    # Try slug lookup
+            return input_str
+
     mapping = get_item(pk="SLUG", sk=input_str.lower())
     if mapping:
         return mapping.get("tenant_id")
-    
+
+    phone_digits = normalize_phone(input_str)
+    if phone_digits:
+        mapping = get_item(pk="PHONE_NUMBER", sk=phone_digits)
+        if mapping:
+            return mapping.get("tenant_id")
+
     return None
 
 
@@ -956,8 +965,8 @@ def _shop_store_page(input_str: str) -> dict[str, Any]:
     phone_raw = normalize_phone(tenant.get("phone_number") or "")
     wa_link = f"https://wa.me/{phone_raw}?text=Hola" if phone_raw else "#"
     
-    # Use the slug in the canonical URL if available, otherwise use ID
-    display_id = tenant.get("store_slug") or tenant_id
+    # Canonical URL: prefer slug, then business phone number, then tenant ID.
+    display_id = tenant.get("store_slug") or normalize_phone(tenant.get("phone_number") or "") or tenant_id
     store_url = f"https://www.clientaai.com/store/{display_id}"
     
     description = f"Compra nuestros productos directamente desde WhatsApp."

@@ -432,6 +432,8 @@ def create_product(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         item["image_url"] = product_data.image_url
     if product_data.image_urls is not None:
         item["image_urls"] = product_data.image_urls
+    if product_data.description is not None:
+        item["description"] = product_data.description
     if product_data.notes is not None:
         item["notes"] = product_data.notes
     if product_data.promo_price is not None:
@@ -499,7 +501,7 @@ def update_product(
     # Build updates from allowed fields
     allowed = {
         "name", "category", "quantity", "unit_cost", "reorder_threshold",
-        "supplier_id", "sku", "unit", "image_url", "image_urls", "notes", "tags",
+        "supplier_id", "sku", "unit", "image_url", "image_urls", "description", "notes", "tags",
         "promo_price", "promo_end_at",
     }
     # promo fields can be explicitly set to null (to clear a promo)
