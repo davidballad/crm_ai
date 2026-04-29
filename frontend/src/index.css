@@ -35,7 +35,7 @@
 .landing-network-grid {
   background-image: 
     radial-gradient(circle at 2px 2px, rgba(59, 130, 246, 0.15) 1px, transparent 0);
-  background-size: 40px 40px;
+  background-size: 48px 48px;
 }
 
 /* Film-grain overlay */
@@ -69,14 +69,143 @@
   0%, 100% { opacity: 0.3; filter: blur(50px); }
   50% { opacity: 0.6; filter: blur(70px); }
 }
+@keyframes mesh-breathe {
+  0%   { opacity: 0.75; }
+  100% { opacity: 1; }
+}
+@keyframes orb-float {
+  0%, 100% { transform: translate3d(0, 0px, 0); }
+  50%       { transform: translate3d(20px, -28px, 0); }
+}
+@keyframes particle-float {
+  0%, 100% { transform: translateY(0);    opacity: 0.5; }
+  50%       { transform: translateY(-18px); opacity: 1; }
+}
+@keyframes chevron-flow {
+  0%   { opacity: 0; transform: rotate(45deg) translate(-3px, -3px); }
+  50%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(45deg) translate(3px, 3px); }
+}
 .landing-orb-float       { animation: landing-float      12s ease-in-out infinite; }
 .landing-orb-float-slow  { animation: landing-float-slow 18s ease-in-out infinite; }
 .landing-glow-pulse      { animation: glow-pulse         8s ease-in-out infinite; }
 
+/* Premium hero background — gradient mesh */
+.landing-mesh-bg {
+  background:
+    radial-gradient(ellipse 65% 85% at 10% 55%, rgba(37,99,235,0.22) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 65% at 90% 15%, rgba(59,130,246,0.18) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 55% at 50% 100%, rgba(29,78,216,0.14) 0%, transparent 50%);
+  animation: mesh-breathe 14s ease-in-out infinite alternate;
+}
+
+/* Floating orb base */
+.landing-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  will-change: transform;
+}
+.landing-orb-1 {
+  width: 500px; height: 500px;
+  background: rgba(59,130,246,0.11);
+  top: -120px; left: -100px;
+  animation: orb-float 18s ease-in-out infinite;
+}
+.landing-orb-2 {
+  width: 350px; height: 350px;
+  background: rgba(37,99,235,0.09);
+  bottom: -60px; right: -80px;
+  animation: orb-float 22s ease-in-out infinite reverse;
+}
+
+/* Floating particles */
+.landing-particle {
+  position: absolute;
+  width: 2px; height: 2px;
+  background: rgba(96,165,250,0.55);
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform;
+  animation: particle-float var(--particle-dur, 9s) ease-in-out infinite;
+  animation-delay: var(--particle-delay, 0s);
+}
+
+/* Scroll chevron arrow */
+.landing-scroll-chevron {
+  width: 10px; height: 10px;
+  border-right: 1.5px solid rgba(255,255,255,0.35);
+  border-bottom: 1.5px solid rgba(255,255,255,0.35);
+  transform: rotate(45deg);
+  animation: chevron-flow 1.5s ease-in-out infinite;
+}
+.landing-scroll-chevron:nth-child(2) {
+  animation-delay: 0.3s;
+}
+
+/* Glassmorphism stat card */
+.landing-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  backdrop-filter: blur(14px);
+  border-radius: 12px;
+  padding: 9px 14px;
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.55);
+}
+.landing-stat-card strong {
+  color: white;
+  font-weight: 700;
+}
+.landing-stat-card .stat-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+}
+
+/* Badge pulsing dot */
+.landing-badge-dot {
+  width: 6px; height: 6px;
+  background: #60a5fa;
+  border-radius: 50%;
+  animation: landing-float 2s ease-in-out infinite;
+}
+
+/* Glassmorphism feature card (dark sections) */
+.glass-feature-card {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 1rem;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s, background 0.3s;
+}
+.glass-feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(59,130,246,0.45), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.glass-feature-card:hover {
+  border-color: rgba(59,130,246,0.22);
+  background: rgba(59,130,246,0.04);
+}
+.glass-feature-card:hover::before {
+  opacity: 1;
+}
+
 /* Scroll-reveal — smooth fade-up animation */
 .landing-reveal {
   opacity: 0;
-  transform: translateY(1.2rem);
+  transform: translateY(1.5rem);
   transition:
     opacity   0.85s cubic-bezier(0.22, 1, 0.36, 1),
     transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
@@ -98,6 +227,14 @@
 .landing-reveal-stagger.is-visible > *:nth-child(2) { opacity:1; transform:none; transition-delay: 80ms;  }
 .landing-reveal-stagger.is-visible > *:nth-child(3) { opacity:1; transform:none; transition-delay: 160ms; }
 .landing-reveal-stagger.is-visible > *:nth-child(4) { opacity:1; transform:none; transition-delay: 240ms; }
+
+/* Stagger siblings inside a reveal group */
+.landing-reveal-group .landing-reveal:nth-child(1) { transition-delay: 0ms;   }
+.landing-reveal-group .landing-reveal:nth-child(2) { transition-delay: 100ms; }
+.landing-reveal-group .landing-reveal:nth-child(3) { transition-delay: 200ms; }
+.landing-reveal-group .landing-reveal:nth-child(4) { transition-delay: 300ms; }
+.landing-reveal-group .landing-reveal:nth-child(5) { transition-delay: 400ms; }
+.landing-reveal-group .landing-reveal:nth-child(6) { transition-delay: 500ms; }
 
 /* Smooth text shadow animation */
 @keyframes text-glow-pulse {
@@ -135,6 +272,15 @@
     transition: none;
   }
   .text-glow {
+    animation: none;
+  }
+  .landing-mesh-bg,
+  .landing-orb,
+  .landing-orb-1,
+  .landing-orb-2,
+  .landing-particle,
+  .landing-scroll-chevron,
+  .landing-badge-dot {
     animation: none;
   }
 }
