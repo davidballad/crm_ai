@@ -212,7 +212,7 @@ function PoweredByClienta() {
         className="inline-flex items-center gap-1.5 text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
       >
         <span className="tracking-tight">Powered by</span>
-        <img src="/mainLogo.png" alt="Clienta AI" className="h-3.5 w-auto" />
+        <img src="/main.png" alt="Clienta AI" className="h-3.5 w-auto" />
       </a>
     </div>
   );

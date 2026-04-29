@@ -450,75 +450,146 @@ export default function InventoryList() {
           </Link>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-3">Producto</th>
-                <th className="px-4 py-3">Categoria</th>
-                <th className="px-4 py-3 text-right">Cantidad</th>
-                <th className="px-4 py-3 text-right">Costo unitario</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((p) => (
-                <tr key={p.id || p.sk} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <img 
-                        src={p.image_url || '/placeholder-product.png'} 
-                        alt="" 
-                        className="h-9 w-9 shrink-0 rounded border border-gray-200 object-cover" 
-                        onError={(e) => { e.target.src = '/placeholder-product.png'; }} 
-                      />
-                      <span className="font-medium text-gray-900">{p.name}</span>
+        <>
+          {/* Mobile: cards */}
+          <div className="space-y-3 lg:hidden">
+            {filtered.map((p) => (
+              <div key={p.id || p.sk} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center gap-3 mb-3">
+                  <img
+                    src={p.image_url || '/placeholder-product.png'}
+                    alt=""
+                    className="h-12 w-12 shrink-0 rounded-lg border border-gray-200 object-cover"
+                    onError={(e) => { e.target.src = '/placeholder-product.png'; }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-gray-900 truncate">{p.name}</p>
+                    {p.category && <p className="text-xs text-gray-400 mt-0.5">{p.category}</p>}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex gap-4">
+                    <div>
+                      <p className="text-[10px] uppercase font-medium text-gray-400">Stock</p>
+                      <p className="text-lg font-bold text-gray-900 tabular-nums">{p.quantity}</p>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-gray-500">{p.category || '—'}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{p.quantity}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {p.unit_cost != null ? `$${Number(p.unit_cost).toFixed(2)}` : '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <LowStockBadge quantity={p.quantity} threshold={p.reorder_threshold ?? 10} />
-                      {isPromoActive(p) && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
-                          <Tag className="h-3 w-3" /> Oferta
-                        </span>
-                      )}
+                    <div>
+                      <p className="text-[10px] uppercase font-medium text-gray-400">Precio</p>
+                      <p className="text-lg font-bold text-gray-900 tabular-nums">
+                        {p.unit_cost != null ? `$${Number(p.unit_cost).toFixed(2)}` : '—'}
+                      </p>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => setPromoProduct(p)}
-                        className={`rounded-lg p-1.5 hover:bg-orange-50 ${isPromoActive(p) ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'}`}
-                        title="Gestionar oferta"
-                      >
-                        <Tag className="h-4 w-4" />
-                      </button>
-                      <Link
-                        to={`/app/inventory/${p.id}`}
-                        className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(p.id, p.name)}
-                        className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <LowStockBadge quantity={p.quantity} threshold={p.reorder_threshold ?? 10} />
+                    {isPromoActive(p) && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                        <Tag className="h-3 w-3" /> Oferta
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    onClick={() => setPromoProduct(p)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                      isPromoActive(p)
+                        ? 'border-orange-200 bg-orange-50 text-orange-700'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Oferta
+                  </button>
+                  <Link
+                    to={`/app/inventory/${p.id}`}
+                    className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-center text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Editar
+                  </Link>
+                  <button
+                    onClick={() => handleDelete(p.id, p.name)}
+                    className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden lg:block overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase text-gray-500">
+                <tr>
+                  <th className="px-4 py-3">Producto</th>
+                  <th className="px-4 py-3">Categoria</th>
+                  <th className="px-4 py-3 text-right">Cantidad</th>
+                  <th className="px-4 py-3 text-right">Costo unitario</th>
+                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((p) => (
+                  <tr key={p.id || p.sk} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={p.image_url || '/placeholder-product.png'}
+                          alt=""
+                          className="h-9 w-9 shrink-0 rounded border border-gray-200 object-cover"
+                          onError={(e) => { e.target.src = '/placeholder-product.png'; }}
+                        />
+                        <span className="font-medium text-gray-900">{p.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">{p.category || '—'}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{p.quantity}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {p.unit_cost != null ? `$${Number(p.unit_cost).toFixed(2)}` : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <LowStockBadge quantity={p.quantity} threshold={p.reorder_threshold ?? 10} />
+                        {isPromoActive(p) && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                            <Tag className="h-3 w-3" /> Oferta
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setPromoProduct(p)}
+                          className={`rounded-lg p-1.5 hover:bg-orange-50 ${isPromoActive(p) ? 'text-orange-500' : 'text-gray-400 hover:text-orange-500'}`}
+                          title="Gestionar oferta"
+                        >
+                          <Tag className="h-4 w-4" />
+                        </button>
+                        <Link
+                          to={`/app/inventory/${p.id}`}
+                          className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(p.id, p.name)}
+                          className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <DeliveryZonesManager />

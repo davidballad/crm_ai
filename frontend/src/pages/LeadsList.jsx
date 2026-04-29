@@ -428,8 +428,74 @@ export default function LeadsList() {
             </button>
           </div>
 
-          {/* Kanban board */}
-          <div className="flex gap-4 overflow-x-auto pb-4">
+          {/* Mobile: lista apilada por estado */}
+          <div className="space-y-4 lg:hidden">
+            {STATUSES.map((status) => {
+              const items = byStatus[status.id] || [];
+              if (items.length === 0) return null;
+              return (
+                <div key={status.id} className={`rounded-xl border-t-4 ${status.color} border border-gray-200 bg-gray-50/50 overflow-hidden`}>
+                  <div className="border-b border-gray-200 px-4 py-3 flex items-center gap-2 bg-white">
+                    <span className={`h-2.5 w-2.5 rounded-full ${status.dot}`} />
+                    <h2 className="font-semibold text-gray-900">{status.label}</h2>
+                    <span className="ml-auto rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
+                      {items.length}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {items.map((c) => (
+                      <div
+                        key={c.contact_id}
+                        className={`flex items-center gap-3 bg-white px-4 py-3 ${
+                          selected.has(c.contact_id) ? 'bg-indigo-50' : ''
+                        }`}
+                      >
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleOne(c.contact_id); }}
+                          className="shrink-0 text-gray-400 hover:text-indigo-600 transition-colors"
+                        >
+                          {selected.has(c.contact_id)
+                            ? <CheckSquare className="h-4 w-4 text-indigo-600" />
+                            : <Square className="h-4 w-4" />}
+                        </button>
+                        <Link to={`/app/leads/${c.contact_id}`} className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-gray-900 truncate">{c.name}</span>
+                            <TierBadge tier={c.tier} />
+                          </div>
+                          <p className="mt-0.5 text-xs text-gray-500">{c.phone || c.email || '\u2014'}</p>
+                          {c.tags?.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {c.tags.map((tag) => (
+                                <span key={tag} className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600">
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </Link>
+                        <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                          <select
+                            value={c.lead_status || 'prospect'}
+                            onChange={(e) => handleStatusChange(c.contact_id, e)}
+                            disabled={patchContact.isPending}
+                            className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 focus:border-brand-500 focus:outline-none disabled:opacity-60"
+                          >
+                            {STATUSES.map((s) => (
+                              <option key={s.id} value={s.id}>{s.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop: Kanban board */}
+          <div className="hidden lg:flex gap-4 overflow-x-auto pb-4">
             {STATUSES.map((status) => (
               <div
                 key={status.id}

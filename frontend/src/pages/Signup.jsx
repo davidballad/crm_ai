@@ -61,7 +61,7 @@ export default function Signup() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex">
-            <img src="/mainLogo.png" alt="Clienta AI" className="mx-auto mb-4 h-16 w-auto" />
+            <img src="/main.png" alt="Clienta AI" className="mx-auto mb-4 h-16 w-auto" />
           </Link>
           <h1 className="text-2xl font-bold text-gray-900">{t('signup.title')}</h1>
           <p className="mt-2 text-sm text-gray-500">{t('signup.tagline')}</p>

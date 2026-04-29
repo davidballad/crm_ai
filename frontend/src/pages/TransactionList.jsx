@@ -15,6 +15,37 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const PAYMENT_METHOD_LABELS = {
+  cash: 'Efectivo',
+  card: 'Tarjeta',
+  transfer: 'Transferencia',
+  other: 'Otro',
+};
+
+function paymentMethodLabel(v) {
+  return PAYMENT_METHOD_LABELS[v] || v || '—';
+}
+
+const DELIVERY_METHOD_LABELS = {
+  pickup: 'Retiro en tienda',
+  delivery: 'Entrega a domicilio',
+};
+
+const DELIVERY_STATUS_LABELS = {
+  pickup_confirmed: 'Pickup confirmado',
+  owner_approved: 'Aprobado por dueño',
+  owner_rejected: 'Rechazado por dueño',
+  pending: 'Pendiente',
+};
+
+function deliveryMethodLabel(v) {
+  return DELIVERY_METHOD_LABELS[v] || v || 'Sin definir';
+}
+
+function deliveryStatusLabel(v) {
+  return DELIVERY_STATUS_LABELS[v] || v || 'Sin definir';
+}
+
 function googleMapsLinkFromLocation(rawLocation) {
   const value = String(rawLocation || '').trim();
   const match = value.match(
@@ -58,6 +89,10 @@ export default function TransactionList() {
   const [soundEnabled, setSoundEnabled] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem('clienta-notification-sound') === 'true';
+  });
+  const [notifPermission, setNotifPermission] = useState(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'default';
+    return Notification.permission;
   });
   const knownProofTxIdsRef = useRef(new Set());
   const notificationInitRef = useRef(false);
@@ -105,8 +140,9 @@ export default function TransactionList() {
   })();
   const saleTotal = saleSubtotal + saleTaxAmount + deliveryFeeAmount;
 
-  const playAlertTone = () => {
-    if (!soundEnabled || typeof window === 'undefined') return;
+  const playAlertTone = (force = false) => {
+    if (!force && !soundEnabled) return;
+    if (typeof window === 'undefined') return;
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     try {
@@ -125,7 +161,7 @@ export default function TransactionList() {
       oscillator.stop(ctx.currentTime + 0.3);
       oscillator.onended = () => ctx.close().catch(() => {});
     } catch {
-      // Best effort only; browser may block audio until explicit user interaction.
+      // Browser may block audio until explicit user interaction.
     }
   };
 
@@ -150,8 +186,10 @@ export default function TransactionList() {
   const enableBrowserNotifications = async () => {
     if (typeof window === 'undefined') return;
     if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') return;
     try {
-      await Notification.requestPermission();
+      const result = await Notification.requestPermission();
+      setNotifPermission(result);
     } catch {
       // Ignore prompt errors on unsupported browser contexts.
     }
@@ -399,15 +437,30 @@ export default function TransactionList() {
             <Plus className="h-4 w-4" />
             Crear transaccion
           </button>
-          <button
-            type="button"
-            className="rounded-md border border-brand-200 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-50"
-            onClick={enableBrowserNotifications}
-          >
-            {typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
-              ? 'Alertas del navegador activadas'
-              : 'Activar alertas del navegador'}
-          </button>
+          {typeof window !== 'undefined' && 'Notification' in window ? (
+            <button
+              type="button"
+              className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
+                notifPermission === 'granted'
+                  ? 'border-green-200 text-green-700 hover:bg-green-50'
+                  : notifPermission === 'denied'
+                    ? 'border-red-200 text-red-700 cursor-not-allowed opacity-70'
+                    : 'border-brand-200 text-brand-700 hover:bg-brand-50'
+              }`}
+              onClick={notifPermission !== 'denied' ? enableBrowserNotifications : undefined}
+              title={notifPermission === 'denied' ? 'Bloqueado en configuracion del navegador' : undefined}
+            >
+              {notifPermission === 'granted'
+                ? 'Alertas del navegador: activadas'
+                : notifPermission === 'denied'
+                  ? 'Alertas bloqueadas (ver config. del navegador)'
+                  : 'Activar alertas del navegador'}
+            </button>
+          ) : (
+            <span className="rounded-md border border-gray-200 px-3 py-1.5 text-xs text-gray-400">
+              Alertas no disponibles en este navegador
+            </span>
+          )}
           <button
             type="button"
             className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
@@ -416,8 +469,9 @@ export default function TransactionList() {
                 : 'border-gray-200 text-gray-700 hover:bg-gray-50'
             }`}
             onClick={() => {
-              setSoundEnabled((prev) => !prev);
-              if (!soundEnabled) playAlertTone();
+              const next = !soundEnabled;
+              setSoundEnabled(next);
+              if (next) playAlertTone(true);
             }}
           >
             {soundEnabled ? 'Alerta sonora: activada' : 'Alerta sonora: desactivada'}
@@ -705,77 +759,152 @@ export default function TransactionList() {
           <p className="mt-1 text-sm text-gray-400">Las transacciones se crean cuando se completan pedidos por WhatsApp</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-3">{t('transactions.date')}</th>
-                <th className="px-4 py-3">Referencia</th>
-                <th className="px-4 py-3">{t('transactions.items')}</th>
-                <th className="px-4 py-3">Notas</th>
-                <th className="px-4 py-3 text-right">{t('transactions.total')}</th>
-                <th className="px-4 py-3">{t('transactions.payment')}</th>
-                <th className="px-4 py-3">Verificacion de pago</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {transactions.map((tx, i) => (
-                <tr key={tx.id || i} className="hover:bg-gray-50 transition-colors">
-                  <td className="whitespace-nowrap px-4 py-3 text-gray-500">
-                    {tx.created_at ? new Date(tx.created_at).toLocaleString() : '—'}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-xs font-medium text-gray-700">
-                    {tx.payment_reference || tx.id || '—'}
-                  </td>
-                  <td className="px-4 py-3">
+        <>
+          {/* Mobile: cards */}
+          <div className="space-y-3 lg:hidden">
+            {transactions.map((tx, i) => (
+              <div key={tx.id || i} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">
+                      {tx.created_at ? new Date(tx.created_at).toLocaleString() : '—'}
+                    </p>
+                    <p className="text-xs font-medium text-gray-500 truncate max-w-[180px]">
+                      Ref: {tx.payment_reference || tx.id || '—'}
+                    </p>
+                  </div>
+                  <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700 shrink-0">
+                    {paymentMethodLabel(tx.payment_method)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-2xl font-bold text-gray-900 tabular-nums">
+                    ${Number(tx.total || 0).toFixed(2)}
+                  </p>
+                  <div className="flex flex-col items-end gap-1">
+                    <button type="button" onClick={() => openVerification(tx)}>
+                      {verificationTag(tx)}
+                    </button>
+                    {pickupTag(tx)}
+                  </div>
+                </div>
+
+                {(tx.items || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
                     {(tx.items || []).map((item) => (
-                      <span key={item.product_id} className="mr-2 inline-block rounded bg-gray-100 px-2 py-0.5 text-xs">
-                        {item.product_name} x{item.quantity}
+                      <span key={item.product_id} className="inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700">
+                        {item.product_name} ×{item.quantity}
                       </span>
                     ))}
-                  </td>
-                  <td className="max-w-[240px] px-4 py-3 text-xs text-gray-600">
-                    <span className="line-clamp-2">{tx.order_notes || '—'}</span>
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium tabular-nums">
-                    ${Number(tx.total || 0).toFixed(2)}
-                    {tx.delivery_zone && (
-                      <span className="ml-1 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
-                        {tx.delivery_zone} +${Number(tx.delivery_fee || 0).toFixed(2)}
+                  </div>
+                )}
+
+                {tx.delivery_zone && (
+                  <p className="text-xs text-blue-700 mb-2">
+                    Entrega: {tx.delivery_zone} +${Number(tx.delivery_fee || 0).toFixed(2)}
+                  </p>
+                )}
+
+                {tx.order_notes && (
+                  <p className="text-xs text-gray-500 mb-3 line-clamp-2">{tx.order_notes}</p>
+                )}
+
+                <div className="flex gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    type="button"
+                    className="flex-1 rounded-lg bg-brand-50 border border-brand-200 px-3 py-2 text-xs font-medium text-brand-700 hover:bg-brand-100 transition-colors"
+                    onClick={() => openVerification(tx)}
+                  >
+                    Ver orden
+                  </button>
+                  {tx.payment_verification_status !== 'verified' && (
+                    <button
+                      type="button"
+                      className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 transition-colors"
+                      onClick={() => handleCancelFromRow(tx)}
+                    >
+                      {t('transactions.cancelOrder')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden lg:block overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase text-gray-500">
+                <tr>
+                  <th className="px-4 py-3">{t('transactions.date')}</th>
+                  <th className="px-4 py-3">Referencia</th>
+                  <th className="px-4 py-3">{t('transactions.items')}</th>
+                  <th className="px-4 py-3">Notas</th>
+                  <th className="px-4 py-3 text-right">{t('transactions.total')}</th>
+                  <th className="px-4 py-3">{t('transactions.payment')}</th>
+                  <th className="px-4 py-3">Verificacion de pago</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {transactions.map((tx, i) => (
+                  <tr key={tx.id || i} className="hover:bg-gray-50 transition-colors">
+                    <td className="whitespace-nowrap px-4 py-3 text-gray-500">
+                      {tx.created_at ? new Date(tx.created_at).toLocaleString() : '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs font-medium text-gray-700">
+                      {tx.payment_reference || tx.id || '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      {(tx.items || []).map((item) => (
+                        <span key={item.product_id} className="mr-2 inline-block rounded bg-gray-100 px-2 py-0.5 text-xs">
+                          {item.product_name} x{item.quantity}
+                        </span>
+                      ))}
+                    </td>
+                    <td className="max-w-[240px] px-4 py-3 text-xs text-gray-600">
+                      <span className="line-clamp-2">{tx.order_notes || '—'}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium tabular-nums">
+                      ${Number(tx.total || 0).toFixed(2)}
+                      {tx.delivery_zone && (
+                        <span className="ml-1 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700">
+                          {tx.delivery_zone} +${Number(tx.delivery_fee || 0).toFixed(2)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+                        {paymentMethodLabel(tx.payment_method)}
                       </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium capitalize text-gray-700">
-                      {tx.payment_method}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
-                        onClick={() => openVerification(tx)}
-                      >
-                        {verificationTag(tx)}
-                      </button>
-                      {pickupTag(tx)}
-                      {tx.payment_verification_status !== 'verified' && (
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
-                          onClick={() => handleCancelFromRow(tx)}
+                          className="rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          onClick={() => openVerification(tx)}
                         >
-                          {t('transactions.cancelOrder')}
+                          {verificationTag(tx)}
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                        {pickupTag(tx)}
+                        {tx.payment_verification_status !== 'verified' && (
+                          <button
+                            type="button"
+                            className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
+                            onClick={() => handleCancelFromRow(tx)}
+                          >
+                            {t('transactions.cancelOrder')}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {selectedTx && (
@@ -816,8 +945,8 @@ export default function TransactionList() {
               {cancelError && <p className="text-sm text-red-600">{cancelError}</p>}
               {deliveryError && <p className="text-sm text-red-600">{deliveryError}</p>}
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
-                <p><span className="font-medium">Metodo entrega:</span> {selectedTx.delivery_method || 'Sin definir'}</p>
-                <p><span className="font-medium">Estado entrega:</span> {selectedTx.delivery_status || 'Sin definir'}</p>
+                <p><span className="font-medium">Metodo entrega:</span> {deliveryMethodLabel(selectedTx.delivery_method)}</p>
+                <p><span className="font-medium">Estado entrega:</span> {deliveryStatusLabel(selectedTx.delivery_status)}</p>
                 <p><span className="font-medium">Ventana solicitada:</span> {selectedTx.delivery_window_requested || '—'}</p>
                 <p>
                   <span className="font-medium">Ubicacion:</span>{' '}
@@ -926,6 +1055,14 @@ export default function TransactionList() {
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
           onClick={() => setProofPreviewOpen(false)}
         >
+          <button
+            type="button"
+            className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors"
+            onClick={() => setProofPreviewOpen(false)}
+            aria-label="Cerrar imagen"
+          >
+            <X className="h-6 w-6" />
+          </button>
           <img
             src={selectedTx.payment_proof_url}
             alt="Comprobante de pago en tamano completo"

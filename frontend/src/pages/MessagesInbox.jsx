@@ -324,14 +324,14 @@ export default function MessagesInbox() {
                     to={`/app/leads/${selectedConv.contact_id}`}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500/10 border border-brand-500/20 text-xs font-bold text-brand-400 hover:bg-brand-500/20 transition-all shadow-[0_0_20px_rgba(59,130,246,0.05)]"
                   >
-                    VIEW PROFILE
+                    Ver perfil
                   </Link>
                 )}
               </div>
               <div
                 ref={threadContainerRef}
                 onScroll={handleThreadScroll}
-                className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden overscroll-contain p-6 custom-scrollbar bg-white/[0.01]"
+                className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden overscroll-contain p-6 custom-scrollbar bg-white/[0.01]"
               >
                 {(threadLoading || threadFetching) && threadMessages.length === 0 ? (
                   <div className="flex justify-center py-12">

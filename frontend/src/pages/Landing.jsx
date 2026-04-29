@@ -292,7 +292,7 @@ export default function Landing() {
           <Link to="/" className="flex items-center gap-2">
             <span className="inline-flex items-center rounded-xl bg-white px-2 py-1.5 shadow-md ring-1 ring-black/5">
               <img
-                src="/mainLogo.png"
+                src="/main.png"
                 alt="Clienta AI"
                 width={160}
                 height={40}
@@ -754,7 +754,7 @@ export default function Landing() {
           <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
             <Link to="/" className="flex items-center gap-2">
               <img
-                src="/mainLogo.png"
+                src="/main.png"
                 alt="Clienta AI"
                 width={128}
                 height={32}

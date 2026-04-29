@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-from shared.auth import require_auth, validate_service_key
+from shared.auth import require_auth
 from shared.db import delete_item, get_item, get_table, put_item, query_items, update_item
 from shared.db import DynamoDBError
 from shared.models import Contact
@@ -26,17 +26,6 @@ VALID_TIERS = {"bronze", "silver", "gold"}
 VALID_CONVERSATION_MODES = {"bot", "human"}
 TIER_BRONZE_MAX = Decimal("30")
 TIER_SILVER_MAX = Decimal("100")
-
-PRO_PLANS = frozenset({"pro"})
-
-
-def _get_tenant_plan(tenant_id: str) -> str:
-    """Read tenant plan from DynamoDB. Returns 'free' on any error."""
-    try:
-        item = get_item(pk=build_pk(tenant_id), sk=build_sk("TENANT", tenant_id))
-        return (item or {}).get("plan", "free") or "free"
-    except Exception:
-        return "free"
 
 
 def _to_decimal_amount(value: Any) -> Decimal | None:
@@ -73,16 +62,19 @@ def _find_contact_item_by_phone(tenant_id: str, phone_digits: str) -> dict[str, 
     if not phone_digits:
         return None
     try:
-        # Use GSI1 for high-performance lookup
+        # GSI1 is global — filter by tenant_id to avoid cross-tenant false positives.
         items, _ = query_items(
             pk=f"PHONE#{phone_digits}",
             sk_prefix="CONTACT",
-            limit=1,
+            limit=25,
             index_name="GSI1",
             pk_attr="gsi1pk",
             sk_attr="gsi1sk",
         )
-        return items[0] if items else None
+        for item in items:
+            if item.get("tenant_id") == tenant_id:
+                return item
+        return None
     except DynamoDBError:
         return None
 
@@ -676,10 +668,6 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         contact_id = path_params.get("id")
         note_id = path_params.get("note_id")
         tenant_id = event.get("tenant_id", "")
-
-        # UI (JWT): Pro plan required. n8n / service key may upsert contacts for any plan.
-        if _get_tenant_plan(tenant_id) not in PRO_PLANS and not validate_service_key(event):
-            return error("Leads & contacts require a Pro plan. Please upgrade your account.", 403)
 
         if method == "GET" and path.endswith("/contacts/export"):
             return export_contacts_csv(tenant_id)

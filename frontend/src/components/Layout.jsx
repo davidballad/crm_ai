@@ -21,8 +21,8 @@ import {
 
 const NAV_KEYS = [
   { to: '/app', icon: LayoutDashboard, labelKey: 'layout.dashboard', pro: false },
-  { to: '/app/messages', icon: MessageSquare, labelKey: 'layout.messages', pro: true },
-  { to: '/app/leads', icon: Users, labelKey: 'layout.leads', pro: true },
+  { to: '/app/messages', icon: MessageSquare, labelKey: 'layout.messages', pro: false },
+  { to: '/app/leads', icon: Users, labelKey: 'layout.leads', pro: false },
   { to: '/app/inventory', icon: Package, labelKey: 'layout.inventory', pro: false },
   { to: '/app/transactions', icon: ShoppingCart, labelKey: 'layout.transactions', pro: false },
   { to: '/app/insights', icon: BrainCircuit, labelKey: 'layout.aiInsights', pro: true },
@@ -72,7 +72,7 @@ export default function Layout() {
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-center border-b border-gray-200 px-5 py-4">
-        <img src="/mainLogo.png" alt="Clienta AI" className="h-14 w-auto" />
+        <img src="/main.png" alt="Clienta AI" className="h-14 w-auto" />
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">

@@ -393,6 +393,36 @@ def create_google_tenant(event: dict[str, Any]) -> dict[str, Any]:
     except ClientError as e:
         return error(f"Failed to look up user: {e.response.get('Error', {}).get('Message', str(e))}", 400)
 
+    # If this phone_number_id already maps to a tenant owned by the same email, link
+    # the Google user to that existing tenant instead of creating a duplicate.
+    try:
+        existing_mapping = get_item(pk=PHONE_NUMBER_ID_PK, sk=meta_phone_number_id)
+    except DynamoDBError as e:
+        return server_error(str(e))
+
+    if existing_mapping:
+        existing_tenant_id = existing_mapping.get("tenant_id", "")
+        existing_tenant = _load_tenant_config(existing_tenant_id) if existing_tenant_id else None
+        if existing_tenant and existing_tenant.get("owner_email", "").lower() == owner_email.lower():
+            # Same business owner — link Google account to the existing tenant.
+            try:
+                cognito.admin_update_user_attributes(
+                    UserPoolId=user_pool_id,
+                    Username=cognito_username,
+                    UserAttributes=[
+                        {"Name": "custom:tenant_id", "Value": existing_tenant_id},
+                        {"Name": "custom:role", "Value": "owner"},
+                    ],
+                )
+            except ClientError as e:
+                return error(
+                    f"Failed to link account to existing tenant: {e.response.get('Error', {}).get('Message', str(e))}",
+                    400,
+                )
+            return success({"tenant_id": existing_tenant_id, "message": "Linked to existing account."})
+        # Phone number belongs to a different owner — block the request.
+        return error("This WhatsApp number is already registered to a different account", 409)
+
     # Step 1: Set tenant_id and role on the existing Cognito user
     try:
         cognito.admin_update_user_attributes(
