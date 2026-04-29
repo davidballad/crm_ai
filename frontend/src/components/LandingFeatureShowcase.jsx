@@ -65,7 +65,7 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
   return (
     <section
       ref={sectionRef}
-      className="border-t border-gray-100 py-10 md:py-14"
+      className="border-t border-white/5 py-10 md:py-14"
       aria-labelledby="offers-heading"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
@@ -74,11 +74,11 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
         <div className="landing-reveal text-center">
           <h2
             id="offers-heading"
-            className="font-landing-serif text-4xl font-semibold tracking-tight text-gray-900 md:text-5xl lg:text-[2.75rem] lg:leading-tight"
+            className="font-landing-serif text-4xl font-semibold tracking-tight text-white md:text-5xl lg:text-[2.75rem] lg:leading-tight"
           >
             {t('landing.offers.title')}
           </h2>
-          <p className="mx-auto mt-5 max-w-3xl text-lg leading-relaxed text-gray-600 md:text-xl">
+          <p className="mx-auto mt-5 max-w-3xl text-lg leading-relaxed text-slate-400 md:text-xl">
             {t('landing.offers.subtitle')}
           </p>
         </div>
@@ -87,7 +87,7 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
           <button
             type="button"
             onClick={() => go(-1)}
-            className="absolute left-0 top-1/2 z-20 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-md transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 md:flex lg:left-2 lg:h-14 lg:w-14"
+            className="absolute left-0 top-1/2 z-20 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/60 backdrop-blur-sm transition-colors hover:border-brand-500/40 hover:bg-brand-500/10 hover:text-brand-400 md:flex lg:left-2 lg:h-14 lg:w-14"
             aria-label={t('landing.carousel.prev')}
           >
             <ChevronLeft className="h-7 w-7" strokeWidth={1.75} />
@@ -95,13 +95,13 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
           <button
             type="button"
             onClick={() => go(1)}
-            className="absolute right-0 top-1/2 z-20 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-md transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 md:flex lg:right-2 lg:h-14 lg:w-14"
+            className="absolute right-0 top-1/2 z-20 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/60 backdrop-blur-sm transition-colors hover:border-brand-500/40 hover:bg-brand-500/10 hover:text-brand-400 md:flex lg:right-2 lg:h-14 lg:w-14"
             aria-label={t('landing.carousel.next')}
           >
             <ChevronRight className="h-7 w-7" strokeWidth={1.75} />
           </button>
 
-          <div className="card overflow-hidden md:mx-14 lg:mx-20">
+          <div className="glass-feature-card overflow-hidden md:mx-14 lg:mx-20">
             <div
               className={`flex ${transitionClass}`}
               style={{
@@ -117,13 +117,13 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
                   aria-hidden={i !== index}
                 >
                   <div className="mx-auto flex w-full max-w-3xl flex-col items-center text-center md:min-h-[200px] lg:min-h-[230px]">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-100 to-brand-200/70 text-brand-700 shadow-inner md:h-16 md:w-16 lg:h-18 lg:w-18">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500/15 border border-brand-500/20 text-brand-400 md:h-16 md:w-16 lg:h-18 lg:w-18">
                       <Ic className="h-7 w-7 md:h-8 md:w-8 lg:h-9 lg:w-9" strokeWidth={1.5} />
                     </div>
-                    <h3 className="mt-5 font-landing-serif text-xl font-semibold leading-snug text-gray-900 sm:text-2xl md:mt-6 md:text-3xl lg:text-[1.85rem]">
+                    <h3 className="mt-5 font-landing-serif text-xl font-semibold leading-snug text-white sm:text-2xl md:mt-6 md:text-3xl lg:text-[1.85rem]">
                       {t(`landing.offers.feature${i}Title`)}
                     </h3>
-                    <p className="mt-4 max-w-2xl text-sm leading-relaxed text-gray-600 sm:text-base md:mt-5 md:text-lg md:leading-relaxed lg:text-base lg:leading-relaxed">
+                    <p className="mt-4 max-w-2xl text-sm leading-relaxed text-slate-400 sm:text-base md:mt-5 md:text-lg md:leading-relaxed lg:text-base lg:leading-relaxed">
                       {t(`landing.offers.feature${i}Desc`)}
                     </p>
                   </div>
@@ -140,8 +140,8 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
                 onClick={() => setIndex(i)}
                 className={`flex h-11 w-11 items-center justify-center rounded-xl border transition-all sm:h-12 sm:w-12 ${
                   i === index
-                    ? 'border-brand-500 bg-brand-50 text-brand-700 shadow-sm ring-2 ring-brand-200'
-                    : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-600'
+                    ? 'border-brand-500/50 bg-brand-500/15 text-brand-400 shadow-sm ring-2 ring-brand-500/20'
+                    : 'border-white/10 bg-white/5 text-white/30 hover:border-white/20 hover:bg-white/10 hover:text-white/60'
                 }`}
                 aria-label={t(`landing.offers.feature${i}Title`)}
                 aria-current={i === index ? 'true' : undefined}
@@ -160,7 +160,7 @@ export default function LandingFeatureShowcase({ t, featureIcons: FeatureIcons }
                 aria-selected={i === index}
                 onClick={() => setIndex(i)}
                 className={`h-2 rounded-full transition-all ${
-                  i === index ? 'w-8 bg-brand-600' : 'w-2 bg-gray-300 hover:bg-gray-400'
+                  i === index ? 'w-8 bg-brand-600' : 'w-2 bg-white/20 hover:bg-white/40'
                 }`}
                 aria-label={t('landing.carousel.goToSlide', { n: i + 1 })}
               />

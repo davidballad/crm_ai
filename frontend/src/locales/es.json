@@ -154,7 +154,9 @@
       "title": "Tu tienda, tu catálogo, tus pagos — todo en WhatsApp",
       "subtitle": "Clienta AI es tu motor de ecommerce en WhatsApp. Gestiona tu inventario, comparte tu catálogo y cobra los pagos — sin salir del chat. Todos los planes incluyen 14 días de prueba gratis.",
       "getStarted": "Comenzar",
-      "logIn": "Iniciar sesión"
+      "logIn": "Iniciar sesión",
+      "statConversions": "más conversiones",
+      "statWhatsapp": "WhatsApp oficial"
     },
     "realEstate": {
       "title": "Clienta Inmobiliaria",

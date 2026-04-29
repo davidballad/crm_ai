@@ -10,7 +10,6 @@ import {
   ShoppingCart,
   Check,
   ShieldCheck,
-  ChevronDown,
   Globe,
   Layers,
   Sparkles,
@@ -21,7 +20,7 @@ import {
   Home,
 } from 'lucide-react';
 import { submitContact } from '../api/contact';
-import { useHeroParallax, useLandingReveal } from '../hooks/useLandingScroll';
+import { useLandingReveal } from '../hooks/useLandingScroll';
 import LandingFeatureShowcase from '../components/LandingFeatureShowcase';
 
 const FEATURE_ICONS = [Package, MessageSquare, BarChart3, Users, ShoppingCart];
@@ -45,60 +44,6 @@ function WhatsAppGlyph({ className }) {
   );
 }
 
-/** 
- * NetworkBackground: A cosmic neural network representation for AI/CRM connectivity.
- */
-function NetworkBackground() {
-  return (
-    <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden>
-      {/* Background Orbs */}
-      <div className="absolute top-[15%] left-[10%] h-64 w-64 rounded-full bg-brand-500/10 blur-[80px] landing-orb-float opacity-30" />
-      <div className="absolute top-[60%] right-[15%] h-80 w-80 rounded-full bg-brand-600/10 blur-[100px] landing-orb-float-slow opacity-20" />
-      <div className="absolute bottom-[10%] left-[20%] h-48 w-48 rounded-full bg-brand-400/10 blur-[60px] landing-orb-float opacity-20" />
-
-      <svg className="h-full w-full opacity-[0.15]" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <filter id="glow-heavy">
-            <feGaussianBlur stdDeviation="4.5" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-
-        {/* Intricate connection lines */}
-        <g stroke="rgba(59, 130, 246, 0.4)" strokeWidth="0.5" fill="none">
-          <path d="M50 150 Q200 100 350 200 T650 150" className="animate-pulse" />
-          <path d="M100 450 Q300 400 450 500 T750 450" className="animate-pulse" style={{ animationDelay: '1.5s' }} />
-          <path d="M150 650 Q400 600 550 700 T850 650" className="animate-pulse" style={{ animationDelay: '3s' }} />
-
-          <path d="M150 100 L100 450 L150 650" opacity="0.3" />
-          <path d="M350 200 L450 500 L400 600" opacity="0.3" />
-          <path d="M650 150 L750 450 L850 650" opacity="0.3" />
-        </g>
-
-        {/* Persistent glowing nodes */}
-        {[
-          { cx: 50, cy: 150 }, { cx: 350, cy: 200 }, { cx: 650, cy: 150 },
-          { cx: 100, cy: 450 }, { cx: 450, cy: 500 }, { cx: 750, cy: 450 },
-          { cx: 150, cy: 650 }, { cx: 400, cy: 600 }, { cx: 850, cy: 650 },
-        ].map((node, i) => (
-          <circle
-            key={i}
-            cx={node.cx}
-            cy={node.cy}
-            r="2"
-            fill="#60a5fa"
-            filter="url(#glow-heavy)"
-            className="animate-pulse"
-            style={{ animationDuration: `${2 + i % 2}s`, animationDelay: `${i * 0.3}s` }}
-          />
-        ))}
-      </svg>
-    </div>
-  );
-}
 
 function PhoneMockup({ t }) {
   return (
@@ -220,7 +165,6 @@ function LandingCampaigns({ t }) {
 export default function Landing() {
   const { t, i18n } = useTranslation();
   const { isAuthenticated, loading } = useAuth();
-  const heroParallaxY = useHeroParallax(0.14);
   useLandingReveal();
 
   const [contactSubject, setContactSubject] = useState(SUBJECT_COLLABORATION);
@@ -361,34 +305,51 @@ export default function Landing() {
         </div>
       </nav>
 
-      {/* Hero — full-bleed premium + parallax (no heavy raster images) */}
+      {/* Hero — full-bleed premium */}
       <section className="relative min-h-[95vh] overflow-hidden">
-        <div
-          className="landing-hero-bg absolute inset-0 will-change-transform"
-          style={{ transform: `translate3d(0, ${heroParallaxY * 0.4}px, 0)` }}
-          aria-hidden
-        />
-        <NetworkBackground />
-        <div
-          className="landing-network-grid absolute inset-0 opacity-10"
-          aria-hidden
-        />
-        <div
-          className="landing-grain pointer-events-none absolute inset-0 will-change-transform"
-          style={{ transform: `translate3d(0, ${heroParallaxY * 0.25}px, 0)` }}
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute -left-1/4 top-1/3 h-[min(80vw,520px)] w-[min(80vw,520px)] rounded-full bg-brand-500/15 blur-3xl will-change-transform"
-          style={{ transform: `translate3d(0, ${heroParallaxY * 0.5}px, 0)` }}
-          aria-hidden
-        />
+        {/* Base gradient + mesh */}
+        <div className="landing-hero-bg absolute inset-0" aria-hidden />
+        <div className="landing-mesh-bg absolute inset-0" aria-hidden />
+
+        {/* Tech grid */}
+        <div className="landing-network-grid absolute inset-0 opacity-10" aria-hidden />
+
+        {/* Film grain */}
+        <div className="landing-grain pointer-events-none absolute inset-0" aria-hidden />
+
+        {/* Floating orbs */}
+        <div className="landing-orb landing-orb-1" aria-hidden />
+        <div className="landing-orb landing-orb-2" aria-hidden />
+
+        {/* Floating particles */}
+        {[
+          { top: '18%', left: '12%', dur: '9s',  delay: '0s'   },
+          { top: '42%', left: '72%', dur: '11s', delay: '2s'   },
+          { top: '68%', left: '28%', dur: '8s',  delay: '4s'   },
+          { top: '28%', left: '52%', dur: '13s', delay: '1.5s' },
+          { top: '78%', left: '82%', dur: '10s', delay: '3s'   },
+          { top: '55%', left: '8%',  dur: '12s', delay: '5s'   },
+        ].map((p, i) => (
+          <div
+            key={i}
+            className="landing-particle"
+            style={{
+              top: p.top, left: p.left,
+              '--particle-dur': p.dur,
+              '--particle-delay': p.delay,
+            }}
+            aria-hidden
+          />
+        ))}
 
         <div className="relative z-10 mx-auto grid min-h-[calc(95vh-4rem)] max-w-6xl grid-cols-1 items-center gap-8 px-4 pb-12 pt-20 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8">
           <div className="text-center lg:text-left">
-            <p className="landing-reveal text-xs font-semibold uppercase tracking-[0.4em] text-brand-300/80 drop-shadow-md sm:text-sm">
-              {t('landing.hero.badge')}
-            </p>
+            <div className="landing-reveal inline-flex items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-4 py-1.5 backdrop-blur-sm">
+              <span className="landing-badge-dot" aria-hidden />
+              <span className="text-xs font-semibold uppercase tracking-[0.25em] text-brand-300/90 sm:text-sm">
+                {t('landing.hero.badge')}
+              </span>
+            </div>
             <h1 className="landing-reveal mt-6 sm:mt-8 font-serif text-3xl sm:text-6xl lg:text-7xl font-bold leading-[1.08] tracking-tight text-white">
               {t('landing.hero.title').split(' ').map((word, i) => (
                 <span key={i} className={`inline-block transition-all duration-700 ${i === 1 ? 'text-brand-400 drop-shadow-[0_0_30px_rgba(96,165,250,0.5)]' : ''}`}>
@@ -425,12 +386,24 @@ export default function Landing() {
                 <WhatsAppGlyph className="h-4 w-4 opacity-80" />
                 Chatea con nosotros por WhatsApp
               </a>
+              {/* Glassmorphism stat cards */}
+              <div className="flex flex-wrap items-center gap-3 landing-reveal">
+                <div className="landing-stat-card">
+                  <span className="stat-dot" aria-hidden />
+                  <strong>3×</strong> {t('landing.hero.statConversions', '+ conversiones')}
+                </div>
+                <div className="landing-stat-card">
+                  <span className="stat-dot" aria-hidden />
+                  <strong>100%</strong> {t('landing.hero.statWhatsapp', 'WhatsApp oficial')}
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="flex flex-col items-center justify-center lg:items-end">
             <div className="relative">
-              <div className="absolute -inset-20 bg-brand-500/15 rounded-full blur-[100px] landing-glow-pulse pointer-events-none" />
+              <div className="pointer-events-none absolute -inset-24 rounded-full bg-brand-600/12 blur-[110px] landing-glow-pulse" aria-hidden />
+              <div className="pointer-events-none absolute -inset-10 rounded-full bg-brand-400/8 blur-[60px]" aria-hidden />
               <div className="relative z-10">
                 <PhoneMockup t={t} />
               </div>
@@ -440,16 +413,19 @@ export default function Landing() {
           <button
             type="button"
             onClick={scrollToContent}
-            className="col-span-full mx-auto mt-4 flex flex-col items-center gap-2 text-xs font-medium uppercase tracking-widest text-white/50 transition-colors hover:text-white/80 lg:mt-0"
+            className="col-span-full mx-auto mt-4 flex flex-col items-center gap-2 text-xs font-medium uppercase tracking-widest text-white/30 transition-colors hover:text-white/60 lg:mt-0"
             aria-label="Scroll to content"
           >
             <span className="hidden sm:inline">Scroll</span>
-            <ChevronDown className="h-6 w-6 animate-bounce" strokeWidth={1.5} />
+            <span className="flex flex-col items-center gap-0.5" aria-hidden>
+              <span className="landing-scroll-chevron" />
+              <span className="landing-scroll-chevron" />
+            </span>
           </button>
         </div>
       </section>
 
-      <div className="bg-slate-50 border-t border-gray-100 dot-pattern-dark">
+      <div className="bg-[#020617] border-t border-white/5">
         <LandingFeatureShowcase t={t} featureIcons={FEATURE_ICONS} />
       </div>
 

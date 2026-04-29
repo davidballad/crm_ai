@@ -154,7 +154,9 @@
       "title": "Your store, your catalog, your payments — all on WhatsApp",
       "subtitle": "Clienta AI is your ecommerce engine on WhatsApp. Manage your inventory, share your catalog, and collect payments — without ever leaving the chat. Every plan starts with a 14-day free trial.",
       "getStarted": "Get started",
-      "logIn": "Log in"
+      "logIn": "Log in",
+      "statConversions": "more conversions",
+      "statWhatsapp": "official WhatsApp"
     },
     "realEstate": {
       "title": "Clienta Inmobiliaria",
