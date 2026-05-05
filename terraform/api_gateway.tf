@@ -140,6 +140,14 @@ resource "aws_apigatewayv2_integration" "agents" {
   payload_format_version = "2.0"
 }
 
+resource "aws_apigatewayv2_integration" "profits" {
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_uri    = aws_lambda_function.services["profits"].invoke_arn
+  integration_method = "POST"
+  payload_format_version = "2.0"
+}
+
 # -----------------------------------------------------------------------------
 # Routes (with JWT authorizer except onboarding/tenant)
 # -----------------------------------------------------------------------------
@@ -666,6 +674,13 @@ resource "aws_apigatewayv2_route" "agents_history" {
   target    = "integrations/${aws_apigatewayv2_integration.agents.id}"
 }
 
+# Profits routes
+resource "aws_apigatewayv2_route" "profits_summary" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /profits/summary"
+  target    = "integrations/${aws_apigatewayv2_integration.profits.id}"
+}
+
 # Contact form (public, no auth)
 resource "aws_apigatewayv2_route" "contact" {
   api_id    = aws_apigatewayv2_api.main.id
@@ -748,7 +763,7 @@ resource "aws_apigatewayv2_stage" "default" {
 # -----------------------------------------------------------------------------
 
 resource "aws_lambda_permission" "api_gateway" {
-  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact", "shop", "campaigns", "agents"])
+  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact", "shop", "campaigns", "agents", "profits"])
 
 
   statement_id  = "AllowAPIGatewayInvoke"

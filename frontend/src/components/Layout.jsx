@@ -17,6 +17,7 @@ import {
   Lock,
   BarChart2,
   Megaphone,
+  TrendingUp,
 } from 'lucide-react';
 
 const NAV_KEYS = [
@@ -27,6 +28,7 @@ const NAV_KEYS = [
   { to: '/app/transactions', icon: ShoppingCart, labelKey: 'layout.transactions', pro: false },
   { to: '/app/insights', icon: BrainCircuit, labelKey: 'layout.aiInsights', pro: true },
   { to: '/app/analytics', icon: BarChart2, labelKey: 'layout.analytics', pro: false },
+  { to: '/app/profits', icon: TrendingUp, labelKey: 'layout.profits', pro: false },
   { to: '/app/campaigns', icon: Megaphone, labelKey: 'layout.campaigns', pro: false },
   { to: '/app/settings/whatsapp', icon: Settings, labelKey: 'layout.connectWhatsApp', pro: false },
 ];
@@ -50,6 +52,7 @@ function SidebarLink({ to, icon: Icon, labelKey, t, onClick, locked }) {
         {labelKey === 'layout.leads' ? 'Prospectos'
           : labelKey === 'layout.analytics' ? 'Analíticas'
           : labelKey === 'layout.campaigns' ? 'Campañas'
+          : labelKey === 'layout.profits' ? 'Ganancias'
           : t(labelKey)}
       </span>
       {locked && <Lock className="h-3.5 w-3.5 shrink-0 text-gray-400" />}

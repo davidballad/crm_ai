@@ -70,6 +70,7 @@ class TransactionItem(_BaseModel):
     product_name: str
     quantity: int
     unit_price: Decimal
+    unit_cost: Decimal | None = None
 
 
 @dataclass
@@ -100,6 +101,7 @@ class Transaction(_BaseModel):
     payment_proof_s3_key: str | None = None
     payment_proof_content_type: str | None = None
     payment_proof_received_at: str | None = None
+    cost_total: Decimal | None = None
     created_at: str | None = None
 
 

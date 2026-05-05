@@ -116,6 +116,16 @@ def _build_payment_reference(transaction_id: str) -> str:
 
 def _transaction_response(item: dict[str, Any], include_proof_url: bool = False) -> dict[str, Any]:
     data = Transaction.from_dynamo(item).to_dict()
+
+    total = Decimal(str(item.get("total") or 0))
+    cost_total = Decimal(str(item.get("cost_total") or 0))
+    profit = total - cost_total
+    margin_percent = float(profit / total * 100) if total > 0 else 0.0
+
+    data["cost_total"] = float(cost_total)
+    data["profit"] = float(profit)
+    data["margin_percent"] = round(margin_percent, 2)
+
     data["has_payment_proof"] = bool(item.get("payment_proof_s3_key"))
     if include_proof_url and item.get("payment_proof_s3_key"):
         data["payment_proof_url"] = _build_presigned_proof_url(item.get("payment_proof_s3_key"))
@@ -299,6 +309,29 @@ def record_sale(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
 
     pk = build_pk(tenant_id)
     sk = _transaction_sk(created_at, transaction_id)
+
+    # Capture unit_cost snapshot per item and calculate cost_total
+    cost_total = Decimal(0)
+    enriched_items: list[dict[str, Any]] = []
+    for item in transaction.items:
+        item_dict = item if isinstance(item, dict) else {f: getattr(item, f) for f in item.__dataclass_fields__} if hasattr(item, "__dataclass_fields__") else dict(item)
+        product_id = item_dict.get("product_id")
+        quantity_raw = item_dict.get("quantity", 0)
+        try:
+            quantity = int(quantity_raw)
+        except (TypeError, ValueError):
+            quantity = 0
+        unit_cost = Decimal(0)
+        if product_id:
+            product = get_item(pk, build_sk("PRODUCT", str(product_id)))
+            if product:
+                raw_cost = product.get("unit_cost")
+                if raw_cost is not None:
+                    unit_cost = Decimal(str(raw_cost))
+        cost_total += unit_cost * quantity
+        enriched_items.append({**item_dict, "unit_cost": unit_cost})
+    transaction.items = enriched_items
+    transaction.cost_total = cost_total
 
     table = get_table()
     table_name = table.name

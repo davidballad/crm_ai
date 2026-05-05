@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Landing Page Direction</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #080c14; color: #e2e8f0; font-family: system-ui, sans-serif; padding: 24px; }
+  h1 { font-size: 22px; font-weight: 700; color: #f8fafc; margin-bottom: 8px; }
+  .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 32px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
+
+  .card {
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.08);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.2s;
+    position: relative;
+  }
+  .card:hover { border-color: rgba(99,102,241,0.5); transform: translateY(-2px); }
+  .card.selected { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.3); }
+  .card.selected::after {
+    content: "✓ Selected";
+    position: absolute;
+    top: 12px; right: 12px;
+    background: #6366f1;
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.05em;
+  }
+
+  .preview {
+    height: 280px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Option A — Cinematic Dark */
+  .preview-a {
+    background: linear-gradient(135deg, #020617 0%, #0a0f1e 100%);
+  }
+  .preview-a .hero-text { position: relative; z-index: 2; text-align: center; padding: 20px; }
+  .preview-a .hero-text h2 { font-size: 32px; font-weight: 800; color: white; letter-spacing: -0.03em; line-height: 1; }
+  .preview-a .hero-text h2 span { color: #60a5fa; }
+  .preview-a .hero-text p { font-size: 12px; color: #64748b; margin-top: 8px; letter-spacing: 0.2em; text-transform: uppercase; }
+  .preview-a .bg-orb { position: absolute; border-radius: 50%; filter: blur(60px); }
+  .preview-a .orb1 { width: 200px; height: 200px; background: rgba(59,130,246,0.15); top: -40px; left: -40px; }
+  .preview-a .orb2 { width: 150px; height: 150px; background: rgba(99,102,241,0.1); bottom: -30px; right: -20px; }
+  .preview-a .scanline {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(255,255,255,0.015) 3px, rgba(255,255,255,0.015) 4px);
+    pointer-events: none;
+  }
+  .preview-a .grid-lines {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(59,130,246,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.07) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+  .preview-a .badge {
+    display: inline-block; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3);
+    color: #93c5fd; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 20px;
+    letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px;
+  }
+  .preview-a .btn-row { margin-top: 16px; display: flex; gap: 8px; justify-content: center; }
+  .preview-a .btn-p { background: #3b82f6; color: white; border: none; padding: 8px 18px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .preview-a .btn-s { background: transparent; color: #94a3b8; border: 1px solid rgba(255,255,255,0.15); padding: 7px 14px; border-radius: 20px; font-size: 11px; }
+  .preview-a .reveal-bar {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px;
+  }
+  .preview-a .reveal-bar span {
+    width: 40px; height: 2px; background: rgba(59,130,246,0.4); border-radius: 2px;
+    animation: bar-shimmer 2s ease-in-out infinite;
+  }
+  .preview-a .reveal-bar span:nth-child(2) { animation-delay: 0.3s; }
+  .preview-a .reveal-bar span:nth-child(3) { animation-delay: 0.6s; }
+  @keyframes bar-shimmer { 0%,100%{opacity:0.4;width:40px} 50%{opacity:1;width:60px} }
+
+  /* Option B — Minimal Editorial */
+  .preview-b {
+    background: #fafafa;
+  }
+  .preview-b .hero-text { text-align: left; padding: 32px; width: 100%; }
+  .preview-b .hero-text .eyebrow { font-size: 9px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: #94a3b8; margin-bottom: 12px; }
+  .preview-b .hero-text h2 { font-size: 36px; font-weight: 900; color: #0f172a; letter-spacing: -0.04em; line-height: 1; font-style: italic; }
+  .preview-b .hero-text h2 em { font-style: normal; -webkit-text-stroke: 1px #0f172a; color: transparent; }
+  .preview-b .hero-text p { font-size: 11px; color: #64748b; margin-top: 10px; max-width: 200px; line-height: 1.5; }
+  .preview-b .rule { width: 40px; height: 2px; background: #0f172a; margin: 14px 0; }
+  .preview-b .cta { display: inline-flex; align-items: center; gap: 6px; background: #0f172a; color: white; padding: 8px 16px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 8px; }
+  .preview-b .float-stat {
+    position: absolute; right: 24px; top: 50%; transform: translateY(-50%);
+    background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+    font-size: 10px; color: #64748b; width: 110px; text-align: center;
+  }
+  .preview-b .float-stat .num { font-size: 28px; font-weight: 900; color: #0f172a; line-height: 1; display: block; margin-bottom: 2px; }
+  .preview-b .bottom-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #3b82f6, #6366f1, #a855f7); }
+
+  /* Option C — Immersive Gradient Mesh */
+  .preview-c {
+    background: #050710;
+  }
+  .preview-c .mesh {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 80% at 20% 50%, rgba(59,130,246,0.2) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 60% at 80% 20%, rgba(139,92,246,0.15) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 50% at 60% 80%, rgba(16,185,129,0.1) 0%, transparent 60%);
+  }
+  .preview-c .noise {
+    position: absolute; inset: 0; opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .preview-c .hero-text { position: relative; z-index: 2; text-align: center; padding: 20px; }
+  .preview-c .hero-text h2 { font-size: 30px; font-weight: 800; color: white; letter-spacing: -0.02em; line-height: 1.1; }
+  .preview-c .hero-text h2 span {
+    background: linear-gradient(135deg, #60a5fa, #a78bfa, #34d399);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .preview-c .hero-text p { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 10px; line-height: 1.6; }
+  .preview-c .pill { display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); backdrop-filter: blur(8px); color: rgba(255,255,255,0.7); font-size: 9px; font-weight: 600; padding: 4px 10px; border-radius: 20px; margin-bottom: 14px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .preview-c .dot { width: 5px; height: 5px; background: #34d399; border-radius: 50%; animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.8)} }
+  .preview-c .float-cards {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px;
+  }
+  .preview-c .mini-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(8px); border-radius: 8px; padding: 6px 10px; font-size: 9px; color: rgba(255,255,255,0.6); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .preview-c .mini-card .dot2 { width: 4px; height: 4px; border-radius: 50%; background: #60a5fa; }
+  .preview-c .btn-glow { background: linear-gradient(135deg, #3b82f6, #6366f1); color: white; border: none; padding: 8px 20px; border-radius: 20px; font-size: 11px; font-weight: 700; margin-top: 14px; box-shadow: 0 0 20px rgba(99,102,241,0.4); }
+
+  .card-body { padding: 20px 24px 24px; }
+  .card-label { font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #6366f1; margin-bottom: 8px; }
+  .card-title { font-size: 17px; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; }
+  .card-desc { font-size: 13px; color: #64748b; line-height: 1.6; margin-bottom: 14px; }
+  .card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2); color: #818cf8; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+
+  .selection-hint { text-align: center; margin-top: 28px; font-size: 13px; color: #475569; }
+</style>
+</head>
+<body>
+
+<h1>Landing Page Aesthetic Direction</h1>
+<p class="subtitle">Which visual direction feels right for Clienta AI? Click to select.</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="preview preview-a">
+      <div class="grid-lines"></div>
+      <div class="scanline"></div>
+      <div class="bg-orb orb1"></div>
+      <div class="bg-orb orb2"></div>
+      <div class="hero-text">
+        <div class="badge">AI-Powered CRM</div>
+        <h2>Vende más<br><span>con IA</span></h2>
+        <p>WhatsApp automation for growing businesses</p>
+        <div class="btn-row">
+          <button class="btn-p">Empezar gratis</button>
+          <button class="btn-s">Ver demo</button>
+        </div>
+      </div>
+      <div class="reveal-bar">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="card-label">Option A</div>
+      <div class="card-title">Cinematic Dark + Grid</div>
+      <div class="card-desc">Deep navy background with a subtle tech grid, glowing orbs, and scan-line texture. Words enter with staggered slide-ups. A premium, editorial SaaS feel.</div>
+      <div class="card-tags">
+        <span class="tag">Scroll reveal</span>
+        <span class="tag">Grid overlay</span>
+        <span class="tag">Stagger animations</span>
+        <span class="tag">Orb glow</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="preview preview-b">
+      <div class="hero-text">
+        <div class="eyebrow">Clienta AI · 2025</div>
+        <div class="rule"></div>
+        <h2>Vende<br>más<br><em>rápido</em></h2>
+        <p>WhatsApp automation that turns conversations into customers</p>
+        <a class="cta">Get started →</a>
+      </div>
+      <div class="float-stat">
+        <span class="num">3×</span>
+        more conversions
+      </div>
+      <div class="bottom-bar"></div>
+    </div>
+    <div class="card-body">
+      <div class="card-label">Option B</div>
+      <div class="card-title">Minimal Editorial / Light</div>
+      <div class="card-desc">White background, massive black type with outline accents. Floating stat cards animate in. Text reveals character by character. Clean, magazine-quality confidence.</div>
+      <div class="card-tags">
+        <span class="tag">Text reveal</span>
+        <span class="tag">Floating cards</span>
+        <span class="tag">Outline type</span>
+        <span class="tag">High contrast</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="preview preview-c">
+      <div class="mesh"></div>
+      <div class="noise"></div>
+      <div class="hero-text">
+        <div class="pill"><span class="dot"></span>AI-Powered</div>
+        <h2>Tu CRM con<br><span>inteligencia real</span></h2>
+        <p>Automatiza WhatsApp, captura leads y<br>convierte más clientes con IA.</p>
+        <button class="btn-glow">Empezar ahora</button>
+      </div>
+      <div class="float-cards">
+        <div class="mini-card"><span class="dot2"></span> 847 mensajes enviados</div>
+        <div class="mini-card"><span class="dot2"></span> 3 leads nuevos hoy</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="card-label">Option C</div>
+      <div class="card-title">Gradient Mesh + Glassmorphism</div>
+      <div class="card-desc">Deep black with a layered gradient mesh (blue → violet → teal). Glass cards float over it. Sections whoosh in from slight rotations. The nextsense.io feel — immersive and alive.</div>
+      <div class="card-tags">
+        <span class="tag">Gradient mesh</span>
+        <span class="tag">Glassmorphism</span>
+        <span class="tag">Noise grain</span>
+        <span class="tag">Whoosh reveals</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="selection-hint">Click a card to select it, then let me know in the terminal.</p>
+
+<script>
+function toggleSelect(el) {
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  const choice = el.dataset.choice;
+  const text = el.querySelector('.card-title')?.textContent || choice;
+  if (window.recordChoice) recordChoice(choice, text);
+}
+</script>
+
+</body>
+</html>

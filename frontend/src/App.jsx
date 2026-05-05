@@ -24,6 +24,7 @@ import WhatsAppSetup from './pages/WhatsAppSetup';
 import Shop from './pages/Shop';
 import Analytics from './pages/Analytics';
 import Campaigns from './pages/Campaigns';
+import Profits from './pages/Profits';
 
 export default function App() {
   const { token } = useAuth();
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="settings/whatsapp" element={<WhatsAppSetup />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="campaigns" element={<Campaigns />} />
+        <Route path="profits" element={<Profits />} />
       </Route>
     </Routes>
   );

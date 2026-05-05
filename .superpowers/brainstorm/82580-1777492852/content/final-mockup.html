@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Final Mockup</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #020617; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; }
+
+  .page-label {
+    background: #0f172a; border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 10px 24px; font-size: 11px; color: #64748b; text-align: center;
+    letter-spacing: 0.08em;
+  }
+  .page-label strong { color: #60a5fa; }
+
+  /* ── NAV ── */
+  .nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(2,6,23,0.88);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 40px;
+  }
+  .nav-logo img {
+    height: 36px; width: auto;
+    /* logo has white bg — invert on dark bg trick: use drop-shadow to make it visible */
+    filter: brightness(0) invert(1);
+    /* Actually keep original colors since it's blue on white — use a rounded bg pill */
+  }
+  .nav-logo-wrap {
+    background: white;
+    border-radius: 10px;
+    padding: 4px 10px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .nav-logo-wrap img { height: 28px; width: auto; }
+  .nav-links { display: flex; gap: 28px; align-items: center; }
+  .nav-link { font-size: 13px; color: rgba(255,255,255,0.65); font-weight: 500; cursor: pointer; transition: color 0.2s; }
+  .nav-link:hover { color: white; }
+  .nav-lang { font-size: 12px; color: rgba(255,255,255,0.35); display: flex; gap: 4px; }
+  .nav-lang span { padding: 2px 6px; border-radius: 4px; cursor: pointer; }
+  .nav-lang span.active { background: rgba(255,255,255,0.12); color: white; }
+  .nav-login { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.7); cursor: pointer; padding: 6px 12px; border-radius: 8px; }
+  .nav-login:hover { background: rgba(255,255,255,0.07); }
+  .nav-btn {
+    background: #3b82f6; color: white; font-size: 13px; font-weight: 700;
+    padding: 8px 18px; border-radius: 20px; border: none; cursor: pointer;
+    box-shadow: 0 0 20px rgba(59,130,246,0.3);
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+  .nav-btn:hover { background: #2563eb; box-shadow: 0 0 28px rgba(59,130,246,0.5); }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 95vh;
+    position: relative;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    background: #020617;
+  }
+
+  .mesh {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse 65% 85% at 10% 55%, rgba(37,99,235,0.22) 0%, transparent 55%),
+      radial-gradient(ellipse 55% 65% at 90% 15%, rgba(59,130,246,0.18) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 55% at 50% 100%, rgba(29,78,216,0.14) 0%, transparent 50%);
+    animation: mesh-breathe 14s ease-in-out infinite alternate;
+  }
+  @keyframes mesh-breathe { 0%{opacity:.75} 100%{opacity:1} }
+
+  .grain {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0.032;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .grid-lines {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(59,130,246,0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.055) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .orb { position: absolute; border-radius: 50%; filter: blur(90px); pointer-events: none; }
+  .orb1 { width: 500px; height: 500px; background: rgba(59,130,246,0.11); top: -120px; left: -100px; animation: orb-float 18s ease-in-out infinite; }
+  .orb2 { width: 350px; height: 350px; background: rgba(37,99,235,0.09); bottom: -60px; right: -80px; animation: orb-float 22s ease-in-out infinite reverse; }
+  @keyframes orb-float { 0%,100%{transform:translate(0,0)} 50%{transform:translate(24px,-28px)} }
+
+  .particles { position: absolute; inset: 0; pointer-events: none; }
+  .particle {
+    position: absolute; width: 2px; height: 2px;
+    background: rgba(96,165,250,0.55); border-radius: 50%;
+    animation: pfloat var(--dur,9s) ease-in-out infinite;
+    animation-delay: var(--delay,0s);
+  }
+  @keyframes pfloat { 0%,100%{transform:translateY(0);opacity:.5} 50%{transform:translateY(-18px);opacity:1} }
+
+  /* ── HERO LAYOUT: text left, phone right ── */
+  .hero-inner {
+    position: relative; z-index: 10;
+    max-width: 1100px; margin: 0 auto;
+    padding: 80px 40px 60px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 60px;
+    align-items: center;
+    width: 100%;
+  }
+
+  .hero-text { max-width: 580px; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.25);
+    backdrop-filter: blur(8px);
+    color: #93c5fd; font-size: 11px; font-weight: 600;
+    padding: 5px 14px; border-radius: 20px;
+    letter-spacing: 0.13em; text-transform: uppercase;
+    margin-bottom: 28px;
+    animation: fade-up 0.8s ease both;
+  }
+  .badge .pulse-dot {
+    width: 6px; height: 6px; background: #60a5fa; border-radius: 50%;
+    animation: pulse-anim 2s ease-in-out infinite;
+  }
+  @keyframes pulse-anim { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.7)} }
+
+  .hero-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(40px, 5.5vw, 72px);
+    font-weight: 700;
+    color: white;
+    line-height: 1.07;
+    letter-spacing: -0.03em;
+    animation: fade-up 0.8s 0.12s ease both;
+  }
+  .hero-title .accent {
+    color: #60a5fa;
+    text-shadow: 0 0 40px rgba(96,165,250,0.45);
+  }
+
+  .hero-sub {
+    font-size: 16px; color: rgba(255,255,255,0.52); line-height: 1.75;
+    margin-top: 20px;
+    animation: fade-up 0.8s 0.25s ease both;
+  }
+
+  .hero-ctas {
+    display: flex; gap: 12px; align-items: center; margin-top: 36px; flex-wrap: wrap;
+    animation: fade-up 0.8s 0.38s ease both;
+  }
+  .btn-primary {
+    background: #3b82f6; color: white; font-size: 15px; font-weight: 700;
+    padding: 14px 30px; border-radius: 30px; border: none; cursor: pointer;
+    box-shadow: 0 0 32px rgba(59,130,246,0.38), 0 4px 14px rgba(0,0,0,0.3);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .btn-primary:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 0 48px rgba(59,130,246,0.55); }
+  .btn-secondary {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14);
+    backdrop-filter: blur(8px); color: white; font-size: 14px; font-weight: 600;
+    padding: 13px 24px; border-radius: 30px; cursor: pointer; transition: background 0.2s;
+  }
+  .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+  .wa-hint {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: rgba(255,255,255,0.35); margin-top: 16px;
+    animation: fade-up 0.8s 0.5s ease both;
+  }
+  .wa-dot { width: 8px; height: 8px; background: #25D366; border-radius: 50%; }
+
+  /* stat cards */
+  .stat-cards {
+    display: flex; gap: 10px; margin-top: 36px; flex-wrap: wrap;
+    animation: fade-up 0.8s 0.55s ease both;
+  }
+  .stat-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
+    backdrop-filter: blur(14px); border-radius: 12px;
+    padding: 9px 14px; display: flex; align-items: center; gap: 7px;
+    font-size: 12px; color: rgba(255,255,255,0.55);
+  }
+  .stat-card .sdot { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+  .stat-card strong { color: white; font-weight: 700; }
+
+  /* ── PHONE MOCKUP ── */
+  .phone-wrap {
+    position: relative;
+    animation: fade-up 0.8s 0.2s ease both;
+  }
+  .phone-glow {
+    position: absolute; inset: -40px;
+    background: rgba(59,130,246,0.14); border-radius: 50%;
+    filter: blur(60px);
+    animation: glow-pulse 8s ease-in-out infinite;
+  }
+  @keyframes glow-pulse { 0%,100%{opacity:.4;filter:blur(50px)} 50%{opacity:.7;filter:blur(70px)} }
+
+  .phone {
+    position: relative; z-index: 1;
+    width: 240px; height: 480px;
+    background: #0b141a;
+    border-radius: 38px;
+    border: 7px solid rgba(255,255,255,0.18);
+    box-shadow:
+      0 30px 70px -15px rgba(0,0,0,0.8),
+      0 0 50px -5px rgba(59,130,246,0.25),
+      inset 0 1px 0 rgba(255,255,255,0.1);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .phone-notch {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 80px; height: 18px; background: black; border-radius: 20px; z-index: 10;
+  }
+  .phone-header {
+    background: #1f2c34; padding: 10px 12px 8px;
+    display: flex; align-items: center; gap: 8px; margin-top: 26px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .wa-avatar { width: 28px; height: 28px; border-radius: 50%; background: #25D366; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .phone-header-text { font-size: 10px; font-weight: 600; color: white; }
+  .phone-header-sub { font-size: 9px; color: rgba(255,255,255,0.4); }
+  .phone-messages { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+  .msg-in {
+    max-width: 85%; background: rgba(255,255,255,0.1); border-radius: 8px 8px 8px 2px;
+    padding: 7px 10px; font-size: 9px; color: rgba(255,255,255,0.9); line-height: 1.4;
+    animation: msg-appear 0.4s ease both;
+  }
+  .msg-out {
+    max-width: 85%; background: #005c4b; border-radius: 8px 8px 2px 8px;
+    padding: 7px 10px; font-size: 9px; color: rgba(255,255,255,0.9); line-height: 1.4;
+    align-self: flex-end;
+    animation: msg-appear 0.4s ease both;
+  }
+  @keyframes msg-appear { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+  .msg-in:nth-child(1){animation-delay:.2s}
+  .msg-out:nth-child(2){animation-delay:.6s}
+  .msg-in:nth-child(3){animation-delay:1s}
+  .msg-out:nth-child(4){animation-delay:1.4s}
+  .ai-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(59,130,246,0.2); border: 1px solid rgba(59,130,246,0.3);
+    color: #93c5fd; font-size: 8px; font-weight: 600; padding: 2px 6px; border-radius: 10px;
+    margin-top: 3px;
+  }
+  .phone-input {
+    background: rgba(255,255,255,0.06); border-top: 1px solid rgba(255,255,255,0.07);
+    padding: 8px 10px; display: flex; align-items: center; gap: 6px;
+  }
+  .phone-input-field {
+    flex: 1; background: rgba(255,255,255,0.08); border-radius: 20px;
+    padding: 5px 10px; font-size: 9px; color: rgba(255,255,255,0.4);
+  }
+  .phone-send { width: 24px; height: 24px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+
+  /* ── SCROLL ARROW ── */
+  .scroll-hint {
+    position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    color: rgba(255,255,255,0.28); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+    z-index: 10;
+    animation: fade-up 1s 1s ease both;
+  }
+  /* Proper animated scroll arrow — two chevron lines */
+  .scroll-arrow-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .scroll-chevron {
+    width: 10px; height: 10px;
+    border-right: 1.5px solid rgba(255,255,255,0.35);
+    border-bottom: 1.5px solid rgba(255,255,255,0.35);
+    transform: rotate(45deg);
+  }
+  .scroll-chevron:nth-child(1) { animation: chev-fade 1.5s ease-in-out infinite 0s; }
+  .scroll-chevron:nth-child(2) { animation: chev-fade 1.5s ease-in-out infinite 0.3s; }
+  @keyframes chev-fade {
+    0%   { opacity: 0; transform: rotate(45deg) translate(-3px, -3px); }
+    50%  { opacity: 1; }
+    100% { opacity: 0; transform: rotate(45deg) translate(3px, 3px); }
+  }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(22px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── FEATURE SECTION PREVIEW ── */
+  .features-section {
+    background: #020617; padding: 80px 40px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+  .section-eyebrow {
+    text-align: center; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.35em; text-transform: uppercase; color: #60a5fa; margin-bottom: 14px;
+  }
+  .section-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(30px, 4vw, 50px); font-weight: 700;
+    color: white; text-align: center; line-height: 1.1;
+    letter-spacing: -0.02em; margin-bottom: 48px;
+  }
+  .feature-grid {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 14px;
+    max-width: 900px; margin: 0 auto;
+  }
+  .feature-card {
+    background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 16px; padding: 22px; position: relative; overflow: hidden;
+    transition: border-color 0.3s, background 0.3s;
+  }
+  .feature-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(59,130,246,0.45), transparent);
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .feature-card:hover { border-color: rgba(59,130,246,0.22); background: rgba(59,130,246,0.04); }
+  .feature-card:hover::before { opacity: 1; }
+  .feature-icon {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: rgba(59,130,246,0.14); border: 1px solid rgba(59,130,246,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; margin-bottom: 12px;
+  }
+  .feature-name { font-size: 13px; font-weight: 700; color: white; margin-bottom: 5px; }
+  .feature-desc { font-size: 11px; color: rgba(255,255,255,0.42); line-height: 1.6; }
+
+  /* approval row */
+  .approve-bar {
+    background: #0f172a; border-top: 1px solid rgba(255,255,255,0.07);
+    padding: 20px 40px; display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+  }
+  .approve-bar p { font-size: 13px; color: #94a3b8; }
+  .approve-btns { display: flex; gap: 10px; }
+  .approve-yes {
+    background: #3b82f6; color: white; font-size: 13px; font-weight: 700;
+    padding: 9px 22px; border-radius: 20px; border: none; cursor: pointer;
+  }
+  .approve-no {
+    background: transparent; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.6);
+    font-size: 13px; padding: 8px 18px; border-radius: 20px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-label">Clienta AI · <strong>Final Direction — Option C + Brand Colors + Phone Mockup</strong> · Static preview</div>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-logo-wrap">
+    <img src="https://via.placeholder.com/120x28/2563eb/ffffff?text=Clienta+AI" alt="Clienta AI" />
+  </div>
+  <div class="nav-links">
+    <span class="nav-link">Inmobiliaria</span>
+    <span class="nav-link">Precios</span>
+    <span class="nav-link">Contacto</span>
+    <div class="nav-lang">
+      <span class="active">EN</span>
+      <span>ES</span>
+    </div>
+    <span class="nav-login">Iniciar sesión</span>
+    <button class="nav-btn">Registrarse</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="mesh"></div>
+  <div class="grain"></div>
+  <div class="grid-lines"></div>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+
+  <div class="particles">
+    <div class="particle" style="top:18%;left:12%;--dur:9s;--delay:0s"></div>
+    <div class="particle" style="top:42%;left:72%;--dur:11s;--delay:2s"></div>
+    <div class="particle" style="top:68%;left:28%;--dur:8s;--delay:4s"></div>
+    <div class="particle" style="top:28%;left:52%;--dur:13s;--delay:1.5s"></div>
+    <div class="particle" style="top:78%;left:82%;--dur:10s;--delay:3s"></div>
+    <div class="particle" style="top:55%;left:8%;--dur:12s;--delay:5s"></div>
+  </div>
+
+  <div class="hero-inner">
+    <!-- LEFT: Text -->
+    <div class="hero-text">
+      <div class="badge">
+        <span class="pulse-dot"></span>
+        CRM con Inteligencia Artificial
+      </div>
+      <h1 class="hero-title">
+        Convierte cada<br>
+        conversación en<br>
+        un <span class="accent">cliente real</span>
+      </h1>
+      <p class="hero-sub">
+        Automatiza WhatsApp, gestiona tus leads y haz crecer tu negocio — todo desde una sola plataforma impulsada por IA.
+      </p>
+      <div class="hero-ctas">
+        <button class="btn-primary">Empezar gratis</button>
+        <button class="btn-secondary">Iniciar sesión</button>
+      </div>
+      <div class="wa-hint">
+        <span class="wa-dot"></span>
+        Chatea con nosotros por WhatsApp
+      </div>
+      <div class="stat-cards">
+        <div class="stat-card"><span class="sdot"></span><strong>3×</strong> más conversiones</div>
+        <div class="stat-card"><span class="sdot"></span><strong>100%</strong> WhatsApp oficial</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Phone -->
+    <div class="phone-wrap">
+      <div class="phone-glow"></div>
+      <div class="phone">
+        <div class="phone-notch"></div>
+        <div class="phone-header">
+          <div class="wa-avatar">💬</div>
+          <div>
+            <div class="phone-header-text">Clienta AI</div>
+            <div class="phone-header-sub">en línea</div>
+          </div>
+        </div>
+        <div class="phone-messages">
+          <div class="msg-in">Hola! ¿Tienen el producto disponible?</div>
+          <div class="msg-out">
+            ¡Hola! Sí, tenemos stock disponible 🎉
+            <div class="ai-badge">⚡ IA</div>
+          </div>
+          <div class="msg-in">¿Cuánto cuesta el envío a Quito?</div>
+          <div class="msg-out">
+            El envío a Quito tiene un costo de $3.50 y llega en 24h.
+            <div class="ai-badge">⚡ IA</div>
+          </div>
+        </div>
+        <div class="phone-input">
+          <div class="phone-input-field">Escribe un mensaje...</div>
+          <div class="phone-send">→</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scroll indicator -->
+  <div class="scroll-hint">
+    <span>Scroll</span>
+    <div class="scroll-arrow-wrap">
+      <div class="scroll-chevron"></div>
+      <div class="scroll-chevron"></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURE SECTION -->
+<section class="features-section">
+  <div class="section-eyebrow">Funcionalidades</div>
+  <h2 class="section-title">Todo lo que necesitas<br>para vender más</h2>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon">📦</div>
+      <div class="feature-name">Inventario</div>
+      <div class="feature-desc">Gestiona tus productos y stock en tiempo real desde cualquier dispositivo.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💬</div>
+      <div class="feature-name">WhatsApp CRM</div>
+      <div class="feature-desc">Centraliza todas tus conversaciones y responde con IA automatizada.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <div class="feature-name">Analíticas</div>
+      <div class="feature-desc">Reportes en tiempo real para tomar mejores decisiones de negocio.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">👥</div>
+      <div class="feature-name">Leads</div>
+      <div class="feature-desc">Captura y califica prospectos automáticamente con flujos inteligentes.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🛒</div>
+      <div class="feature-name">Tienda Online</div>
+      <div class="feature-desc">Tu catálogo listo para vender con link directo a WhatsApp.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🚀</div>
+      <div class="feature-name">Campañas</div>
+      <div class="feature-desc">Envía mensajes masivos segmentados y mide cada resultado.</div>
+    </div>
+  </div>
+</section>
+
+<!-- APPROVE BAR -->
+<div class="approve-bar">
+  <p>¿Este look y feel te convence para continuar con la implementación?</p>
+  <div class="approve-btns">
+    <button class="approve-yes" onclick="recordChoice('yes','Approved')">Sí, así lo quiero ✓</button>
+    <button class="approve-no" onclick="recordChoice('no','Changes needed')">Quiero cambios</button>
+  </div>
+</div>
+
+<script>
+function recordChoice(choice, text) {
+  if (window.recordChoice && choice !== 'yes' && choice !== 'no') return;
+  // Use the injected helper if available
+  const btn = document.querySelector(choice === 'yes' ? '.approve-yes' : '.approve-no');
+  if (btn) { btn.style.outline = '2px solid #60a5fa'; btn.style.outlineOffset = '2px'; }
+  if (window.parent && window.parent !== window) return;
+  try {
+    fetch('/event', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'click',choice,text,timestamp:Date.now()/1000|0}) });
+  } catch(e) {}
+}
+</script>
+
+</body>
+</html>

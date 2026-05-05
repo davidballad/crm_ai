@@ -62,6 +62,10 @@ locals {
       memory_size = 512
       timeout     = 60
     }
+    profits = {
+      memory_size = 256
+      timeout     = 30
+    }
 
   }
 

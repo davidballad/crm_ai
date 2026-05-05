@@ -231,8 +231,8 @@ def list_conversation_messages(tenant_id: str, customer_phone: str, event: dict[
             pk_attr="gsi1pk",
             sk_attr="gsi1sk",
         )
-        # Convert items to dicts and sort chronologically for UI display.
-        messages = [Message.from_dynamo(item).to_dict() for item in items]
+        # Filter to this tenant only — GSI1 is global across all tenants.
+        messages = [Message.from_dynamo(item).to_dict() for item in items if item.get("tenant_id") == tenant_id]
         messages.sort(key=lambda m: (m.get("created_ts") or ""))
         
         body: dict[str, Any] = {"messages": messages}
@@ -506,16 +506,20 @@ def _find_latest_message_for_phone(pk: str, customer_phone: str) -> dict[str, An
     if not phone_norm:
         return None
     try:
+        # Fetch a small batch and filter by pk (tenant) — GSI1 is global across all tenants.
         items, _ = query_items(
             pk=f"PHONE#{phone_norm}",
             sk_prefix="MSG#",
-            limit=1,
-            scan_index_forward=False, # Newest first
+            limit=20,
+            scan_index_forward=False,
             index_name="GSI1",
             pk_attr="gsi1pk",
             sk_attr="gsi1sk",
         )
-        return items[0] if items else None
+        for item in items:
+            if item.get("pk") == pk:
+                return item
+        return None
     except DynamoDBError:
         return None
 
