@@ -148,6 +148,14 @@ resource "aws_apigatewayv2_integration" "profits" {
   payload_format_version = "2.0"
 }
 
+resource "aws_apigatewayv2_integration" "suppliers" {
+  api_id                 = aws_apigatewayv2_api.main.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.services["suppliers"].invoke_arn
+  integration_method     = "POST"
+  payload_format_version = "2.0"
+}
+
 # -----------------------------------------------------------------------------
 # Routes (with JWT authorizer except onboarding/tenant)
 # -----------------------------------------------------------------------------
@@ -398,6 +406,47 @@ resource "aws_apigatewayv2_route" "purchases_update" {
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
   target             = "integrations/${aws_apigatewayv2_integration.purchases.id}"
+}
+
+# Suppliers routes
+resource "aws_apigatewayv2_route" "suppliers_list" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /suppliers"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.suppliers.id}"
+}
+
+resource "aws_apigatewayv2_route" "suppliers_create" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "POST /suppliers"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.suppliers.id}"
+}
+
+resource "aws_apigatewayv2_route" "suppliers_get" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /suppliers/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.suppliers.id}"
+}
+
+resource "aws_apigatewayv2_route" "suppliers_update" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "PUT /suppliers/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.suppliers.id}"
+}
+
+resource "aws_apigatewayv2_route" "suppliers_delete" {
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "DELETE /suppliers/{id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.suppliers.id}"
 }
 
 # AI Insights routes
@@ -763,7 +812,7 @@ resource "aws_apigatewayv2_stage" "default" {
 # -----------------------------------------------------------------------------
 
 resource "aws_lambda_permission" "api_gateway" {
-  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact", "shop", "campaigns", "agents", "profits"])
+  for_each = toset(["inventory", "transactions", "purchases", "ai_insights", "onboarding", "users", "contacts", "messages", "contact", "shop", "campaigns", "agents", "profits", "suppliers"])
 
 
   statement_id  = "AllowAPIGatewayInvoke"

@@ -45,13 +45,8 @@ export default function Profits() {
         </div>
       )}
 
-      {/* Overview tab — Phase 1 */}
+      {/* Overview tab with supplier breakdown */}
       <ProfitsOverview summary={summary} loading={isLoading} />
-
-      {/* Phase 2 placeholders */}
-      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-400">
-        Próximamente: desglose por producto y proveedor
-      </div>
     </div>
   );
 }

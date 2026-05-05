@@ -114,6 +114,8 @@ class Supplier(_BaseModel):
     address: str | None = None
     lead_time_days: int | None = None
     notes: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 @dataclass
@@ -231,7 +233,7 @@ class AIInsight(_BaseModel):
 
 @dataclass
 class Contact(_BaseModel):
-    name: str
+    name: str = ""
     tenant_id: str | None = None
     contact_id: str | None = None
     phone: str | None = None

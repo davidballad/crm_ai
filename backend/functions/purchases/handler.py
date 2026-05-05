@@ -102,7 +102,7 @@ def create_purchase_order(tenant_id: str, event: dict[str, Any]) -> dict[str, An
 
     if po.total_cost is None:
         po.total_cost = sum(
-            item.quantity * item.unit_cost for item in po.items
+            item['quantity'] * Decimal(str(item['unit_cost'])) for item in po.items
         )
 
     pk = build_pk(tenant_id)
@@ -186,9 +186,10 @@ def update_purchase_order(
     except DynamoDBError as e:
         return server_error(str(e))
 
-    # When status transitions to "received", increase product quantities
+    # When status transitions to "received", increase product quantities and sync supplier
     if new_status == "received" and old_status != "received":
         po_items = existing.get("items", [])
+        supplier_id = existing.get("supplier_id")
         table = get_table()
         for po_item in po_items:
             product_id = po_item.get("product_id")
@@ -196,14 +197,19 @@ def update_purchase_order(
             if not product_id or qty <= 0:
                 continue
             product_sk = build_sk("PRODUCT", product_id)
+            updates_expr = "SET quantity = quantity + :qty, updated_at = :now"
+            expr_values = {
+                ":qty": qty,
+                ":now": now_iso(),
+            }
+            if supplier_id:
+                updates_expr += ", supplier_id = :supplier_id"
+                expr_values[":supplier_id"] = supplier_id
             try:
                 table.update_item(
                     Key={"pk": pk, "sk": product_sk},
-                    UpdateExpression="SET quantity = quantity + :qty, updated_at = :now",
-                    ExpressionAttributeValues={
-                        ":qty": qty,
-                        ":now": now_iso(),
-                    },
+                    UpdateExpression=updates_expr,
+                    ExpressionAttributeValues=expr_values,
                 )
             except Exception:
                 pass  # Best-effort; PO is already marked received

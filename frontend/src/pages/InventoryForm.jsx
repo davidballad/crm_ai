@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useProduct, useCreateProduct, useUpdateProduct } from '../hooks/useProducts';
 import { getUploadImageUrl } from '../api/inventory';
 import { ArrowLeft, Upload, Tag, X, Plus, ImageIcon } from 'lucide-react';
+import { useSuppliers } from '../hooks/useSuppliers';
 
 const MAX_IMAGES = 5;
 
@@ -22,6 +23,7 @@ const EMPTY = {
   tags: '',
   promo_price: '',
   promo_end_at: '',
+  supplier_id: '',
 };
 
 export default function InventoryForm() {
@@ -32,6 +34,7 @@ export default function InventoryForm() {
   const { data: existing, isLoading } = useProduct(id);
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
+  const { data: suppliers = [] } = useSuppliers();
 
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
@@ -57,6 +60,7 @@ export default function InventoryForm() {
         tags: Array.isArray(product.tags) ? product.tags.join(', ') : (product.tags || ''),
         promo_price: product.promo_price != null ? String(product.promo_price) : '',
         promo_end_at: product.promo_end_at || '',
+        supplier_id: product.supplier_id || '',
       });
     }
   }, [existing]);
@@ -131,6 +135,7 @@ export default function InventoryForm() {
       tags: rawTags.length > 0 ? rawTags : undefined,
       promo_price: form.promo_price ? Number(form.promo_price) : null,
       promo_end_at: form.promo_end_at || null,
+      supplier_id: form.supplier_id || undefined,
     };
 
     try {
@@ -204,6 +209,16 @@ export default function InventoryForm() {
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.unitCost')}</label>
             <input type="number" step="0.01" min="0" value={form.unit_cost} onChange={update('unit_cost')} className="input-field" />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Proveedor</label>
+            <select value={form.supplier_id} onChange={update('supplier_id')} className="input-field">
+              <option value="">Sin proveedor</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
           </div>
 
           <div>

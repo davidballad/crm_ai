@@ -72,7 +72,10 @@ def _get_transactions_for_period(pk: str, start_iso: str, end_iso: str) -> list[
 
 
 def get_summary(tenant_id: str, period: str) -> dict[str, Any]:
-    """Aggregate total sales, cost, profit, and margin for the given period."""
+    """Aggregate total sales, cost, profit, and margin for the given period, with supplier details per product."""
+    from shared.db import get_item
+    from shared.utils import build_sk
+
     start_iso, end_iso = _get_period_date_range(period)
     pk = build_pk(tenant_id)
 
@@ -80,15 +83,56 @@ def get_summary(tenant_id: str, period: str) -> dict[str, Any]:
 
     total_sales = Decimal(0)
     total_cost = Decimal(0)
+    supplier_stats: dict[str, dict[str, Any]] = {}
 
     for txn in transactions:
-        total_sales += Decimal(str(txn.get("total") or 0))
-        total_cost += Decimal(str(txn.get("cost_total") or 0))
+        txn_total = Decimal(str(txn.get("total") or 0))
+        txn_cost = Decimal(str(txn.get("cost_total") or 0))
+        total_sales += txn_total
+        total_cost += txn_cost
+
+        items = txn.get("items", [])
+        for item in items:
+            product_id = item.get("product_id")
+            if not product_id:
+                continue
+
+            item_qty = item.get("quantity", 0)
+            item_unit_cost = Decimal(str(item.get("unit_cost") or 0))
+            item_cost = item_qty * item_unit_cost
+
+            try:
+                product_sk = build_sk("PRODUCT", product_id)
+                product = get_item(pk=pk, sk=product_sk)
+                supplier_id = None
+                if product:
+                    supplier_id = product.get("supplier_id")
+            except Exception:
+                supplier_id = None
+
+            supplier_key = supplier_id or "unknown"
+            if supplier_key not in supplier_stats:
+                supplier_stats[supplier_key] = {
+                    "supplier_id": supplier_id,
+                    "total_cost": Decimal(0),
+                    "item_count": 0,
+                }
+            supplier_stats[supplier_key]["total_cost"] += item_cost
+            supplier_stats[supplier_key]["item_count"] += 1
 
     total_profit = total_sales - total_cost
     transaction_count = len(transactions)
     margin_percent = float(total_profit / total_sales * 100) if total_sales > 0 else 0.0
     avg_profit = float(total_profit / transaction_count) if transaction_count > 0 else 0.0
+
+    suppliers_list = [
+        {
+            "supplier_id": stats["supplier_id"],
+            "total_cost": float(stats["total_cost"]),
+            "item_count": stats["item_count"],
+        }
+        for stats in supplier_stats.values()
+    ]
 
     return success({
         "period": period,
@@ -98,6 +142,7 @@ def get_summary(tenant_id: str, period: str) -> dict[str, Any]:
         "margin_percent": round(margin_percent, 2),
         "transaction_count": transaction_count,
         "avg_profit_per_transaction": round(avg_profit, 2),
+        "suppliers": suppliers_list,
     })
 
 

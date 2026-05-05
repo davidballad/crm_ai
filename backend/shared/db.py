@@ -96,9 +96,13 @@ def query_items(
         raise DynamoDBError(str(e), e) from e
 
 
-def update_item(pk: str, sk: str, updates: dict[str, Any]) -> dict[str, Any]:
-    """Update specific attributes. Builds UpdateExpression dynamically. Returns updated item."""
-    if not updates:
+def update_item(pk: str, sk: str, updates: dict[str, Any], remove_keys: list[str] | None = None) -> dict[str, Any]:
+    """Update specific attributes. Builds UpdateExpression dynamically. Returns updated item.
+
+    remove_keys: optional list of attribute names to remove (REMOVE expression). Useful when
+    a field should be deleted from DynamoDB rather than set to None (which DynamoDB rejects).
+    """
+    if not updates and not remove_keys:
         item = get_item(pk, sk)
         if item is None:
             raise DynamoDBError("Item not found")
@@ -117,14 +121,25 @@ def update_item(pk: str, sk: str, updates: dict[str, Any]) -> dict[str, Any]:
             expr_values[value_placeholder] = value
             set_parts.append(f"{placeholder} = {value_placeholder}")
 
-        update_expr = "SET " + ", ".join(set_parts)
+        update_expr = "SET " + ", ".join(set_parts) if set_parts else ""
+
+        if remove_keys:
+            remove_parts: list[str] = []
+            for key in remove_keys:
+                placeholder = f"#{key.replace('.', '_')}"
+                expr_names[placeholder] = key
+                remove_parts.append(placeholder)
+            remove_expr = "REMOVE " + ", ".join(remove_parts)
+            update_expr = f"{update_expr} {remove_expr}".strip() if update_expr else remove_expr
+
         params: dict[str, Any] = {
             "Key": {"pk": pk, "sk": sk},
             "UpdateExpression": update_expr,
             "ExpressionAttributeNames": expr_names,
-            "ExpressionAttributeValues": expr_values,
             "ReturnValues": "ALL_NEW",
         }
+        if expr_values:
+            params["ExpressionAttributeValues"] = expr_values
 
         response = table.update_item(**params)
         return response["Attributes"]

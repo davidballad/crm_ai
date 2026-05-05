@@ -75,6 +75,27 @@ export default function ProfitsOverview({ summary, loading }) {
           sub={`~${fmt(summary.avg_profit_per_transaction)} avg profit`}
         />
       </div>
+
+      {summary.suppliers && summary.suppliers.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-5">
+          <h3 className="mb-4 text-sm font-semibold text-gray-700">Costo por Proveedor</h3>
+          <div className="space-y-3">
+            {summary.suppliers
+              .sort((a, b) => b.total_cost - a.total_cost)
+              .map((supplier, idx) => (
+                <div key={idx} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900">
+                      {supplier.supplier_id || 'Sin asignar'}
+                    </p>
+                    <p className="text-xs text-gray-500">{supplier.item_count} producto{supplier.item_count !== 1 ? 's' : ''}</p>
+                  </div>
+                  <p className="text-sm font-semibold text-amber-600">{fmt(supplier.total_cost)}</p>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

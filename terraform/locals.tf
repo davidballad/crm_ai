@@ -66,6 +66,10 @@ locals {
       memory_size = 256
       timeout     = 30
     }
+    suppliers = {
+      memory_size = 256
+      timeout     = 30
+    }
 
   }
 

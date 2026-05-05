@@ -25,6 +25,11 @@ import Shop from './pages/Shop';
 import Analytics from './pages/Analytics';
 import Campaigns from './pages/Campaigns';
 import Profits from './pages/Profits';
+import SupplierList from './pages/SupplierList';
+import SupplierForm from './pages/SupplierForm';
+import PurchaseOrders from './pages/PurchaseOrders';
+import PurchaseOrderForm from './pages/PurchaseOrderForm';
+import PurchaseOrderDetail from './pages/PurchaseOrderDetail';
 
 export default function App() {
   const { token } = useAuth();
@@ -73,6 +78,12 @@ export default function App() {
         <Route path="analytics" element={<Analytics />} />
         <Route path="campaigns" element={<Campaigns />} />
         <Route path="profits" element={<Profits />} />
+        <Route path="suppliers" element={<SupplierList />} />
+        <Route path="suppliers/new" element={<SupplierForm />} />
+        <Route path="suppliers/:id" element={<SupplierForm />} />
+        <Route path="purchases" element={<PurchaseOrders />} />
+        <Route path="purchases/new" element={<PurchaseOrderForm />} />
+        <Route path="purchases/:id" element={<PurchaseOrderDetail />} />
       </Route>
     </Routes>
   );

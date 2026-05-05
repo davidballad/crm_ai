@@ -18,6 +18,8 @@ import {
   BarChart2,
   Megaphone,
   TrendingUp,
+  Truck,
+  Building2,
 } from 'lucide-react';
 
 const NAV_KEYS = [
@@ -30,6 +32,8 @@ const NAV_KEYS = [
   { to: '/app/analytics', icon: BarChart2, labelKey: 'layout.analytics', pro: false },
   { to: '/app/profits', icon: TrendingUp, labelKey: 'layout.profits', pro: false },
   { to: '/app/campaigns', icon: Megaphone, labelKey: 'layout.campaigns', pro: false },
+  { to: '/app/suppliers', icon: Building2, labelKey: 'layout.suppliers', pro: false },
+  { to: '/app/purchases', icon: Truck, labelKey: 'layout.purchases', pro: false },
   { to: '/app/settings/whatsapp', icon: Settings, labelKey: 'layout.connectWhatsApp', pro: false },
 ];
 
@@ -53,6 +57,8 @@ function SidebarLink({ to, icon: Icon, labelKey, t, onClick, locked }) {
           : labelKey === 'layout.analytics' ? 'Analíticas'
           : labelKey === 'layout.campaigns' ? 'Campañas'
           : labelKey === 'layout.profits' ? 'Ganancias'
+          : labelKey === 'layout.suppliers' ? 'Proveedores'
+          : labelKey === 'layout.purchases' ? 'Compras'
           : t(labelKey)}
       </span>
       {locked && <Lock className="h-3.5 w-3.5 shrink-0 text-gray-400" />}
