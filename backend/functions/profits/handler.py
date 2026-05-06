@@ -101,19 +101,26 @@ def get_summary(tenant_id: str, period: str) -> dict[str, Any]:
             item_unit_cost = Decimal(str(item.get("unit_cost") or 0))
             item_cost = item_qty * item_unit_cost
 
+            supplier_id = None
+            supplier_name = None
             try:
                 product_sk = build_sk("PRODUCT", product_id)
                 product = get_item(pk=pk, sk=product_sk)
-                supplier_id = None
                 if product:
                     supplier_id = product.get("supplier_id")
+                    if supplier_id:
+                        supplier_sk = build_sk("SUPPLIER", supplier_id)
+                        supplier = get_item(pk=pk, sk=supplier_sk)
+                        if supplier:
+                            supplier_name = supplier.get("name")
             except Exception:
-                supplier_id = None
+                pass
 
             supplier_key = supplier_id or "unknown"
             if supplier_key not in supplier_stats:
                 supplier_stats[supplier_key] = {
                     "supplier_id": supplier_id,
+                    "supplier_name": supplier_name,
                     "total_cost": Decimal(0),
                     "item_count": 0,
                 }
@@ -128,6 +135,7 @@ def get_summary(tenant_id: str, period: str) -> dict[str, Any]:
     suppliers_list = [
         {
             "supplier_id": stats["supplier_id"],
+            "supplier_name": stats["supplier_name"],
             "total_cost": float(stats["total_cost"]),
             "item_count": stats["item_count"],
         }

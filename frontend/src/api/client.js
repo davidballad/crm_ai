@@ -3,17 +3,24 @@ import { matchMockRoute } from './mockData';
 const API_URL = import.meta.env.VITE_API_URL || '';
 const USE_MOCKS = !API_URL;
 
+const COGNITO_DOMAIN = import.meta.env.VITE_COGNITO_DOMAIN || 'clienta-ai-prod.auth.us-east-1.amazoncognito.com';
+const CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID || '';
+
 let tokenGetter = () => null;
+let tokenSetter = null;
 
 export function setTokenGetter(fn) {
   tokenGetter = fn;
+}
+
+export function setTokenSetter(fn) {
+  tokenSetter = fn;
 }
 
 export function getTokenGetter() {
   return tokenGetter;
 }
 
-// Fallback: read token directly from Cognito storage if state fails
 function getTokenFromStorage() {
   try {
     const keys = Object.keys(typeof window !== 'undefined' ? window.localStorage : {});
@@ -24,9 +31,54 @@ function getTokenFromStorage() {
   }
 }
 
+function getRefreshTokenFromStorage() {
+  try {
+    const keys = Object.keys(typeof window !== 'undefined' ? window.localStorage : {});
+    const prefix = keys.find(k => k.includes('CognitoIdentityServiceProvider') && k.includes('LastAuthUser'));
+    if (!prefix) return null;
+    const lastUser = window.localStorage.getItem(prefix);
+    const base = prefix.replace('.LastAuthUser', '');
+    return window.localStorage.getItem(`${base}.${lastUser}.refreshToken`);
+  } catch {
+    return null;
+  }
+}
+
 function getToken() {
   const token = tokenGetter();
   return token || getTokenFromStorage();
+}
+
+async function refreshToken() {
+  const refreshTk = getRefreshTokenFromStorage();
+  if (!refreshTk || !CLIENT_ID || !COGNITO_DOMAIN) return null;
+  try {
+    const res = await fetch(`https://${COGNITO_DOMAIN}/oauth2/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: CLIENT_ID,
+        refresh_token: refreshTk,
+      }).toString(),
+    });
+    if (!res.ok) return null;
+    const { id_token, access_token } = await res.json();
+    // Update localStorage
+    const keys = Object.keys(window.localStorage);
+    const lastUserKey = keys.find(k => k.includes('CognitoIdentityServiceProvider') && k.includes('LastAuthUser'));
+    if (lastUserKey) {
+      const lastUser = window.localStorage.getItem(lastUserKey);
+      const base = lastUserKey.replace('.LastAuthUser', '');
+      window.localStorage.setItem(`${base}.${lastUser}.idToken`, id_token);
+      if (access_token) window.localStorage.setItem(`${base}.${lastUser}.accessToken`, access_token);
+    }
+    // Notify AuthContext so React state stays in sync
+    if (tokenSetter) tokenSetter(id_token);
+    return id_token;
+  } catch {
+    return null;
+  }
 }
 
 function mockRequest(method, path, body) {
@@ -37,7 +89,7 @@ function mockRequest(method, path, body) {
   return match.handler(...match.params, body);
 }
 
-async function request(path, options = {}) {
+async function request(path, options = {}, _retry = true) {
   const method = (options.method || 'GET').toUpperCase();
 
   if (USE_MOCKS) {
@@ -45,7 +97,7 @@ async function request(path, options = {}) {
     return mockRequest(method, path, body);
   }
 
-  const token = getToken(); // Now uses fallback to localStorage
+  const token = getToken();
   const headers = {
     ...(options.headers || {}),
     'Content-Type': options.headers?.['Content-Type'] ?? 'application/json',
@@ -59,6 +111,16 @@ async function request(path, options = {}) {
   if (res.status === 204) return null;
 
   const body = await res.json().catch(() => null);
+
+  if (res.status === 401 && _retry) {
+    const newToken = await refreshToken();
+    if (newToken) {
+      return request(path, options, false);
+    }
+    // Refresh failed — redirect to login
+    window.location.href = '/login';
+    return null;
+  }
 
   if (!res.ok) {
     const msg = body?.message || body?.error || `Request failed (${res.status})`;

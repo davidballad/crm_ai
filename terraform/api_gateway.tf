@@ -725,9 +725,11 @@ resource "aws_apigatewayv2_route" "agents_history" {
 
 # Profits routes
 resource "aws_apigatewayv2_route" "profits_summary" {
-  api_id    = aws_apigatewayv2_api.main.id
-  route_key = "GET /profits/summary"
-  target    = "integrations/${aws_apigatewayv2_integration.profits.id}"
+  api_id             = aws_apigatewayv2_api.main.id
+  route_key          = "GET /profits/summary"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.jwt.id
+  target             = "integrations/${aws_apigatewayv2_integration.profits.id}"
 }
 
 # Contact form (public, no auth)

@@ -36,7 +36,7 @@ export default function ProfitsOverview({ summary, loading }) {
   if (!summary) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-400">
-        No profit data available for this period.
+        No hay datos de ganancias disponibles para este período.
       </div>
     );
   }
@@ -51,28 +51,28 @@ export default function ProfitsOverview({ summary, loading }) {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <MetricCard
           icon={DollarSign}
-          label="Total Sales"
+          label="Ventas Totales"
           value={fmt(summary.total_sales)}
         />
         <MetricCard
           icon={ShoppingCart}
-          label="Total Cost"
+          label="Costo Total"
           value={fmt(summary.total_cost)}
-          sub={`${costPct}% of sales`}
+          sub={`${costPct}% de ventas`}
           colorClass="text-amber-600"
         />
         <MetricCard
           icon={TrendingUp}
-          label="Total Profit"
+          label="Ganancia Total"
           value={fmt(summary.total_profit)}
-          sub={`${summary.margin_percent?.toFixed(1)}% margin`}
+          sub={`Margen ${summary.margin_percent?.toFixed(1)}%`}
           colorClass="text-emerald-600"
         />
         <MetricCard
           icon={BarChart2}
-          label="Transactions"
+          label="Transacciones"
           value={summary.transaction_count}
-          sub={`~${fmt(summary.avg_profit_per_transaction)} avg profit`}
+          sub={`~${fmt(summary.avg_profit_per_transaction)} ganancia promedio`}
         />
       </div>
 
@@ -86,7 +86,7 @@ export default function ProfitsOverview({ summary, loading }) {
                 <div key={idx} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900">
-                      {supplier.supplier_id || 'Sin asignar'}
+                      {supplier.supplier_name || 'Sin asignar'}
                     </p>
                     <p className="text-xs text-gray-500">{supplier.item_count} producto{supplier.item_count !== 1 ? 's' : ''}</p>
                   </div>
