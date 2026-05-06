@@ -23,10 +23,12 @@ clienta-ai/
   terraform/               # Terraform (config in terraform/config/prod/)
   backend/
     functions/             # Lambda functions (Python)
-      inventory/           # Inventory CRUD
+      inventory/           # Inventory CRUD + CSV import/export
       transactions/        # Sale recording & summaries
-      purchases/           # Purchase order management
-      ai_insights/         # AI-powered business insights
+      purchases/           # Purchase order management (draft → sent → received)
+      suppliers/           # Supplier management
+      profits/             # Profit analytics & margin reporting
+      ai_insights/         # AI-powered business insights (Gemini)
       onboarding/          # Tenant & user provisioning
       users/               # Multi-user management (invite, roles)
       payments/            # Square payment processing + webhooks
@@ -60,6 +62,25 @@ cd frontend && npm install && npm run dev
 
 # Infrastructure — see terraform/config/README.md for detailed commands
 cd terraform && terraform init -reconfigure -backend-config=config/prod/backend.tfvars
+```
+
+## Deployment
+
+```bash
+# Build Lambda layer (must use Docker — local pip produces Mac binaries that crash on Lambda Linux)
+make layer-docker
+
+# Package all Lambda functions
+make package
+
+# Or do both in one command
+make build
+
+# Deploy infrastructure + Lambdas
+cd terraform && terraform apply -var-file=config/prod/variables.tfvars -var-file=config/prod/secrets.tfvars
+
+# Deploy frontend
+./scripts/deploy-frontend.sh
 ```
 
 ## Data Model (DynamoDB Single-Table)
