@@ -535,7 +535,7 @@ export default function Shop() {
       )}
 
       {/* Products */}
-      <main className="mx-auto max-w-2xl px-4 pt-4">
+      <main className="mx-auto max-w-2xl px-3 pt-4">
         {err && <p className="mb-4 text-sm text-red-600">{err}</p>}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {filtered.map(p => {
@@ -546,36 +546,52 @@ export default function Shop() {
             return (
               <div
                 key={p.id}
-                className={`flex flex-col rounded-xl border bg-white overflow-hidden shadow-sm transition-shadow hover:shadow-md ${unavailable ? 'opacity-90' : 'cursor-pointer'} ${p.promo_active ? 'border-orange-300' : 'border-gray-200'}`}
+                className={`flex flex-col rounded-2xl bg-white overflow-hidden shadow-sm transition-all hover:shadow-lg hover:-translate-y-0.5 ${unavailable ? 'opacity-75' : 'cursor-pointer'} ${p.promo_active ? 'ring-2 ring-orange-400' : 'ring-1 ring-gray-200'}`}
                 onClick={() => setDetailProductId(p.id)}
                 role="button"
                 tabIndex={0}
               >
+                {/* Image — taller for more visual impact */}
                 <div className="relative">
                   <ProductImageCarousel
                     images={p.image_urls?.length > 0 ? p.image_urls : [p.image_url]}
                     alt={p.name}
+                    heightClass="h-44 sm:h-52"
                   />
                   {p.promo_active && (
-                    <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">PROMO</span>
+                    <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow">PROMO</span>
+                  )}
+                  {unavailable && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-gray-700">Agotado</span>
+                    </div>
                   )}
                 </div>
+
+                {/* Info */}
                 <div className="flex flex-1 flex-col p-3" onClick={(e) => e.stopPropagation()}>
-                  <h3 className="text-sm font-medium text-gray-900 leading-tight">{p.name}</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">{p.name}</h3>
+                  {p.category && (
+                    <p className="mt-0.5 text-[10px] uppercase tracking-wide text-gray-400">{p.category}</p>
+                  )}
                   {p.promo_active ? (
-                    <div className="mt-1 flex items-baseline gap-1.5">
-                      <span className="text-sm font-bold text-orange-600">${displayPrice.toFixed(2)}</span>
+                    <div className="mt-2 flex items-baseline gap-1.5">
+                      <span className="text-base font-bold text-orange-600">${displayPrice.toFixed(2)}</span>
                       <span className="text-xs text-gray-400 line-through">${Number(p.unit_cost).toFixed(2)}</span>
                     </div>
                   ) : (
-                    <p className="mt-1 text-sm font-semibold text-brand-600">${displayPrice.toFixed(2)}</p>
+                    <p className="mt-2 text-base font-bold text-brand-600">${displayPrice.toFixed(2)}</p>
                   )}
-                  <div className="mt-auto pt-2">
+                  {stock > 0 && stock <= 5 && (
+                    <p className="mt-0.5 text-[10px] font-medium text-orange-500">¡Solo {stock} disponibles!</p>
+                  )}
+
+                  <div className="mt-auto pt-3">
                     {unavailable ? (
                       <button
                         type="button"
                         disabled
-                        className="flex w-full cursor-not-allowed items-center justify-center gap-1 rounded-lg border border-gray-200 bg-gray-100 py-2 text-xs font-medium text-gray-500"
+                        className="flex w-full cursor-not-allowed items-center justify-center rounded-xl border border-gray-200 bg-gray-100 py-2 text-xs font-medium text-gray-400"
                       >
                         {t('shop.notAvailable')}
                       </button>
@@ -583,17 +599,17 @@ export default function Shop() {
                       <button
                         type="button"
                         onClick={() => updateCart(p.id, 'add')}
-                        className="flex w-full items-center justify-center gap-1 rounded-lg bg-brand-600 py-2 text-xs font-medium text-white hover:bg-brand-700 transition-colors"
+                        className="flex w-full items-center justify-center gap-1 rounded-xl bg-brand-600 py-2.5 text-xs font-semibold text-white hover:bg-brand-700 active:scale-95 transition-all"
                       >
                         <Plus className="h-3.5 w-3.5" /> {t('shop.add')}
                       </button>
                     ) : (
-                      <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50">
-                        <button type="button" onClick={() => updateCart(p.id, 'set', qty - 1)} className="px-2.5 py-1.5 text-gray-600 hover:text-red-600">
+                      <div className="flex items-center justify-between rounded-xl border border-brand-200 bg-brand-50">
+                        <button type="button" onClick={() => updateCart(p.id, 'set', qty - 1)} className="px-3 py-2 text-brand-600 hover:text-red-600 transition-colors">
                           {qty === 1 ? <Trash2 className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
                         </button>
-                        <span className="text-sm font-semibold text-gray-900">{qty}</span>
-                        <button type="button" onClick={() => updateCart(p.id, 'add')} className="px-2.5 py-1.5 text-gray-600 hover:text-brand-600">
+                        <span className="text-sm font-bold text-brand-700">{qty}</span>
+                        <button type="button" onClick={() => updateCart(p.id, 'add')} className="px-3 py-2 text-brand-600 hover:text-brand-800 transition-colors">
                           <Plus className="h-3.5 w-3.5" />
                         </button>
                       </div>

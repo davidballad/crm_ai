@@ -5,26 +5,25 @@ from __future__ import annotations
 import hmac
 import json
 import os
+import time
 import urllib.request
 from functools import wraps
-from typing import Any, Callable, TypeVar
-
-try:
-    from typing import ParamSpec
-except ImportError:
-    from typing_extensions import ParamSpec
+from typing import Any, Callable, ParamSpec, TypeVar
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
-# Cached Cognito JWKS (key id -> public key) so we don't fetch on every request
-_jwks_cache: dict[str, Any] | None = None
+# JWKS cache with TTL so key rotations are picked up automatically
+_jwks_cache: dict[str, Any] = {}
+_jwks_fetched_at: float = 0.0
+_JWKS_TTL = 3600  # refresh JWKS every hour
 
 
 def _get_cognito_jwks() -> dict[str, Any]:
-    """Fetch Cognito JWKS for the user pool (cached)."""
-    global _jwks_cache
-    if _jwks_cache is not None:
+    """Fetch and cache Cognito JWKS. Re-fetches after TTL to handle key rotation."""
+    global _jwks_cache, _jwks_fetched_at
+    now = time.monotonic()
+    if _jwks_cache and (now - _jwks_fetched_at) < _JWKS_TTL:
         return _jwks_cache
     pool_id = os.environ.get("COGNITO_USER_POOL_ID", "").strip()
     region = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
@@ -35,17 +34,16 @@ def _get_cognito_jwks() -> dict[str, Any]:
         with urllib.request.urlopen(url, timeout=5) as resp:
             data = json.loads(resp.read().decode())
             _jwks_cache = {k["kid"]: k for k in data.get("keys", [])}
+            _jwks_fetched_at = now
             return _jwks_cache
     except Exception:
-        return {}
+        return _jwks_cache  # return stale cache on network error rather than failing
 
 
 def _decode_bearer_token(event: dict[str, Any]) -> dict[str, Any] | None:
     """
-    When API Gateway does not run the JWT authorizer (e.g. messages/contacts routes),
-    decode the Bearer token from the Authorization header and return claims.
-    Returns None if token is missing, invalid, or verification fails.
-    Uses PyJWT only when available (lazy import so Lambda does not crash if layer missing).
+    Decode and verify the Bearer token from the Authorization header.
+    Used for routes without an API Gateway JWT authorizer.
     """
     try:
         import jwt
@@ -82,7 +80,7 @@ def _decode_bearer_token(event: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _get_claims_from_event(event: dict[str, Any]) -> dict[str, Any] | None:
-    """Get JWT claims from either API Gateway authorizer or from Bearer token in header."""
+    """Get JWT claims from either API Gateway authorizer context or Bearer token in header."""
     try:
         claims = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {})
         if claims and claims.get("custom:tenant_id"):
@@ -96,13 +94,12 @@ def _get_claims_from_event(event: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _extract_jwt_tenant_id(event: dict[str, Any]) -> str | None:
-    """Extract tenant_id from Cognito JWT claims (authorizer or Bearer token)."""
     claims = _get_claims_from_event(event)
     return claims.get("custom:tenant_id") if claims else None
 
 
 def validate_service_key(event: dict[str, Any]) -> bool:
-    """Return True if X-Service-Key header matches SERVICE_API_KEY. Use for routes that only need key validation (e.g. resolve-phone)."""
+    """Return True if X-Service-Key header matches SERVICE_API_KEY (timing-safe comparison)."""
     service_api_key = os.environ.get("SERVICE_API_KEY", "").strip()
     if not service_api_key:
         return False
@@ -118,8 +115,7 @@ def validate_service_key(event: dict[str, Any]) -> bool:
         provided_key = ""
     if not provided_key:
         return False
-    a, b = str(provided_key).strip(), str(service_api_key).strip()
-    return a == b
+    return hmac.compare_digest(provided_key, service_api_key)
 
 
 def extract_service_tenant_id(event: dict[str, Any]) -> str | None:
@@ -139,7 +135,7 @@ def extract_tenant_id(event: dict[str, Any]) -> str | None:
 
 
 def extract_user_info(event: dict[str, Any]) -> dict[str, Any]:
-    """Extract user info (sub, email, tenant_id, role) from JWT claims (authorizer or Bearer token)."""
+    """Extract user info (sub, email, tenant_id, role) from JWT claims."""
     claims = _get_claims_from_event(event)
     if not claims:
         return {"sub": None, "email": None, "tenant_id": None, "role": None}
@@ -151,9 +147,7 @@ def extract_user_info(event: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def require_auth(
-    handler: Callable[P, R],
-) -> Callable[P, dict[str, Any]]:
+def require_auth(handler: Callable[P, R]) -> Callable[P, dict[str, Any]]:
     """Decorator that extracts tenant_id and injects it into the event. Returns 401 if missing."""
 
     @wraps(handler)
@@ -166,11 +160,11 @@ def require_auth(
         try:
             tenant_id = extract_tenant_id(event)
             if not tenant_id:
-                return error("Missing or invalid tenant_id in JWT claims", 401)
+                return error("Unauthorized", 401)
             event["tenant_id"] = tenant_id
             event["user_info"] = extract_user_info(event)
         except Exception:
-            return error("Missing or invalid tenant_id in JWT claims", 401)
+            return error("Unauthorized", 401)
 
         if args:
             return handler(event, *args[1:], **kwargs)
@@ -180,7 +174,7 @@ def require_auth(
     return wrapper
 
 
-def require_role(role: str):
+def require_role(role: str) -> Callable[[Callable[P, R]], Callable[P, dict[str, Any]]]:
     """Decorator factory that checks the user's custom:role claim."""
 
     def decorator(handler: Callable[P, R]) -> Callable[P, dict[str, Any]]:
@@ -193,9 +187,7 @@ def require_role(role: str):
                 return error("Invalid event", 401)
 
             user_info = event.get("user_info") or extract_user_info(event)
-            user_role = user_info.get("role")
-
-            if user_role != role:
+            if user_info.get("role") != role:
                 return error(f"Insufficient permissions: role '{role}' required", 403)
 
             return handler(*args, **kwargs)

@@ -191,7 +191,7 @@ export function AuthProvider({ children }) {
   const value = {
     user, token, loading, isAuthenticated: !!token, isDemoMode,
     signIn, signOut, signInWithGoogle,
-    setSessionFromOAuth, refreshSession,
+    setSessionFromOAuth, refreshSession, setToken,
     forgotPassword, confirmForgotPassword,
   };
 

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './context/AuthContext';
-import { setTokenGetter, setTokenSetter } from './api/client';
+import { setTokenGetter, setOnTokenRefreshed } from './api/client';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import Landing from './pages/Landing';
@@ -32,17 +32,14 @@ import PurchaseOrderForm from './pages/PurchaseOrderForm';
 import PurchaseOrderDetail from './pages/PurchaseOrderDetail';
 
 export default function App() {
-  const { token, refreshSession } = useAuth();
+  const { token, setToken } = useAuth();
   const { i18n } = useTranslation();
   const location = useLocation();
 
   useEffect(() => {
     setTokenGetter(() => token);
-    setTokenSetter((newToken) => {
-      // Sync new token back into AuthContext after a background refresh
-      refreshSession();
-    });
-  }, [token, refreshSession]);
+    setOnTokenRefreshed((newToken) => setToken(newToken));
+  }, [token, setToken]);
 
   useEffect(() => {
     // Keep only landing page bilingual; force Spanish everywhere else.
