@@ -198,13 +198,17 @@ def update_purchase_order(
                 continue
             product_sk = build_sk("PRODUCT", product_id)
             updates_expr = "SET quantity = quantity + :qty, updated_at = :now"
-            expr_values = {
+            expr_values: dict[str, Any] = {
                 ":qty": qty,
                 ":now": now_iso(),
             }
             if supplier_id:
                 updates_expr += ", supplier_id = :supplier_id"
                 expr_values[":supplier_id"] = supplier_id
+            unit_cost = po_item.get("unit_cost")
+            if unit_cost is not None:
+                updates_expr += ", unit_cost = :unit_cost"
+                expr_values[":unit_cost"] = Decimal(str(unit_cost))
             try:
                 table.update_item(
                     Key={"pk": pk, "sk": product_sk},

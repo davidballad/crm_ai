@@ -58,7 +58,7 @@ function PromoModal({ product, onClose }) {
         </div>
         <div className="space-y-3 px-5 py-4">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Precio regular: ${product.unit_cost != null ? Number(product.unit_cost).toFixed(2) : '—'}</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Precio regular: ${product.price != null ? Number(product.price).toFixed(2) : (product.unit_cost != null ? Number(product.unit_cost).toFixed(2) : '—')}</label>
             <label className="block text-xs font-medium text-gray-700 mb-1">Precio de oferta ($)</label>
             <input type="number" step="0.01" min="0" value={promoPrice} onChange={e => setPromoPrice(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
@@ -387,7 +387,7 @@ export default function InventoryList() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
                     <p className="text-xs text-gray-500">
-                      <span className="line-through mr-1">${Number(p.unit_cost).toFixed(2)}</span>
+                      <span className="line-through mr-1">${Number(p.price ?? p.unit_cost).toFixed(2)}</span>
                       <span className="text-orange-600 font-semibold">${Number(p.promo_price).toFixed(2)}</span>
                     </p>
                   </div>
@@ -475,8 +475,14 @@ export default function InventoryList() {
                       <p className="text-lg font-bold text-gray-900 tabular-nums">{p.quantity}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase font-medium text-gray-400">Precio</p>
+                      <p className="text-[10px] uppercase font-medium text-gray-400">Precio venta</p>
                       <p className="text-lg font-bold text-gray-900 tabular-nums">
+                        {p.price != null ? `$${Number(p.price).toFixed(2)}` : (p.unit_cost != null ? `$${Number(p.unit_cost).toFixed(2)}` : '—')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-medium text-gray-400">Costo</p>
+                      <p className="text-lg font-bold text-gray-500 tabular-nums">
                         {p.unit_cost != null ? `$${Number(p.unit_cost).toFixed(2)}` : '—'}
                       </p>
                     </div>
@@ -527,7 +533,8 @@ export default function InventoryList() {
                   <th className="px-4 py-3">Producto</th>
                   <th className="px-4 py-3">Categoria</th>
                   <th className="px-4 py-3 text-right">Cantidad</th>
-                  <th className="px-4 py-3 text-right">Costo unitario</th>
+                  <th className="px-4 py-3 text-right">Precio venta</th>
+                  <th className="px-4 py-3 text-right">Costo</th>
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
@@ -549,6 +556,9 @@ export default function InventoryList() {
                     <td className="px-4 py-3 text-gray-500">{p.category || '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{p.quantity}</td>
                     <td className="px-4 py-3 text-right tabular-nums">
+                      {p.price != null ? `$${Number(p.price).toFixed(2)}` : (p.unit_cost != null ? `$${Number(p.unit_cost).toFixed(2)}` : '—')}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-gray-500">
                       {p.unit_cost != null ? `$${Number(p.unit_cost).toFixed(2)}` : '—'}
                     </td>
                     <td className="px-4 py-3">

@@ -144,12 +144,13 @@ def _is_promo_active(product_item: dict[str, Any]) -> bool:
 
 
 def _effective_price(product_item: dict[str, Any]) -> Decimal:
-    """Return promo_price if active, else unit_cost."""
+    """Return promo_price if active, else price, falling back to unit_cost for legacy products."""
     if _is_promo_active(product_item):
         p = product_item.get("promo_price")
         if p is not None:
             return Decimal(str(p))
-    return Decimal(str(product_item.get("unit_cost") or "0"))
+    base = product_item.get("price") if product_item.get("price") is not None else product_item.get("unit_cost")
+    return Decimal(str(base or "0"))
 
 
 def _product_stock_qty(product_item: dict[str, Any]) -> int:
@@ -185,6 +186,7 @@ def _list_products(tenant_id: str) -> dict[str, Any]:
                 "id": item.get("sk", "").split("#")[-1] if "#" in item.get("sk", "") else item.get("id"),
                 "name": item.get("name") or item.get("product_name") or "Item",
                 "category": item.get("category") or "",
+                "price": str(item.get("price") if item.get("price") is not None else item.get("unit_cost") or "0"),
                 "unit_cost": str(item.get("unit_cost") or "0"),
                 "image_url": item.get("image_url") or "",
                 "image_urls": image_urls,

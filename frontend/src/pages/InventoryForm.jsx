@@ -12,6 +12,7 @@ const EMPTY = {
   name: '',
   category: '',
   quantity: 0,
+  price: '',
   unit_cost: '',
   reorder_threshold: 10,
   sku: '',
@@ -49,6 +50,7 @@ export default function InventoryForm() {
         name: product.name || '',
         category: product.category || '',
         quantity: product.quantity ?? 0,
+        price: product.price != null ? String(product.price) : '',
         unit_cost: product.unit_cost != null ? String(product.unit_cost) : '',
         reorder_threshold: product.reorder_threshold ?? 10,
         sku: product.sku || '',
@@ -128,6 +130,7 @@ export default function InventoryForm() {
     const payload = {
       ...form,
       quantity: Number(form.quantity),
+      price: form.price ? Number(form.price) : undefined,
       unit_cost: form.unit_cost ? Number(form.unit_cost) : undefined,
       reorder_threshold: Number(form.reorder_threshold),
       image_url: form.image_urls?.[0]?.trim() || form.image_url?.trim() || undefined,
@@ -207,8 +210,13 @@ export default function InventoryForm() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.unitCost')}</label>
-            <input type="number" step="0.01" min="0" value={form.unit_cost} onChange={update('unit_cost')} className="input-field" />
+            <label className="mb-1 block text-sm font-medium text-gray-700">Precio de venta ($)</label>
+            <input type="number" step="0.01" min="0" value={form.price} onChange={update('price')} className="input-field" placeholder="Lo que cobra al cliente" />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">{t('inventoryForm.unitCost')} <span className="text-gray-400 font-normal text-xs">(costo al proveedor)</span></label>
+            <input type="number" step="0.01" min="0" value={form.unit_cost} onChange={update('unit_cost')} className="input-field" placeholder="Lo que paga al proveedor" />
           </div>
 
           <div>

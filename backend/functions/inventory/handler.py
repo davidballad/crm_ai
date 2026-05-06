@@ -422,6 +422,8 @@ def create_product(tenant_id: str, event: dict[str, Any]) -> dict[str, Any]:
         item["gsi1pk"] = pk
         item["gsi1sk"] = f"CATEGORY#{product_data.category}"
 
+    if product_data.price is not None:
+        item["price"] = product_data.price
     if product_data.unit_cost is not None:
         item["unit_cost"] = product_data.unit_cost
     if product_data.supplier_id is not None:
@@ -500,7 +502,7 @@ def update_product(
 
     # Build updates from allowed fields
     allowed = {
-        "name", "category", "quantity", "unit_cost", "reorder_threshold",
+        "name", "category", "quantity", "price", "unit_cost", "reorder_threshold",
         "supplier_id", "sku", "unit", "image_url", "image_urls", "description", "notes", "tags",
         "promo_price", "promo_end_at",
     }

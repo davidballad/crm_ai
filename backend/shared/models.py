@@ -49,6 +49,7 @@ class Product(_BaseModel):
     category: str | None = None
     tags: list[str] | None = None
     quantity: int = 0
+    price: Decimal | None = None
     unit_cost: Decimal | None = None
     reorder_threshold: int = 10
     supplier_id: str | None = None
